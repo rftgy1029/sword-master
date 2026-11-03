@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import TitleScene from './components/TitleScene.jsx';
 import MenuDialog from './components/MenuDialog.jsx';
 
-const MENU = ['새 모험', '단어장', '오답 복습', '설정'];
+const MENU = [
+  { label: '새 모험', description: '학습 범위를 고르고 새로운 모험을 시작하세요.' },
+  { label: '단어장', description: '모험에 필요한 단어를 차근차근 살펴보세요.' },
+  { label: '오답 복습', description: '헷갈렸던 단어를 다시 만나 보세요.' },
+  { label: '설정', description: '나에게 편한 학습 환경을 준비하세요.' },
+];
 
 export default function App() {
   const [selected, setSelected] = useState(0);
@@ -39,46 +44,63 @@ export default function App() {
 
   return (
     <>
-      <TitleScene />
-      <div className="scrim" aria-hidden="true" />
       <main className="start-screen">
-        <div className="menu-column">
-          <header>
-            <p className="eyebrow">한 단어, 한 걸음</p>
-            <h1>S’word Master</h1>
-            <p className="subtitle">단어로 여는 던전</p>
-          </header>
-          <nav className="menu" aria-label="시작 메뉴" onKeyDown={handleNavigation}>
-            <button className="menu-button" disabled>
-              <span className="marker" aria-hidden="true">›</span>
-              <span>이어하기<small>저장된 모험이 없습니다</small></span>
-            </button>
-            {MENU.map((label, index) => (
-              <button
-                key={label}
-                ref={(element) => { buttons.current[index] = element; }}
-                className={`menu-button${selected === index ? ' is-selected' : ''}`}
-                onFocus={() => setSelected(index)}
-                onPointerEnter={(event) => {
-                  if (event.pointerType === 'mouse' && openedMenu === null) focusMenu(index);
-                }}
-                onClick={(event) => {
-                  if (openedMenu !== null) return;
-                  setSelected(index);
-                  opener.current = event.currentTarget;
-                  setOpenedMenu(label);
-                }}
-              >
-                <span className="marker" aria-hidden="true">›</span>
-                <span>{label}</span>
-                <span className="enter" aria-hidden="true">↵</span>
-              </button>
-            ))}
-          </nav>
+        <div className="title-layout">
+          <section className="menu-column" aria-label="S’word Master 시작">
+            <header className="brand">
+              <svg className="brand-mark" viewBox="0 0 32 40" aria-hidden="true">
+                <path d="M14 0h4v4h2v18h-2v4h8v4H18v6h2v4h-8v-4h2v-6H6v-4h8v-4h-2V4h2Z" />
+                <path className="blade-highlight" d="M16 4h2v18h-2Z" />
+              </svg>
+              <div>
+                <h1><span>S’WORD</span><span>MASTER</span></h1>
+              </div>
+            </header>
+            <nav className="menu" aria-label="시작 메뉴" onKeyDown={handleNavigation}>
+              {MENU.map(({ label }, index) => (
+                <div className={index === 0 ? 'adventure-actions' : 'menu-item'} key={label}>
+                  <button
+                    ref={(element) => { buttons.current[index] = element; }}
+                    className={`menu-button${selected === index ? ' is-selected' : ''}`}
+                    onFocus={() => setSelected(index)}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType === 'mouse' && openedMenu === null) focusMenu(index);
+                    }}
+                    onClick={(event) => {
+                      if (openedMenu !== null) return;
+                      setSelected(index);
+                      opener.current = event.currentTarget;
+                      setOpenedMenu(label);
+                    }}
+                  >
+                    <span className="marker" aria-hidden="true">▸</span>
+                    <span>{label}</span>
+                    <span className="enter" aria-hidden="true">↵</span>
+                  </button>
+                  {index === 0 && (
+                    <button className="menu-button continue-button" disabled>
+                      <span className="marker" aria-hidden="true">▸</span>
+                      <span>이어하기</span><small>저장된 기록 없음</small>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </nav>
+            <p className="menu-description">{MENU[selected].description}</p>
+          </section>
+          <figure className="dungeon-scene">
+            <TitleScene />
+            <figcaption><span className="location-marker" aria-hidden="true" />던전 입구</figcaption>
+          </figure>
         </div>
-        <footer>
-          <div className="hints"><span><kbd>↑ ↓</kbd> 이동</span><span><kbd>Enter</kbd> 선택</span><span><kbd>클릭</kbd> 선택</span></div>
-          <p className="version">시작 화면 미리보기 · v0.3</p>
+        <footer className="screen-footer">
+          <div className="hints">
+            <span><kbd>↑ ↓</kbd> 이동</span>
+            <span><kbd>Enter</kbd> 선택</span>
+            <span><kbd>Esc</kbd> 닫기</span>
+            <span className="pointer-hint">클릭으로 선택할 수 있어요</span>
+          </div>
+          <p className="version">미리보기 <span aria-hidden="true">/</span> v0.4</p>
         </footer>
       </main>
       <MenuDialog title={openedMenu} onClose={closeMenu} />
