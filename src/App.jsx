@@ -11,6 +11,7 @@ import { DEFAULT_SETTINGS, normalizeSettings, readSettings, saveSettings } from 
 import { listenForMenuNavigation } from './menuNavigation.js';
 import './story.css';
 import './cinematics.css';
+import './slime-skill.css';
 
 const StoryPlayer = lazy(() => import('./components/StoryPlayer.jsx'));
 
@@ -146,7 +147,7 @@ export default function App() {
             <span><kbd>Esc</kbd> 닫기</span>
             <span className="pointer-hint">클릭으로 선택할 수 있어요</span>
           </div>
-          <p className="version">미리보기 <span aria-hidden="true">/</span> v0.8</p>
+          <p className="version">미리보기 <span aria-hidden="true">/</span> v0.9</p>
         </footer>
       </main>
       {openedMenu === '게임 시작' ? <TierSelectDialog onClose={closeMenu} onStart={startStory} /> : openedMenu === '설정' ? (

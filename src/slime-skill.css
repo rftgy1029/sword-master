@@ -1,0 +1,46 @@
+/* Rig joints use the character's own 40 × 48 coordinate system. */
+.hero-arm { transform-box: view-box; transform-origin: 28px 30px; }
+.hero-cape { transform-box: view-box; transform-origin: 14px 25px; }
+.hero-torso { transform-box: view-box; transform-origin: 20px 35px; }
+.hero-legs { transform-box: view-box; transform-origin: 20px 38px; }
+.slime-stage { background: #0d191f; }
+.slime-stage .actor-hero, .slime-stage .enemy-slime { animation: none !important; }
+.slime-stage .corridor-runes { animation: none; opacity: .2; }
+.slime-stage.action-cleared .enemy-slime { opacity: .12; }
+.skill-charge, .skill-trails, .skill-arc, .skill-impact, .skill-shield { opacity: 0; pointer-events: none; }
+.skill-charge { transform-origin: 218px 227px; }
+.skill-arc { transform-origin: 385px 224px; }
+.skill-impact { transform-origin: 447px 232px; }
+.skill-shield { transform-origin: 247px 232px; }
+.skill-vignette { position: absolute; inset: 0; opacity: 0; pointer-events: none; background: radial-gradient(ellipse at 65% 55%, transparent 25%, #040f15bb 100%); }
+.skill-stage-label { position: absolute; z-index: 2; left: 18px; top: 13px; display: flex; flex-direction: column; gap: 6px; padding: 7px 10px; border-left: 2px solid #c0b27e; background: #0d1b24d9; pointer-events: none; }
+.skill-stage-label > span { font-size: 8px; letter-spacing: 2px; color: #c9b67e; }
+.skill-stage-label > strong { font-size: 11px; line-height: 1.5; font-weight: 400; color: #dce5cd; }
+.skill-cutin { position: absolute; z-index: 3; inset: 0; overflow: hidden; opacity: 0; background: linear-gradient(110deg, #122e39 0%, #1d4649 44%, #112732 44.2%, #112732 100%); border-block: 2px solid #bfb780; pointer-events: none; }
+.skill-cutin::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(-28deg, transparent 0 13px, #a4cabc09 14px 15px); }
+.skill-cutin-stripe { position: absolute; left: 40%; top: -30%; width: 8%; height: 170%; background: #d5c69a22; transform: rotate(24deg); }
+.skill-portrait { position: absolute; left: 8%; bottom: 0; height: 110%; width: 43%; filter: drop-shadow(8px 4px 0 #08151b88); }
+.skill-portrait .hero-arm { transform: rotate(-65deg); }
+.skill-portrait .hero-cape { transform: rotate(17deg); }
+.skill-cutin-copy { position: absolute; z-index: 1; left: 53%; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 9px; color: #eadfba; }
+.skill-cutin-copy > span { font-size: 10px; color: #a8c2b5; letter-spacing: 1px; }
+.skill-cutin-copy > strong { font-size: clamp(25px, 4vw, 43px); letter-spacing: 5px; line-height: 1.3; font-weight: 400; }
+.skill-cutin-copy > small { font-size: 12px; letter-spacing: 2px; }
+.skill-cutin-copy i { font-style: normal; color: #8caa9a; margin: 0 6px; }
+.battle-finishing { padding: 40px 0; text-align: center; min-height: 190px; }
+.battle-finishing p { color: #b5c7a7; font-size: 12px; line-height: 1.8; }
+.battle-finishing h3 { color: #e1d3a5; font-size: 25px; font-weight: 400; margin: 15px 0; }
+.skill-limited.has-skill .skill-impact { opacity: .6; }
+.skill-limited[data-skill-type="guard"] .skill-impact { opacity: 0; }
+.skill-limited[data-skill-type="guard"] .skill-shield { opacity: .7; }
+.skill-limited .skill-cutin { display: none; }
+@media (max-width: 650px) {
+  .story-screen:has(.slime-stage) .story-playback-controls { position: static; }
+  .story-screen:has(.slime-stage) .story-frame { scroll-margin-top: 12px; }
+  .skill-stage-label { top: 7px; left: 8px; padding: 5px 7px; gap: 4px; }
+  .skill-stage-label > span { font-size: 6px; letter-spacing: 1.3px; }
+  .skill-stage-label > strong { font-size: 9px; }
+  .skill-cutin-copy { left: 52%; gap: 6px; }
+  .skill-cutin-copy > span { font-size: 8px; letter-spacing: 0; }
+  .skill-cutin-copy > small { font-size: 9px; }
+}

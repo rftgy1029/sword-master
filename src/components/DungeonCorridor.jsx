@@ -1,13 +1,27 @@
 import StoryCharacter from './StoryCharacter.jsx';
+import { useEffect, useRef } from 'react';
+import { playSlimeSkill } from '../slimeSkill.js';
 
-export default function DungeonCorridor({ lineIndex, cue, enemyState, paused, battleVisual }) {
+export default function DungeonCorridor({ lineIndex, cue, enemyState, paused, battleVisual, limitedMotion, audio, soundEnabled, onSkillComplete }) {
+  const stage = useRef(null);
+  const playback = useRef(null);
+  const skill = battleVisual?.skill;
+  useEffect(() => {
+    if (!skill) return;
+    const player = playSlimeSkill(stage.current, { type: skill.type, limited: limitedMotion, audio, soundEnabled, onComplete: () => onSkillComplete(skill.token) });
+    playback.current = player;
+    return () => { player.cancel(); playback.current = null; };
+  }, [skill, limitedMotion, audio, soundEnabled, onSkillComplete]);
+  useEffect(() => {
+    if (paused) playback.current?.pause(); else playback.current?.resume();
+  }, [paused, skill, limitedMotion, soundEnabled]);
   const action = battleVisual?.action ?? cue;
   const token = battleVisual?.token ?? `corridor-${lineIndex}`;
   const visibleSlime = enemyState === 'hostile' || enemyState === 'retreating';
   const warmExit = enemyState === 'gone';
   const heroX = lineIndex >= 12 ? 360 : 170;
-  return <div className={`story-art story-art-corridor cue-${cue} action-${action}${battleVisual ? ' is-fighting' : ''}`} data-paused={paused}>
-    <svg className="story-panorama corridor-panorama" viewBox="0 0 640 300" shapeRendering="crispEdges" role="img" aria-label={visibleSlime ? '지하 통로의 돌기둥과 횃불 아래, 용사와 작은 푸른 슬라임이 마주하고 있다.' : '돌기둥과 횃불이 길게 이어진 지하 통로. 용사가 끝에 있는 문을 바라본다.'}>
+  return <div ref={stage} className={`story-art story-art-corridor cue-${cue} action-${action}${battleVisual ? ' is-fighting slime-stage' : ''}${skill ? ' has-skill' : ''}${limitedMotion ? ' skill-limited' : ''}`} data-paused={paused} data-skill-type={skill?.type} data-skill-token={skill?.token}>
+    <svg className="story-panorama corridor-panorama" viewBox={battleVisual ? '110 100 430 200' : '0 0 640 300'} shapeRendering="crispEdges" role="img" aria-label={visibleSlime ? '지하 통로의 돌기둥과 횃불 아래, 용사와 작은 푸른 슬라임이 마주하고 있다.' : '돌기둥과 횃불이 길게 이어진 지하 통로. 용사가 끝에 있는 문을 바라본다.'}>
       <rect width="640" height="300" fill="#121e24" />
       <path fill="#233239" d="M0 0h640v55L520 90 0 38Z" />
       <path fill="#293b40" d="M0 38 515 91v101L0 266Z" />
@@ -32,15 +46,27 @@ export default function DungeonCorridor({ lineIndex, cue, enemyState, paused, ba
       </g>)}
       <path fill="#43616a" d="M381 271h81v3h-81Zm16-4h45v2h-45Z" /><path fill="#75908a" d="M402 270h12v1h-12Z" />
       <ellipse cx={heroX + 31} cy="271" rx="35" ry="6" fill="#0a171d" opacity=".6" />
-      <g key={`hero-${token}`} className={`story-actor actor-hero${cue === 'corridor-enter' ? ' corridor-entering' : ''}${lineIndex === 11 ? ' corridor-leaving' : ''}`}><StoryCharacter character="용사" sheathed={lineIndex < 6} x={heroX} y="190" width="66" height="80" /></g>
+      {battleVisual && <g className="skill-trails" aria-hidden="true">{[275, 315, 350].map((x) => <StoryCharacter key={x} character="용사" x={x} y="190" width="66" height="80" opacity=".35" />)}</g>}
+      <g key={`hero-${token}`} className={`story-actor actor-hero${cue === 'corridor-enter' ? ' corridor-entering' : ''}${lineIndex === 11 ? ' corridor-leaving' : ''}`}><g className="skill-mover"><StoryCharacter character="용사" sheathed={lineIndex < 6} x={heroX} y="190" width="66" height="80" /></g></g>
       {visibleSlime && <g key={`slime-${token}`} className={`scene-enemy enemy-slime${enemyState === 'retreating' ? ' is-retreating' : ''}`}><StoryCharacter character="작은 슬라임" x="415" y="197" width="80" height="77" /></g>}
       {(cue === 'rune-light' || battleVisual) && <g className="corridor-runes"><path d="m270 175 6-8 6 8-6 8Zm20 8 5-7 5 7-5 7Z" fill="#b2d0bb" /><path d="M252 192h28m-15-9v18" stroke="#c9d9b2" strokeWidth="2" /></g>}
+      {battleVisual && <g className="skill-effects" aria-hidden="true">
+        <g className="skill-charge"><circle cx="218" cy="227" r="30" fill="none" stroke="#d8d6a1" strokeWidth="2" strokeDasharray="6 5" /><path d="m218 185 5 12-5 12-5-12Zm-42 37 12 5-12 5-12-5Zm84 0 12 5-12 5-12-5Z" fill="#b6dccb" /></g>
+        <g className="skill-arc"><path d="M374 188q69-40 115 47-53-53-113 1 52-40-2-48Z" fill="#ead8a2" /><path d="M388 183q70-16 101 52" fill="none" stroke="#fff4d1" strokeWidth="3" /></g>
+        <g className="skill-impact"><circle cx="447" cy="232" r="22" fill="none" stroke="#e4c782" strokeWidth="3" /><path d="m447 205 5 21 23 6-23 6-5 21-5-21-23-6 23-6Z" fill="#fff0bd" />{Array.from({ length: 7 }, (_, i) => <path key={i} transform={`rotate(${i * 51} 447 232)`} d="M447 196v-10" stroke="#bce5d5" strokeWidth="3" />)}</g>
+        <g className="skill-shield"><path d="M247 193q25 38 0 76" fill="none" stroke="#badbc5" strokeWidth="5" /><path d="m254 224 16 8-16 8" fill="none" stroke="#f2db9e" strokeWidth="3" /></g>
+      </g>}
       {['slash', 'guard', 'victory'].includes(action) && <g key={`effect-${token}`} className={`battle-scene-effect effect-${action}`}>
         <path className="slash-arc" d="M278 206q92-100 204-56-105-3-170 91Z" fill="#ead9aa" />
         <circle className="magic-ring" cx="203" cy="230" r="35" fill="none" stroke="#a9bcad" strokeWidth="4" />
         <text className="battle-impact-label" x="374" y="150" fill="#e4d8ad" fontSize="12" textAnchor="middle">{action === 'guard' ? 'GUARD' : action === 'victory' ? 'CLEAR' : 'STRIKE'}</text>
       </g>}
     </svg>
+    {battleVisual && <>
+      <div className="skill-vignette" aria-hidden="true" />
+      {skill?.type === 'finish' && <div className="skill-cutin" aria-hidden="true"><div className="skill-cutin-stripe" /><svg className="skill-portrait" viewBox="0 0 140 95" shapeRendering="crispEdges"><StoryCharacter character="용사" x="22" y="-6" width="105" height="126" /></svg><div className="skill-cutin-copy"><span>네 개의 뜻, 하나의 검</span><strong>해독검</strong><small>終結 <i>/</i> 종결</small></div></div>}
+      <div className="skill-stage-label"><span>{skill?.type === 'guard' ? 'DEFEND' : skill?.type === 'finish' ? 'FINAL SKILL' : 'DECODE BLADE'}</span><strong className="skill-phase-label">{action === 'cleared' ? '통로 확보' : skill ? '뜻을 검에 새깁니다' : '단어를 해독해 검에 힘을 실으세요'}</strong></div>
+    </>}
     <div className="entrance-mist" />
     <div className="scene-transition-shade" />
   </div>;

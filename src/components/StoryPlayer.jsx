@@ -4,6 +4,7 @@ import { ENCOUNTERS, learningSummary } from '../battle.js';
 import BattlePanel from './BattlePanel.jsx';
 import StoryArt, { StoryCharacter } from './StoryArt.jsx';
 import TierCrest from './TierCrest.jsx';
+import { createBattleAudio } from '../battleAudio.js';
 
 export default function StoryPlayer({ tier, initialProgress, settings, learning, onLearning, learningSaved, onProgress, onClose, onSelectTier }) {
   const story = STORIES[tier];
@@ -14,6 +15,11 @@ export default function StoryPlayer({ tier, initialProgress, settings, learning,
   const [playbackRate, setPlaybackRate] = useState(1);
   const [visible, setVisible] = useState(() => !document.hidden);
   const [battleVisual, setBattleVisual] = useState(null);
+  const [skillDone, setSkillDone] = useState(null);
+  const [audio] = useState(createBattleAudio);
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const skillComplete = useCallback((token) => setSkillDone(token), []);
+  const limitedMotion = reducedMotion || settings.backgroundMotion !== 'normal';
   const heading = useRef(null);
   const dialogue = useRef(null);
   const contentsButton = useRef(null);
@@ -30,6 +36,13 @@ export default function StoryPlayer({ tier, initialProgress, settings, learning,
   const completeBattle = useCallback(() => setProgress((current) => moveStory(current, 1)), []);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, []);
+  useEffect(() => () => audio.dispose(), [audio]);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const changed = () => setReducedMotion(media.matches);
+    media.addEventListener('change', changed);
+    return () => media.removeEventListener('change', changed);
+  }, []);
   useEffect(() => {
     const changed = () => setVisible(!document.hidden);
     document.addEventListener('visibilitychange', changed);
@@ -99,10 +112,11 @@ export default function StoryPlayer({ tier, initialProgress, settings, learning,
         <div className={`story-frame${battleId ? ' is-battle' : ''}`}>
           <div className="story-scene-label"><span><i aria-hidden="true" />{scene.location}</span><span>SCENE {String(sceneIndex + 1).padStart(2, '0')} <b>/ {String(story.scenes.length).padStart(2, '0')}</b></span></div>
           <StoryArt background={scene.background} sceneId={scene.id} lineIndex={progress.lineIndex} speaker={line.speaker} motionPreference={settings.backgroundMotion}
+            limitedMotion={limitedMotion} audio={audio} soundEnabled={settings.soundEffects === 'on'} onSkillComplete={skillComplete}
             cue={line.cue} prop={line.prop} enemyState={line.enemyState} paused={!visible || contentsOpen || (!autoPlaying && !battleId)} battleVisual={battleId ? battleVisual : null}
             recordingRevealed={scene.id === 'S08' && scene.lines.slice(0, progress.lineIndex + 1).some(({ text }) => text.includes('교복 차림의 낯선 학생'))} />
           <div className="story-scene-caption"><span>{scene.title}</span><span aria-hidden="true">✦</span></div>
-          {battleId ? <BattlePanel key={battleId} id={battleId} learning={learning} onLearning={onLearning} onComplete={completeBattle} onVisual={setBattleVisual} onPause={() => setAutoPlaying(false)} autoPlaying={autoPlaying} suspended={!visible || contentsOpen} /> : <><section className={`story-dialogue${line.speaker === '내레이션' ? ' is-narration' : ''}`} aria-label="이야기 대사">
+          {battleId ? <BattlePanel key={battleId} id={battleId} learning={learning} onLearning={onLearning} onComplete={completeBattle} onVisual={setBattleVisual} onPause={() => setAutoPlaying(false)} autoPlaying={autoPlaying} suspended={!visible || contentsOpen} audio={audio} soundEnabled={settings.soundEffects === 'on'} skillDone={skillDone} limitedMotion={limitedMotion} /> : <><section className={`story-dialogue${line.speaker === '내레이션' ? ' is-narration' : ''}`} aria-label="이야기 대사">
             <div className="story-portrait" aria-hidden="true">{line.speaker === '내레이션' ? <span>✦</span> : <StoryCharacter character={line.speaker} />}</div>
             <div className="story-dialogue-main"><p className="story-speaker">{line.speaker}<span>{line.speaker === '내레이션' ? 'NARRATION' : 'DIALOGUE'}</span></p>
               <div ref={dialogue} className="story-dialogue-text" tabIndex={0} role="log" aria-label={`${line.speaker}의 대사`} aria-live="polite" aria-atomic="true" onFocus={() => setAutoPlaying(false)}><p>{line.text}</p></div>

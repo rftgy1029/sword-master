@@ -11,7 +11,7 @@ test('missing or corrupt storage recovers to defaults', () => {
 test('saved preferences round-trip under a dedicated versioned key', () => {
   const data = new Map([['sword-master.progress', 'keep this learning record']]);
   const storage = { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
-  const settings = { textSize: 'larger', backgroundMotion: 'off', selectionEffect: 'static' };
+  const settings = { textSize: 'larger', backgroundMotion: 'off', selectionEffect: 'static', soundEffects: 'off' };
   assert.equal(saveSettings(settings, storage), true);
   assert.equal(JSON.parse(data.get(SETTINGS_KEY)).version, 1);
   assert.deepEqual(readSettings(storage), settings);
@@ -24,8 +24,13 @@ test('unsupported versions do not load their preference values', () => {
 
 test('invalid and extra values are ignored without losing valid fields', () => {
   assert.deepEqual(normalizeSettings({ textSize: 'large', backgroundMotion: 'unlimited', selectionEffect: false, progress: 'unexpected' }), {
-    textSize: 'large', backgroundMotion: 'normal', selectionEffect: 'breathe',
+    textSize: 'large', backgroundMotion: 'normal', selectionEffect: 'breathe', soundEffects: 'on',
   });
+});
+
+test('existing v1 settings gain sound without losing their display preferences', () => {
+  const old = { textSize: 'large', backgroundMotion: 'off', selectionEffect: 'static' };
+  assert.deepEqual(readSettings({ getItem: () => JSON.stringify({ version: 1, settings: old }) }), { ...old, soundEffects: 'on' });
 });
 
 test('unavailable storage is handled without throwing', () => {

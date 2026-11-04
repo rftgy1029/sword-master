@@ -51,6 +51,23 @@ export default function StoryCharacter({ character, sheathed = false, ...props }
     </svg>
   );
   const nia = character === '니아';
+  if (!nia) return (
+    <svg viewBox="0 0 40 48" {...props} aria-hidden="true" shapeRendering="crispEdges">
+      <g className="hero-rig">
+        <g className="hero-cape"><path fill="#8e5e49" d="M11 24h5v15H6v-5h3v-5h2Z" /><path fill="#b07c54" d="M11 24h3v9h-3v4H8v-4h1v-4h2Z" /></g>
+        <g className="hero-legs"><path fill="#403d33" d="M15 38h5v7h-7v-3h2Zm9 0h5v7h-7v-3h2Z" /></g>
+        <g className="hero-torso">
+          <path fill="#705442" d="M13 3h14v3h4v12H10V7h3Z" />
+          <path fill="#d4b889" d="M17 10h13v10H17Z" /><path fill="#262a29" d="M27 12h2v3h-2Z" />
+          <path fill="#a16b4f" d="M12 20h18v5H12Z" /><path fill="#68715a" d="M15 24h14v14H15Z" />
+          <path fill="#939370" d="M16 25h3v10h-3Z" />
+        </g>
+        <g className="hero-arm"><path fill="#c0b17e" d="M26 25h4v10h-4Z" />
+          {!sheathed && <g className="hero-weapon"><path fill="#bec5af" d="m30 31 7-9 2 2-7 9Zm-2 4 2-3 2 2-2 3Z" /><path fill="#f1e6c0" d="m32 29 5-7 1 1-5 7Z" /></g>}
+        </g>
+      </g>
+    </svg>
+  );
   return (
     <svg viewBox="0 0 40 48" {...props} aria-hidden="true" shapeRendering="crispEdges">
       <path fill="#111d1a" d="M5 45h30v3H5Z" />

@@ -4,12 +4,14 @@ export const DEFAULT_SETTINGS = Object.freeze({
   textSize: 'normal',
   backgroundMotion: 'normal',
   selectionEffect: 'breathe',
+  soundEffects: 'on',
 });
 
 const OPTIONS = {
   textSize: ['normal', 'large', 'larger'],
   backgroundMotion: ['normal', 'reduced', 'off'],
   selectionEffect: ['breathe', 'static'],
+  soundEffects: ['on', 'off'],
 };
 
 export function normalizeSettings(value) {

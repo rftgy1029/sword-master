@@ -11,9 +11,9 @@ const buildings = [
   [449, 79, 79, 144, '#56475b'], [517, 125, 61, 95, '#3b4a54'], [563, 100, 77, 120, '#404757'],
 ];
 
-export default function StoryArt({ background, sceneId, lineIndex = 0, recordingRevealed, speaker, motionPreference, cue = 'idle', prop, enemyState, paused, battleVisual }) {
+export default function StoryArt({ background, sceneId, lineIndex = 0, recordingRevealed, speaker, motionPreference, cue = 'idle', prop, enemyState, paused, battleVisual, limitedMotion, audio, soundEnabled, onSkillComplete }) {
   if (background === 'entrance') return <div className={`story-art story-art-entrance cue-${cue}`} data-paused={paused}><TitleScene motionPreference={paused ? 'off' : motionPreference} storyAction={cue} /><div className="entrance-mist" /><span className="entrance-dust" /></div>;
-  if (background === 'corridor') return <DungeonCorridor lineIndex={lineIndex} cue={cue} enemyState={enemyState} paused={paused} battleVisual={battleVisual} />;
+  if (background === 'corridor') return <DungeonCorridor lineIndex={lineIndex} cue={cue} enemyState={enemyState} paused={paused} battleVisual={battleVisual} limitedMotion={limitedMotion} audio={audio} soundEnabled={soundEnabled} onSkillComplete={onSkillComplete} />;
   const backstage = background === 'backstage';
   const ending = background === 'ending';
   const stage = background === 'stage';
