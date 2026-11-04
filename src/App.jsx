@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import TitleScene from './components/TitleScene.jsx';
 import MenuDialog from './components/MenuDialog.jsx';
+import SettingsDialog from './components/SettingsDialog.jsx';
+import { DEFAULT_SETTINGS, normalizeSettings, readSettings, saveSettings } from './settings.js';
 
 const MENU = [
   { label: '새 모험', description: '학습 범위를 고르고 새로운 모험을 시작하세요.' },
@@ -12,10 +14,13 @@ const MENU = [
 export default function App() {
   const [selected, setSelected] = useState(0);
   const [openedMenu, setOpenedMenu] = useState(null);
+  const [settings, setSettings] = useState(readSettings);
+  const [settingsSaved, setSettingsSaved] = useState(null);
   const buttons = useRef([]);
   const opener = useRef(null);
 
   useEffect(() => { buttons.current[0]?.focus({ preventScroll: true }); }, []);
+  useEffect(() => { setSettingsSaved(saveSettings(settings)); }, [settings]);
 
   function focusMenu(index) {
     setSelected(index);
@@ -43,7 +48,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect}>
       <main className="start-screen">
         <div className="title-layout">
           <section className="menu-column" aria-label="S’word Master 시작">
@@ -89,7 +94,7 @@ export default function App() {
             <p className="menu-description">{MENU[selected].description}</p>
           </section>
           <figure className="dungeon-scene">
-            <TitleScene />
+            <TitleScene motionPreference={settings.backgroundMotion} />
             <figcaption><span className="location-marker" aria-hidden="true" />던전 입구</figcaption>
           </figure>
         </div>
@@ -100,10 +105,14 @@ export default function App() {
             <span><kbd>Esc</kbd> 닫기</span>
             <span className="pointer-hint">클릭으로 선택할 수 있어요</span>
           </div>
-          <p className="version">미리보기 <span aria-hidden="true">/</span> v0.4</p>
+          <p className="version">미리보기 <span aria-hidden="true">/</span> v0.5</p>
         </footer>
       </main>
-      <MenuDialog title={openedMenu} onClose={closeMenu} />
-    </>
+      {openedMenu === '설정' ? (
+        <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu}
+          onChange={(key, value) => setSettings((current) => normalizeSettings({ ...current, [key]: value }))}
+          onReset={() => setSettings({ ...DEFAULT_SETTINGS })} />
+      ) : <MenuDialog title={openedMenu} onClose={closeMenu} />}
+    </div>
   );
 }

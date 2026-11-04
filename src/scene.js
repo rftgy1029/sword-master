@@ -203,7 +203,7 @@ function torch(ctx, x, y, milliseconds, phase) {
   ctx.fillRect(x + lean * 2, Math.round(y - 12 - ember * 12), 1, 1);
 }
 
-export async function startTitleScene(canvas, { signal } = {}) {
+export async function startTitleScene(canvas, { signal, motionPreference = 'normal' } = {}) {
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx || signal?.aborted) return;
   canvas.width = WIDTH;
@@ -218,6 +218,9 @@ export async function startTitleScene(canvas, { signal } = {}) {
   floor(staticContext);
 
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const isStatic = () => motion.matches || motionPreference === 'off';
+  const speed = motionPreference === 'reduced' ? .35 : 1;
+  const paintInterval = 1000 / (motionPreference === 'reduced' ? 12 : 24);
   let frameId = 0;
   let previous = null;
   let elapsed = 0;
@@ -225,7 +228,7 @@ export async function startTitleScene(canvas, { signal } = {}) {
 
   function paint() {
     ctx.drawImage(background, 0, 0);
-    const time = motion.matches ? 0 : elapsed;
+    const time = isStatic() ? 0 : elapsed * speed;
     torch(ctx, 209, 137, time, 0);
     torch(ctx, 351, 137, time, 2);
     hero(ctx, time);
@@ -234,7 +237,7 @@ export async function startTitleScene(canvas, { signal } = {}) {
     if (signal?.aborted) return;
     if (previous !== null) elapsed += Math.min(now - previous, 100);
     previous = now;
-    if (now - lastPaint >= 1000 / 24) {
+    if (now - lastPaint >= paintInterval) {
       paint();
       lastPaint = now;
     }
@@ -245,7 +248,7 @@ export async function startTitleScene(canvas, { signal } = {}) {
     previous = null;
     if (signal?.aborted) return;
     paint();
-    if (!document.hidden && !motion.matches) frameId = requestAnimationFrame(frame);
+    if (!document.hidden && !isStatic()) frameId = requestAnimationFrame(frame);
   }
   signal?.addEventListener('abort', () => cancelAnimationFrame(frameId), { once: true });
   document.addEventListener('visibilitychange', sync, { signal });
