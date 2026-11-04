@@ -24,6 +24,19 @@ npm run preview
 
 미리보기 주소: `http://127.0.0.1:8176/`. `dist/`가 배포할 파일입니다. 학교에서 사용할 공개 주소는 아직 없습니다. 원본 소스는 Vite를 통해 실행하며, Python 서버로 원본 JSX를 직접 제공하지 않습니다.
 
+## Cloudflare Workers 배포
+
+`wrangler.jsonc`에서 Vite 빌드 결과인 `dist/`를 정적 자산으로 지정하고, React 앱의 탐색 요청을 `index.html`로 연결합니다. Vite 자산 경로는 `/`를 기준으로 생성해 하위 주소에서도 스크립트와 글꼴을 불러옵니다. `wrangler preview`에 필요한 빈 `previews` 블록도 포함합니다. 정적 자산과 호환성 날짜는 최상위에 설정합니다. [Cloudflare Previews 설정](https://developers.cloudflare.com/workers/previews/configuration/#wrangler-configuration-file).
+
+Cloudflare의 저장소 빌드 설정은 다음과 같습니다.
+
+- 루트 디렉터리: 이 저장소 루트
+- 빌드 명령: `npm run build`
+- 미리보기 배포 명령: `npx wrangler preview`
+- Worker 이름: `sword-master` (`wrangler.jsonc`의 `name`과 일치)
+
+Wrangler는 오류 로그와 같은 `4.157.0`으로 고정해 설치합니다. 로컬에서 Cloudflare 업로드 없이 빌드·배포 설정을 검사하려면 `npm run deploy:check`를 실행합니다. Cloudflare 계정 인증이 준비된 환경에서는 `npm run deploy:preview`로 빌드 후 미리보기를 배포할 수 있습니다. 기존 `npm run preview`는 Vite의 로컬 미리보기입니다.
+
 ## 파일 역할
 
 - `src/main.jsx`: React 시작점과 StrictMode.
