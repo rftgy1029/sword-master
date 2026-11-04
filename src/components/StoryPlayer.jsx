@@ -97,9 +97,9 @@ export default function StoryPlayer({ tier, initialProgress, settings, learning,
         <div className="story-playback-controls"><div><button className="story-play-toggle" aria-pressed={autoPlaying} onClick={() => setAutoPlaying((playing) => !playing)}><span aria-hidden="true">{autoPlaying ? 'Ⅱ' : '▶'}</span>{autoPlaying ? '자동 진행 중 · 일시정지' : '자동 진행 재생'}</button>
           <label className="story-speed">속도 <select aria-label="이야기 재생 속도" value={playbackRate} onChange={(event) => setPlaybackRate(Number(event.target.value))}><option value={0.75}>느리게</option><option value={1}>보통</option><option value={1.5}>빠르게</option></select></label></div><span>{battleId ? '문제를 푸는 동안 이야기는 기다려요.' : '대사 길이에 맞춰 자동으로 넘어가요.'}</span></div>
         <div className={`story-frame${battleId ? ' is-battle' : ''}`}>
-          <div className="story-scene-label"><span><i aria-hidden="true" />{scene.location}</span><span>SCENE {String(sceneIndex + 1).padStart(2, '0')} <b>/ 08</b></span></div>
+          <div className="story-scene-label"><span><i aria-hidden="true" />{scene.location}</span><span>SCENE {String(sceneIndex + 1).padStart(2, '0')} <b>/ {String(story.scenes.length).padStart(2, '0')}</b></span></div>
           <StoryArt background={scene.background} sceneId={scene.id} lineIndex={progress.lineIndex} speaker={line.speaker} motionPreference={settings.backgroundMotion}
-            cue={line.cue} prop={line.prop} paused={!visible || contentsOpen || (!autoPlaying && !battleId)} battleVisual={battleId ? battleVisual : null}
+            cue={line.cue} prop={line.prop} enemyState={line.enemyState} paused={!visible || contentsOpen || (!autoPlaying && !battleId)} battleVisual={battleId ? battleVisual : null}
             recordingRevealed={scene.id === 'S08' && scene.lines.slice(0, progress.lineIndex + 1).some(({ text }) => text.includes('교복 차림의 낯선 학생'))} />
           <div className="story-scene-caption"><span>{scene.title}</span><span aria-hidden="true">✦</span></div>
           {battleId ? <BattlePanel key={battleId} id={battleId} learning={learning} onLearning={onLearning} onComplete={completeBattle} onVisual={setBattleVisual} onPause={() => setAutoPlaying(false)} autoPlaying={autoPlaying} suspended={!visible || contentsOpen} /> : <><section className={`story-dialogue${line.speaker === '내레이션' ? ' is-narration' : ''}`} aria-label="이야기 대사">

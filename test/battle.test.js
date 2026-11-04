@@ -1,15 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BRONZE_WORDS, createEncounter, emptyLearning, ENCOUNTERS, getMistakes, LEARNING_KEY, learningSummary, makeQuestion, readLearning, recordAnswer, saveLearning } from '../src/battle.js';
+import { BRONZE_WORDS, createEncounter, emptyLearning, encounterAction, ENCOUNTERS, getMistakes, LEARNING_KEY, learningSummary, makeQuestion, readLearning, recordAnswer, saveLearning } from '../src/battle.js';
 import { dialogueDelay, firstStoryProgress, normalizeStoryProgress, STORIES } from '../src/story.js';
 
-test('seven encounters cover all 64 source words, followed by six distinct review words', () => {
+test('eight encounters cover all 64 source words, with a four-question tutorial and six distinct review words', () => {
   const sessions = ENCOUNTERS.map(({ id }) => createEncounter(id));
   assert.equal(sessions.reduce((sum, item) => sum + item.wordIds.length, 0), 70);
   assert.deepEqual(new Set(sessions.flatMap(({ wordIds }) => wordIds)), new Set(BRONZE_WORDS.map(({ id }) => id)));
   assert.equal(new Set(sessions.at(-1).wordIds).size, 10);
   assert.deepEqual(sessions.at(-1).wordIds.slice(0, 4), BRONZE_WORDS.slice(60).map(({ id }) => id));
   assert.equal(sessions.at(-1).wordIds.slice(4).every((id) => BRONZE_WORDS.slice(0, 60).some((word) => word.id === id)), true);
+  assert.equal(sessions[0].wordIds.length, 4);
+  assert.equal(sessions[1].wordIds.length, 6);
 });
 
 test('every question uses four distinct source-backed options and excludes relative words from antonym questions', () => {
@@ -76,17 +78,17 @@ test('partial battles resume with the same question order and do not touch story
 test('starting a retry preserves previously learned words and chronological mistake corrections', () => {
   let learning = emptyLearning();
   const session = createEncounter('rescue');
-  for (let index = 0; index < 10; index++) {
+  for (let index = 0; index < session.wordIds.length; index++) {
     const question = makeQuestion('rescue', session.wordIds[index], index);
     learning = recordAnswer(learning, 'rescue', index === 0 ? session : learning.encounters.rescue, index, index === 0 ? (question.answerIndex + 1) % 4 : question.answerIndex);
   }
-  assert.equal(learningSummary(learning).learned, 10);
+  assert.equal(learningSummary(learning).learned, session.wordIds.length);
   assert.equal(getMistakes(learning).length, 1);
   const retry = createEncounter('rescue');
   learning = recordAnswer(learning, 'rescue', retry, 0, makeQuestion('rescue', retry.wordIds[0], 0).answerIndex);
   assert.equal(learning.encounters.rescue.answers.length, 1);
-  assert.equal(learningSummary(learning).learned, 10);
-  assert.equal(learningSummary(learning).answered, 11);
+  assert.equal(learningSummary(learning).learned, session.wordIds.length);
+  assert.equal(learningSummary(learning).answered, session.wordIds.length + 1);
   assert.equal(getMistakes(learning).length, 0);
   const raw = JSON.stringify({ version: 1, ...learning });
   assert.deepEqual(readLearning({ getItem: () => raw }), learning);
@@ -113,4 +115,27 @@ test('old reading positions migrate without losing their line, and automatic tim
   assert.deepEqual(normalizeStoryProgress({ ...current, storyId: 'bronze-chapter-01-v1' }), current);
   assert.equal(dialogueDelay({ text: '긴'.repeat(80) }) > dialogueDelay({ text: '짧은 대사' }), true);
   assert.equal(dialogueDelay({ text: '한 줄' }, 1.5) < dialogueDelay({ text: '한 줄' }, 1), true);
+});
+
+test('path repair uses restoration and hints, while the lone slime fight uses combat feedback', () => {
+  const signs = ENCOUNTERS.find(({ id }) => id === 'signs');
+  assert.equal(signs.mode, 'puzzle');
+  assert.deepEqual(['correct', 'incorrect', 'complete'].map((phase) => encounterAction(signs, phase)), ['solve', 'hint', 'restored']);
+  assert.equal(/검|공격|방어/.test(signs.correctFeedback + signs.incorrectFeedback + signs.watchLines.join(' ')), false);
+  const slime = ENCOUNTERS[0];
+  assert.deepEqual(['correct', 'incorrect', 'complete'].map((phase) => encounterAction(slime, phase)), ['slash', 'guard', 'victory']);
+  assert.equal(/니아|모모/.test(slime.incorrectFeedback + slime.watchLines.join(' ')), false);
+});
+
+test('legacy ten-question rescue saves retain all learning history and resume the remaining six questions', () => {
+  const wordIds = BRONZE_WORDS.slice(0, 10).map(({ id }) => id);
+  const answers = wordIds.slice(0, 7).map((id, index) => makeQuestion('rescue', id, index).answerIndex);
+  const saved = { version: 1, encounters: { rescue: { wordIds, answers } } };
+  const migrated = readLearning({ getItem: () => JSON.stringify(saved) });
+  assert.deepEqual(migrated.encounters.rescue.wordIds, wordIds.slice(4));
+  assert.deepEqual(migrated.encounters.rescue.answers, answers.slice(4));
+  assert.equal(learningSummary(migrated).learned, 7);
+  assert.equal(learningSummary(migrated).correct, 7);
+  assert.equal(learningSummary(migrated).answered, 7);
+  assert.equal(migrated.encounters.slime, undefined);
 });

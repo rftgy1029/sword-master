@@ -4,7 +4,7 @@ import { firstStoryProgress, moveStory, normalizeStoryProgress, readStoryProgres
 
 test('the full chapter is reachable in source order, including its ending', () => {
   const story = STORIES.bronze;
-  assert.deepEqual(story.scenes.map(({ id }) => id), ['S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07', 'S08']);
+  assert.deepEqual(story.scenes.map(({ id }) => id), ['S01', 'S01C', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07', 'S08']);
   const expected = story.scenes.flatMap((scene) => scene.lines.map((line, lineIndex) => ({ sceneId: scene.id, lineIndex, text: line.text })));
   let progress = firstStoryProgress('bronze');
   const visited = [];
@@ -66,4 +66,33 @@ test('blocked storage does not stop story navigation or report a successful save
   const progress = moveStory(firstStoryProgress('bronze'), 1);
   assert.equal(saveStoryProgress(progress, storage), false);
   assert.equal(moveStory(progress, 1).lineIndex, 2);
+});
+
+test('the dungeon passage and its slime fight precede the festival, with no future companions in the tutorial', () => {
+  const [entrance, corridor, village] = STORIES.bronze.scenes;
+  assert.equal(entrance.background, 'entrance');
+  assert.equal(entrance.lines.length, 6);
+  assert.equal(entrance.lines.some(({ cue }) => cue === 'walk'), false);
+  assert.equal(corridor.background, 'corridor');
+  const fight = corridor.lines.findIndex(({ battleId }) => battleId === 'slime');
+  assert.ok(fight > 0 && fight < corridor.lines.length - 1);
+  assert.match(corridor.lines.slice(0, fight).map(({ text }) => text).join(' '), /달려든다/);
+  assert.match(corridor.lines.slice(fight + 1).map(({ text }) => text).join(' '), /도망|빠져나간다/);
+  assert.equal(corridor.lines.some(({ speaker, text }) => ['니아', '모모'].includes(speaker) || /니아|모모/.test(text)), false);
+  assert.equal(village.id, 'S02');
+  assert.match(village.lines[3].text, /슬라임/);
+});
+
+test('v1 and v2 intro saves migrate into the shortened entrance or the new corridor, preserving later progress', () => {
+  const first = firstStoryProgress('bronze');
+  for (const storyId of ['bronze-chapter-01-v1', 'bronze-chapter-01-v2']) {
+    assert.equal(normalizeStoryProgress({ ...first, storyId, lineIndex: 4 }).sceneId, 'S01');
+    const corridor = normalizeStoryProgress({ ...first, storyId, lineIndex: 20 });
+    assert.equal(corridor.sceneId, 'S01C');
+    assert.ok(corridor.lineIndex < STORIES.bronze.scenes[1].lines.length);
+    const later = normalizeStoryProgress({ ...first, storyId, sceneId: 'S05', lineIndex: 11 });
+    assert.equal(later.sceneId, 'S05');
+    assert.equal(later.lineIndex, 11);
+    assert.equal(normalizeStoryProgress({ ...first, storyId, lineIndex: 99 }), null);
+  }
 });

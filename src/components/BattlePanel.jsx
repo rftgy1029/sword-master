@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { createEncounter, ENCOUNTERS, makeQuestion, recordAnswer } from '../battle.js';
+import { createEncounter, encounterAction, ENCOUNTERS, makeQuestion, recordAnswer } from '../battle.js';
 
 export default function BattlePanel({ id, learning, onLearning, onComplete, onVisual, onPause, autoPlaying, suspended }) {
   const encounter = ENCOUNTERS.find((item) => item.id === id);
+  const puzzle = encounter.mode === 'puzzle';
   const [session, setSession] = useState(() => learning.encounters[id] ?? createEncounter(id, learning));
   const [feedback, setFeedback] = useState(null);
   const [watching, setWatching] = useState(false);
@@ -19,9 +20,10 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
     heading.current?.closest('.story-frame')?.scrollIntoView({ block: 'start' });
   }, []);
   useEffect(() => {
-    onVisual({ kind: encounter.kind, action: watching ? 'slash' : feedback ? feedback.correct ? 'slash' : 'guard' : complete ? 'victory' : 'ready', token: `${id}-${session.answers.length}-${watchStep}`, remaining: session.wordIds.length - session.answers.length });
+    const phase = watching ? 'correct' : feedback ? feedback.correct ? 'correct' : 'incorrect' : complete ? 'complete' : 'ready';
+    onVisual({ kind: encounter.kind, mode: encounter.mode, action: encounterAction(encounter, phase), token: `${id}-${session.answers.length}-${watchStep}`, remaining: session.wordIds.length - session.answers.length });
     return () => onVisual(null);
-  }, [id, encounter.kind, session.answers.length, feedback, watching, watchStep, complete, onVisual]);
+  }, [id, encounter, session.answers.length, feedback, watching, watchStep, complete, onVisual]);
 
   function answer(choice) {
     if (locked.current || suspended || watching || complete || feedback !== null) return;
@@ -77,13 +79,13 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
   }
 
   return (
-    <section className={`battle-panel${feedback ? feedback.correct ? ' is-correct' : ' is-incorrect' : ''}`} aria-label="단어 마법 전투">
-      <div className="battle-heading"><div><p className="battle-eyebrow">WORD MAGIC <span>/</span> {encounter.kind === 'boss' ? 'BOSS BATTLE' : 'ENCOUNTER'}</p><h2 ref={heading} tabIndex={-1}>{encounter.title}</h2></div>
+    <section className={`battle-panel${puzzle ? ' puzzle-panel' : ''}${feedback ? feedback.correct ? ' is-correct' : ' is-incorrect' : ''}`} aria-label={puzzle ? '단어 마법 퍼즐' : '단어 마법 전투'}>
+      <div className="battle-heading"><div><p className="battle-eyebrow">WORD MAGIC <span>/</span> {puzzle ? 'EXPLORATION PUZZLE' : encounter.kind === 'boss' ? 'BOSS BATTLE' : 'ENCOUNTER'}</p><h2 ref={heading} tabIndex={-1}>{encounter.title}</h2></div>
         <span className="battle-counter">{session.answers.length}<span> / {session.wordIds.length}</span></span></div>
       <div className="battle-shield" role="progressbar" aria-label="해제한 마법 명령" aria-valuenow={session.answers.length} aria-valuemin={0} aria-valuemax={session.wordIds.length}>
         {session.wordIds.map((wordId, i) => <span key={wordId} className={i < session.answers.length ? 'is-cleared' : ''} />)}</div>
-      {watching ? <div className="battle-watch" role="status"><p className="battle-watch-magic">✦</p><h3>{['용사의 검에 해독의 빛이 모입니다.', '모모가 공격을 피하고, 니아가 방어막을 펼칩니다.', encounter.success][watchStep]}</h3><p>전투 연출을 감상 중이에요. 단어 응답 기록은 남기지 않아요.</p><button className="story-next-button" onClick={onComplete}>이야기 계속 →</button></div>
-        : complete ? <div className="battle-result"><p className="battle-result-mark" aria-hidden="true">✦</p><h3>명령 해제 완료</h3><p>{encounter.success}</p>
+      {watching ? <div className="battle-watch" role="status"><p className="battle-watch-magic">✦</p><h3>{[...(encounter.watchLines ?? (puzzle ? ['빛을 비춰 흐려진 문구를 읽습니다.', '뜻에 맞는 명령을 연결해 장치를 복원합니다.'] : ['용사의 검에 해독의 빛이 모입니다.', '모모가 공격을 피하고, 니아가 방어막을 펼칩니다.'])), encounter.success][watchStep]}</h3><p>{puzzle ? '복원' : '전투'} 연출을 감상 중이에요. 단어 응답 기록은 남기지 않아요.</p><button className="story-next-button" onClick={onComplete}>이야기 계속 →</button></div>
+        : complete ? <div className="battle-result"><p className="battle-result-mark" aria-hidden="true">✦</p><h3>{puzzle ? id === 'signs' ? '길 안내 복원 완료' : '장치 복원 완료' : id === 'slime' ? '통로 확보' : '명령 해제 완료'}</h3><p>{encounter.success}</p>
           <p className="battle-result-score">정답 <strong>{correctCount}</strong> / {session.wordIds.length} <span>모든 명령의 뜻을 확인했어요.</span></p>
           {correctCount < session.wordIds.length && <details onToggle={(event) => { if (event.currentTarget.open) onPause(); }}><summary>이번 구간의 오답 확인</summary><ul>{session.answers.map((choice, i) => {
             const item = makeQuestion(id, session.wordIds[i], i);
@@ -92,11 +94,11 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
           <div className="battle-result-actions"><button className="story-text-button" onClick={replay}>다시 도전</button><button className="story-next-button" onClick={onComplete}>이야기 계속 →</button></div></div>
           : <>
             <p className="battle-objective">{encounter.objective}</p>
-            <div className="battle-question"><div><span className="battle-question-type">{question.type === 'meaning' ? '뜻 해독' : question.type === 'synonyms' ? '유의어 연결' : '반의어 해제'}</span><h3 lang="en">{question.term}</h3></div><p>{question.prompt}{question.type !== 'meaning' && <small>단어의 뜻: {question.word.meaning}</small>}</p></div>
+            <div className="battle-question"><div><span className="battle-question-type">{question.type === 'meaning' ? '뜻 해독' : question.type === 'synonyms' ? '유의어 연결' : '반의어 해제'}</span><h3 lang="en">{question.term}</h3></div><p>{question.type === 'meaning' && encounter.questionPrompt ? encounter.questionPrompt : question.prompt}{question.type !== 'meaning' && <small>단어의 뜻: {question.word.meaning}</small>}</p></div>
             <div className="battle-options" role="group" aria-label="명령의 정답 선택">{question.options.map((option, i) => <button key={option} disabled={feedback !== null || suspended} onClick={() => answer(i)} className={`${feedback && i === question.answerIndex ? 'is-answer' : ''}${feedback && i === feedback.choice && !feedback.correct ? ' is-wrong' : ''}`}><kbd>{i + 1}</kbd><span>{option}</span>{feedback && i === question.answerIndex && <span aria-label="정답">✓</span>}</button>)}</div>
-            {feedback && <div className="battle-feedback" role="status"><strong>{feedback.correct ? '명령 해독! 검에 빛이 실립니다.' : '니아가 방어했어요. 정답을 확인하고 다시 나아가요.'}</strong><p><span lang="en">{question.term}</span> · {question.word.meaning}{question.type !== 'meaning' && <> / {question.type === 'synonyms' ? '유의어' : '반의어'}: {question.answer}</>}</p><button className="story-text-button" onClick={nextQuestion}>{session.answers.length === session.wordIds.length ? '결과 보기' : '다음 문제'} →</button></div>}
+            {feedback && <div className="battle-feedback" role="status"><strong>{feedback.correct ? encounter.correctFeedback ?? (puzzle ? '뜻이 맞았어요. 장치의 문구가 제자리를 찾습니다.' : '명령 해독! 검에 빛이 실립니다.') : encounter.incorrectFeedback ?? (puzzle ? '뜻을 확인하고 연결을 다시 맞춰 봐요.' : '니아가 방어했어요. 정답을 확인하고 다시 나아가요.')}</strong><p><span lang="en">{question.term}</span> · {question.word.meaning}{question.type !== 'meaning' && <> / {question.type === 'synonyms' ? '유의어' : '반의어'}: {question.answer}</>}</p><button className="story-text-button" onClick={nextQuestion}>{session.answers.length === session.wordIds.length ? '결과 보기' : '다음 문제'} →</button></div>}
           </>}
-      {!watching && !complete && <div className="battle-bottom"><span>시간 제한 없이 <kbd>1</kbd>~<kbd>4</kbd> 또는 선택지 클릭</span><button className="story-text-button" onClick={() => { setWatching(true); setFeedback(null); }}>전투 연출만 보기 »</button></div>}
+      {!watching && !complete && <div className="battle-bottom"><span>시간 제한 없이 <kbd>1</kbd>~<kbd>4</kbd> 또는 선택지 클릭</span><button className="story-text-button" onClick={() => { setWatching(true); setFeedback(null); }}>{puzzle ? '복원' : '전투'} 연출만 보기 »</button></div>}
     </section>
   );
 }

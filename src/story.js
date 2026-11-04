@@ -1,9 +1,11 @@
 import originalBronze from './data/bronze-story.json' with { type: 'json' };
 import direction from './data/bronze-direction.json' with { type: 'json' };
+import opening from './data/bronze-opening.json' with { type: 'json' };
 
-const bronze = { ...originalBronze, id: 'bronze-chapter-01-v2', scenes: originalBronze.scenes.map((scene) => ({
-  ...scene, lines: scene.lines.map((line, index) => ({ ...line, ...direction[scene.id]?.[index] })),
-})) };
+const bronze = { ...originalBronze, id: 'bronze-chapter-01-v3', scenes: originalBronze.scenes.flatMap((scene) =>
+  scene.id === 'S01' ? [opening.entrance, opening.corridor] : [{
+    ...scene, ...direction._scenes?.[scene.id], lines: scene.lines.map((line, index) => ({ ...line, ...direction[scene.id]?.[index] })),
+  }]) };
 
 export const STORIES = { bronze };
 export const STORY_PROGRESS_KEY = 'sword-master.story-progress.v1';
@@ -14,12 +16,24 @@ export function dialogueDelay(line, speed = 1) {
 
 export function normalizeStoryProgress(value) {
   const story = Object.hasOwn(STORIES, value?.tier) ? STORIES[value.tier] : null;
-  if (!story || (value.storyId !== story.id && value.storyId !== originalBronze.id)) return null;
-  const scene = story.scenes.find((item) => item.id === value.sceneId);
-  if (!scene || !Number.isInteger(value.lineIndex) || value.lineIndex < 0 || value.lineIndex >= scene.lines.length) return null;
+  const legacy = [originalBronze.id, 'bronze-chapter-01-v2'].includes(value?.storyId);
+  if (!story || (value.storyId !== story.id && !legacy)) return null;
+  if (!Number.isInteger(value.lineIndex) || value.lineIndex < 0) return null;
+  let sceneId = value.sceneId;
+  let lineIndex = value.lineIndex;
+  if (legacy && sceneId === 'S01') {
+    if (lineIndex >= originalBronze.scenes[0].lines.length) return null;
+    if (lineIndex < 8) lineIndex = Math.min(lineIndex, opening.entrance.lines.length - 1);
+    else {
+      sceneId = opening.corridor.id;
+      lineIndex = Math.min(opening.corridor.lines.length - 1, Math.floor((lineIndex - 8) * opening.corridor.lines.length / 24));
+    }
+  }
+  const scene = story.scenes.find((item) => item.id === sceneId);
+  if (!scene || lineIndex >= scene.lines.length) return null;
   return {
-    tier: story.tier, storyId: story.id, sceneId: scene.id, lineIndex: value.lineIndex,
-    completed: value.completed === true && scene === story.scenes.at(-1) && value.lineIndex === scene.lines.length - 1,
+    tier: story.tier, storyId: story.id, sceneId: scene.id, lineIndex,
+    completed: value.completed === true && scene === story.scenes.at(-1) && lineIndex === scene.lines.length - 1,
   };
 }
 

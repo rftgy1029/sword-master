@@ -1,0 +1,40 @@
+{
+  "entrance": {
+    "id": "S01",
+    "title": "출발: 어둠의 석문",
+    "location": "던전 입구 · 오래된 석문",
+    "background": "entrance",
+    "lines": [
+      { "speaker": "내레이션", "text": "오래된 지도 끝에 이름 없는 던전이 있다. 석문 아래에는 ‘이 문 너머에 마왕이 기다린다’는 경고가 새겨져 있다." },
+      { "speaker": "용사", "text": "마왕에 보물까지. 소문이 절반만 맞아도 여기까지 온 보람은 있겠지." },
+      { "speaker": "용사", "text": "…입장 담당은 없는 거야? 좋아. 문은 직접 열라는 거군." },
+      { "speaker": "내레이션", "text": "용사가 검을 허리에 고쳐 차고 석문에 두 손을 댄다. 무거운 돌이 밀리며 문틈에서 찬 바람이 쏟아진다.", "cue": "door" },
+      { "speaker": "용사", "text": "생각보다 어둡네. 일단 안으로 들어가 보자." },
+      { "speaker": "내레이션", "text": "석문이 열리자 아래로 이어지는 계단과 긴 통로가 드러난다. 용사가 횃불을 들고 문 안으로 들어선다.", "cue": "door" }
+    ]
+  },
+  "corridor": {
+    "id": "S01C",
+    "title": "던전 통로: 첫 번째 슬라임",
+    "location": "석문 안쪽 · 지하 통로",
+    "background": "corridor",
+    "lines": [
+      { "speaker": "내레이션", "text": "축축한 돌기둥 사이로 곧은 통로가 뻗어 있다. 용사가 안으로 걸어 들어오자 발소리가 천장에 부딪혀 돌아온다.", "cue": "corridor-enter", "enemyState": "hidden" },
+      { "speaker": "용사", "text": "좋아. 이제야 던전 같네. 벽을 따라가면 길을 잃지는 않겠지.", "enemyState": "hidden" },
+      { "speaker": "내레이션", "text": "발밑에서 물방울이 튄다. 작은 웅덩이가 부풀어 오르더니, 푸른 슬라임 한 마리가 통로를 가로막는다.", "cue": "slime-emerge", "enemyState": "hostile" },
+      { "speaker": "용사", "text": "슬라임 한 마리네. 난 그냥 지나가려는 건데… 잠깐, 왜 자세를 낮추는 거야?", "enemyState": "hostile" },
+      { "speaker": "내레이션", "text": "슬라임이 바닥을 박차고 용사에게 달려든다. 용사는 검집으로 공격을 받아 내고 한 걸음 물러선다.", "cue": "slime-lunge", "enemyState": "hostile" },
+      { "speaker": "용사", "text": "말로 해결할 생각은 없구나. 그렇다고 첫 통로에서 돌아갈 수는 없지.", "enemyState": "hostile" },
+      { "speaker": "내레이션", "text": "검을 뽑자 칼날에 새겨진 해독 문양이 빛난다. 배웠던 주문의 글자가 하나씩 떠오르고, 슬라임은 다시 몸을 웅크린다.", "cue": "rune-light", "enemyState": "hostile" },
+      { "speaker": "용사", "text": "훈련대로 하자. 단어의 뜻을 떠올리고, 검끝에 힘을 모으는 거야.", "enemyState": "hostile" },
+      { "speaker": "내레이션", "text": "달려드는 슬라임과 검의 빛이 맞부딪힌다. 용사는 첫 주문을 읽고 통로를 지킬 자세를 잡는다.", "battleId": "slime", "cue": "rune-light", "enemyState": "hostile" },
+      { "speaker": "내레이션", "text": "마지막 검격의 빛에 놀란 슬라임이 납작 엎드린다. 더는 덤비지 않고 작은 몸을 말아 바닥 틈으로 빠져나간다.", "cue": "slime-retreat", "enemyState": "retreating" },
+      { "speaker": "용사", "text": "후우… 길은 비켜 줬네. 작은 녀석이라고 방심하면 안 되겠어.", "enemyState": "gone" },
+      { "speaker": "내레이션", "text": "용사가 검을 내리고 통로 끝으로 향한다. 모퉁이 너머에서 희미한 금빛이 새어 나온다.", "cue": "corridor-exit", "enemyState": "gone" },
+      { "speaker": "용사", "text": "저쪽에 불이 있네. 다른 모험가가 먼저 와 있는 건가?", "enemyState": "gone" },
+      { "speaker": "내레이션", "text": "작은 문에 다가가자 빛 사이로 음악과 웃음소리가 섞여 든다. 방금까지 들리던 물방울 소리가 멀어진다.", "cue": "threshold-light", "enemyState": "gone" },
+      { "speaker": "용사", "text": "던전 안에서 음악이 들린다고? …이번엔 문부터 조심해서 열어 보자.", "enemyState": "gone" },
+      { "speaker": "내레이션", "text": "용사가 손잡이를 돌린다. 한 박자 고요해진 뒤, 눈부신 색종이와 환호가 문 너머에서 쏟아진다.", "cue": "threshold-open", "enemyState": "gone" }
+    ]
+  }
+}

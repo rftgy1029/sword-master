@@ -1,4 +1,14 @@
-export default function StoryCharacter({ character, ...props }) {
+export default function StoryCharacter({ character, sheathed = false, ...props }) {
+  if (character === '작은 슬라임') return (
+    <svg viewBox="0 0 40 48" {...props} aria-hidden="true" shapeRendering="crispEdges">
+      <path fill="#101d24" d="M4 42h32v4H4Z" />
+      <path fill="#6399aa" d="M12 19h16v4h5v6h4v13H3V29h4v-6h5Z" />
+      <path fill="#8fc2cb" d="M12 23h15v4H14v4H8v-4h4Z" />
+      <path fill="#acd7d5" d="M13 24h7v3h-7Z" />
+      <path fill="#1e3c48" d="M11 32h5v4h-5Zm13 0h5v4h-5Zm-7 8h7v2h-7Z" />
+      <path fill="#426f88" d="M4 40h32v3H4Z" />
+    </svg>
+  );
   if (character === '모모') return (
     <svg viewBox="0 0 40 48" {...props} aria-hidden="true" shapeRendering="crispEdges">
       <path fill="#111d1a" d="M4 42h32v4H4Z" />
@@ -52,7 +62,7 @@ export default function StoryCharacter({ character, ...props }) {
       <path fill="#c0b17e" d="M26 25h4v10h-4Z" />
       <path fill={nia ? '#c2c4ba' : '#403d33'} d="M15 38h5v7h-7v-3h2Zm9 0h5v7h-7v-3h2Z" />
       {nia ? <path fill="#e7c17a" d="M30 21h3v11h-3Zm-1-4h5v6h-5Z" />
-        : <path fill="#bec5af" d="m30 31 7-9 2 2-7 9Zm-2 4 2-3 2 2-2 3Z" />}
+        : !sheathed && <path fill="#bec5af" d="m30 31 7-9 2 2-7 9Zm-2 4 2-3 2 2-2 3Z" />}
     </svg>
   );
 }
