@@ -203,7 +203,7 @@ function torch(ctx, x, y, milliseconds, phase) {
   ctx.fillRect(x + lean * 2, Math.round(y - 12 - ember * 12), 1, 1);
 }
 
-export async function startTitleScene(canvas, { signal, motionPreference = 'normal' } = {}) {
+export async function startTitleScene(canvas, { signal, motionPreference = 'normal', storyAction, heroOffset = 0 } = {}) {
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx || signal?.aborted) return;
   canvas.width = WIDTH;
@@ -231,7 +231,20 @@ export async function startTitleScene(canvas, { signal, motionPreference = 'norm
     const time = isStatic() ? 0 : elapsed * speed;
     torch(ctx, 209, 137, time, 0);
     torch(ctx, 351, 137, time, 2);
+    if (storyAction === 'door') {
+      const opening = isStatic() ? 25 : Math.min(25, Math.floor(elapsed / 70));
+      ctx.fillStyle = '#b09a65';
+      ctx.fillRect(280 - opening / 2, 113, Math.max(2, opening), 120);
+      ctx.fillStyle = '#e9d5a3';
+      ctx.fillRect(280 - opening / 4, 114, Math.max(1, opening / 2), 117);
+    }
+    ctx.save();
+    const walking = storyAction === 'walk' && !isStatic();
+    const offset = heroOffset - (walking ? Math.max(0, 18 - elapsed / 80) : 0);
+    const recoil = storyAction === 'startle' && !isStatic() ? -Math.max(0, 8 - elapsed / 100) : 0;
+    ctx.translate(Math.round(offset + recoil), walking ? Math.round(Math.sin(time / 100) * 1.5) : 0);
     hero(ctx, time);
+    ctx.restore();
   }
   function frame(now) {
     if (signal?.aborted) return;
