@@ -3,6 +3,7 @@ import TitleScene from './components/TitleScene.jsx';
 import MenuDialog from './components/MenuDialog.jsx';
 import SettingsDialog from './components/SettingsDialog.jsx';
 import { DEFAULT_SETTINGS, normalizeSettings, readSettings, saveSettings } from './settings.js';
+import { listenForMenuNavigation } from './menuNavigation.js';
 
 const MENU = [
   { label: '새 모험', description: '학습 범위를 고르고 새로운 모험을 시작하세요.' },
@@ -17,29 +18,21 @@ export default function App() {
   const [settings, setSettings] = useState(readSettings);
   const [settingsSaved, setSettingsSaved] = useState(null);
   const buttons = useRef([]);
+  const menu = useRef(null);
   const opener = useRef(null);
 
   useEffect(() => { buttons.current[0]?.focus({ preventScroll: true }); }, []);
   useEffect(() => { setSettingsSaved(saveSettings(settings)); }, [settings]);
+  useEffect(() => {
+    if (openedMenu !== null) return;
+    return listenForMenuNavigation(document, {
+      menu: menu.current, buttons: buttons.current, selected, onSelect: setSelected,
+    });
+  }, [openedMenu, selected]);
 
   function focusMenu(index) {
     setSelected(index);
     buttons.current[index]?.focus({ preventScroll: true });
-  }
-
-  function handleNavigation(event) {
-    if (openedMenu !== null || event.altKey || event.ctrlKey || event.metaKey) return;
-    const destinations = {
-      ArrowDown: (selected + 1) % MENU.length,
-      ArrowUp: (selected - 1 + MENU.length) % MENU.length,
-      Home: 0,
-      End: MENU.length - 1,
-    };
-    const next = destinations[event.key];
-    if (next === undefined) return;
-    event.preventDefault();
-    focusMenu(next);
-    buttons.current[next]?.scrollIntoView({ block: 'nearest' });
   }
 
   function closeMenu() {
@@ -61,7 +54,7 @@ export default function App() {
                 <h1><span>S’WORD</span><span>MASTER</span></h1>
               </div>
             </header>
-            <nav className="menu" aria-label="시작 메뉴" onKeyDown={handleNavigation}>
+            <nav ref={menu} className="menu" aria-label="시작 메뉴">
               {MENU.map(({ label }, index) => (
                 <div className={index === 0 ? 'adventure-actions' : 'menu-item'} key={label}>
                   <button
