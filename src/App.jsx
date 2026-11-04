@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import TitleScene from './components/TitleScene.jsx';
 import MenuDialog from './components/MenuDialog.jsx';
 import SettingsDialog from './components/SettingsDialog.jsx';
+import VocabularyDialog from './components/VocabularyDialog.jsx';
 import { DEFAULT_SETTINGS, normalizeSettings, readSettings, saveSettings } from './settings.js';
 import { listenForMenuNavigation } from './menuNavigation.js';
 
 const MENU = [
   { label: '새 모험', description: '학습 범위를 고르고 새로운 모험을 시작하세요.' },
-  { label: '단어장', description: '모험에 필요한 단어를 차근차근 살펴보세요.' },
+  { label: '단어장', description: '티어별 단어와 뜻, 유의어·반의어를 살펴보세요.' },
   { label: '오답 복습', description: '헷갈렸던 단어를 다시 만나 보세요.' },
   { label: '설정', description: '나에게 편한 학습 환경을 준비하세요.' },
 ];
@@ -105,7 +106,8 @@ export default function App() {
         <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu}
           onChange={(key, value) => setSettings((current) => normalizeSettings({ ...current, [key]: value }))}
           onReset={() => setSettings({ ...DEFAULT_SETTINGS })} />
-      ) : <MenuDialog title={openedMenu} onClose={closeMenu} />}
+      ) : openedMenu === '단어장' ? <VocabularyDialog onClose={closeMenu} />
+        : <MenuDialog title={openedMenu} onClose={closeMenu} />}
     </div>
   );
 }
