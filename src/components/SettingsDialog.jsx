@@ -137,6 +137,9 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
               <SettingOptions name="selectionEffect" title="메뉴 선택 효과" description="선택한 항목의 밝기 변화를 조절해요."
                 choices={[[ 'breathe', '천천히 밝아짐' ], [ 'static', '고정' ]]}
                 value={settings.selectionEffect} onChange={changeSetting} />
+              <SettingOptions name="soundEffects" title="전투 효과음" description="슬라임전의 검격·타격·방어 소리를 켜거나 꺼요."
+                choices={[[ 'on', '켜기' ], [ 'off', '끄기' ]]}
+                value={settings.soundEffects} onChange={changeSetting} />
               <div className="setting-fullscreen">
                 <div><h4>전체 화면</h4><p>{fullscreenSupported ? '현재 창에만 적용돼요. Esc로 나올 수 있어요.' : '이 브라우저에서는 전체 화면을 지원하지 않아요.'}</p></div>
                 <button className="settings-action" disabled={!fullscreenSupported} aria-pressed={fullscreen}

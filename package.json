@@ -1,12 +1,14 @@
 {
   "name": "sword-master",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 8175 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8176 --strictPort",
+    "deploy:check": "npm run build && wrangler deploy --dry-run",
+    "deploy:preview": "npm run build && wrangler preview",
     "test": "node --test"
   },
   "dependencies": {
@@ -15,7 +17,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.2.1",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "wrangler": "4.157.0"
   },
   "allowScripts": {
     "fsevents@2.3.3": true
