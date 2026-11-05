@@ -203,7 +203,7 @@ function torch(ctx, x, y, milliseconds, phase) {
   ctx.fillRect(x + lean * 2, Math.round(y - 12 - ember * 12), 1, 1);
 }
 
-export async function startTitleScene(canvas, { signal, motionPreference = 'normal', storyAction, heroOffset = 0 } = {}) {
+export async function startTitleScene(canvas, { signal, motionPreference = 'normal', storyAction, heroOffset = 0, hideHero = false } = {}) {
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx || signal?.aborted) return;
   canvas.width = WIDTH;
@@ -243,7 +243,7 @@ export async function startTitleScene(canvas, { signal, motionPreference = 'norm
     const offset = heroOffset - (walking ? Math.max(0, 18 - elapsed / 80) : 0);
     const recoil = storyAction === 'startle' && !isStatic() ? -Math.max(0, 8 - elapsed / 100) : 0;
     ctx.translate(Math.round(offset + recoil), walking ? Math.round(Math.sin(time / 100) * 1.5) : 0);
-    hero(ctx, time);
+    if (!hideHero) hero(ctx, time);
     ctx.restore();
   }
   function frame(now) {

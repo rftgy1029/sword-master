@@ -1,16 +1,16 @@
 {
   "entrance": {
     "id": "S01",
-    "title": "출발: 어둠의 석문",
-    "location": "던전 입구 · 오래된 석문",
-    "background": "entrance",
+    "title": "입장: 석문 안쪽의 고요",
+    "location": "던전 안쪽 · 닫힌 석문 너머",
+    "background": "corridor",
     "lines": [
-      { "speaker": "내레이션", "text": "오래된 지도 끝에 이름 없는 던전이 있다. 석문 아래에는 ‘이 문 너머에 마왕이 기다린다’는 경고가 새겨져 있다." },
-      { "speaker": "용사", "text": "마왕에 보물까지. 소문이 절반만 맞아도 여기까지 온 보람은 있겠지." },
-      { "speaker": "용사", "text": "…입장 담당은 없는 거야? 좋아. 문은 직접 열라는 거군." },
-      { "speaker": "내레이션", "text": "용사가 검을 허리에 고쳐 차고 석문에 두 손을 댄다. 무거운 돌이 밀리며 문틈에서 찬 바람이 쏟아진다.", "cue": "door" },
-      { "speaker": "용사", "text": "생각보다 어둡네. 일단 안으로 들어가 보자." },
-      { "speaker": "내레이션", "text": "석문이 열리자 아래로 이어지는 계단과 긴 통로가 드러난다. 용사가 횃불을 들고 문 안으로 들어선다.", "cue": "door" }
+      { "speaker": "내레이션", "text": "용사가 들어온 뒤 등 뒤의 석문이 완전히 닫혔다. 바깥의 빛이 사라지고, 차가운 돌벽 사이로 물방울 소리만 울린다.", "enemyState": "hidden" },
+      { "speaker": "용사", "text": "벌써 문이 닫혔네. 밖에서 본 것보다 훨씬 깊어 보이는데… 일단 안쪽부터 살펴보자.", "enemyState": "hidden" },
+      { "speaker": "용사", "text": "마왕에 보물까지. 소문만 믿고 여기까지 들어왔으니, 무슨 흔적이라도 찾아봐야겠지.", "enemyState": "hidden" },
+      { "speaker": "내레이션", "text": "용사가 횃불을 높이 든다. 벽에는 오래된 문양이 남아 있고, 먼 곳에서는 희미한 바람이 불어온다.", "enemyState": "hidden" },
+      { "speaker": "용사", "text": "지도에는 이 문 너머에 마왕이 있다고 했어. 검도 챙겼고, 배운 주문도 기억나. 좋아, 앞으로 가 보자.", "enemyState": "hidden" },
+      { "speaker": "내레이션", "text": "용사가 검집을 고쳐 매고 지하 통로 안쪽으로 발걸음을 옮긴다. 횃불 빛이 긴 바닥 위로 흔들린다.", "cue": "corridor-enter", "enemyState": "hidden" }
     ]
   },
   "corridor": {
@@ -19,7 +19,7 @@
     "location": "석문 안쪽 · 지하 통로",
     "background": "corridor",
     "lines": [
-      { "speaker": "내레이션", "text": "축축한 돌기둥 사이로 곧은 통로가 뻗어 있다. 용사가 안으로 걸어 들어오자 발소리가 천장에 부딪혀 돌아온다.", "cue": "corridor-enter", "enemyState": "hidden" },
+      { "speaker": "내레이션", "text": "축축한 돌기둥 사이로 곧은 통로가 이어진다. 용사의 발소리가 높은 천장에 부딪혀 돌아온다.", "enemyState": "hidden" },
       { "speaker": "용사", "text": "좋아. 이제야 던전 같네. 벽을 따라가면 길을 잃지는 않겠지.", "enemyState": "hidden" },
       { "speaker": "내레이션", "text": "발밑에서 물방울이 튄다. 작은 웅덩이가 부풀어 오르더니, 푸른 슬라임 한 마리가 통로를 가로막는다.", "cue": "slime-emerge", "enemyState": "hostile" },
       { "speaker": "용사", "text": "슬라임 한 마리네. 난 그냥 지나가려는 건데… 잠깐, 왜 자세를 낮추는 거야?", "enemyState": "hostile" },
