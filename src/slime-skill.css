@@ -34,6 +34,27 @@
 .skill-limited[data-skill-type="guard"] .skill-impact { opacity: 0; }
 .skill-limited[data-skill-type="guard"] .skill-shield { opacity: .7; }
 .skill-limited .skill-cutin { display: none; }
+.enemy-health { position: absolute; z-index: 2; inset: 0; pointer-events: none; }
+.enemy-health > svg { display: block; width: 100%; height: 100%; }
+.enemy-health-value { font-size: 13px; fill: #f0dfb3; paint-order: stroke; stroke: #0c191f; stroke-width: 3px; font-variant-numeric: tabular-nums; }
+.enemy-health-track { fill: #172524; stroke: #9b9871; stroke-width: 1px; }
+.enemy-health-fill { fill: #c68a78; }
+.decode-controls { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 15px; padding: 13px 15px; border: 1px solid #49594b; background: #172723; }
+.decode-controls > div { min-width: 0; }
+.decode-controls strong, .decode-controls span { display: block; font-weight: 400; line-height: 1.7; }
+.decode-controls strong { color: #c0c9ad; font-size: calc(12px * var(--text-scale)); }
+.decode-controls span { color: #a4b29d; font-size: calc(10px * var(--text-scale)); }
+.decode-charge { display: flex; gap: 5px; margin-top: 8px; }
+.decode-charge i { width: 22px; height: 5px; border: 1px solid #61705c; background: #293d32; }
+.decode-charge .is-filled { background: #c7b67a; border-color: #daca97; }
+.decode-controls.is-ready { border-color: #b7a36d; background: #303b29; }
+.decode-controls.is-ready strong { color: #ead79f; }
+.decode-button { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 7px; min-width: 114px; min-height: 52px; padding: 9px 13px; border: 1px solid #c5ae75; background: #b9a56b; color: #17241f; font-size: calc(13px * var(--text-scale)); flex-shrink: 0; }
+.decode-button small { width: 100%; font-size: 10px; }
+.decode-button kbd { background: #22362a; color: #ecdfb5; padding: 1px 4px; font-size: 10px; }
+.decode-button:disabled { border-color: #58674f; background: #293a2e; color: #a5af97; cursor: default; }
+.decode-button:hover:not(:disabled) { background: #dbc586; }
+.decode-controls:has(+ .battle-finishing) { opacity: .6; }
 @media (max-width: 650px) {
   .story-screen:has(.slime-stage) .story-playback-controls { position: static; }
   .story-screen:has(.slime-stage) .story-frame { scroll-margin-top: 12px; }
@@ -43,4 +64,6 @@
   .skill-cutin-copy { left: 52%; gap: 6px; }
   .skill-cutin-copy > span { font-size: 8px; letter-spacing: 0; }
   .skill-cutin-copy > small { font-size: 9px; }
+  .decode-controls { gap: 10px; padding: 11px; }
+  .decode-button { min-width: 88px; padding: 9px; }
 }

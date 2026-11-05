@@ -57,7 +57,7 @@ function answerHistory(learning) {
   if (Array.isArray(learning.history)) return learning.history;
   return ENCOUNTERS.flatMap(({ id }) => {
     const session = learning.encounters[id];
-    return session ? session.answers.map((choice, index) => ({ encounterId: id, wordId: session.wordIds[index], index, choice })) : [];
+    return session ? session.answers.map((choice, index) => ({ encounterId: id, wordId: session.wordIds[index % session.wordIds.length], index, choice })) : [];
   });
 }
 
@@ -82,7 +82,50 @@ export function createEncounter(id, learning = emptyLearning()) {
       if (words.length >= 10) break;
     }
   }
-  return { wordIds: words, answers: [] };
+  return { wordIds: words, answers: [], ...(id === 'slime' ? { combat: { skillUses: [] } } : {}) };
+}
+
+export function encounterQuestion(id, session, index = session.answers.length) {
+  return makeQuestion(id, session.wordIds[id === 'slime' ? index % session.wordIds.length : index], index);
+}
+
+// Persist casts at their answer positions, so health and charge always replay
+// together. An interrupted cinematic cannot refund a cast or apply it twice.
+export function slimeCombat(session) {
+  const uses = session.combat?.skillUses ?? [];
+  if (!Array.isArray(uses) || new Set(uses).size !== uses.length ||
+      uses.some((at) => !Number.isInteger(at) || at < 1 || at > session.answers.length) || session.answers.length > 5) return null;
+  let hp = 100, streak = 0, charged = false;
+  for (let index = 0; index < session.answers.length; index++) {
+    if (hp === 0) return null;
+    const question = encounterQuestion('slime', session, index);
+    hp = Math.max(0, hp - 20);
+    if (!charged) {
+      streak = session.answers[index] === question.answerIndex ? streak + 1 : 0;
+      charged = streak === 3;
+    }
+    if (uses.includes(index + 1)) {
+      if (!charged || hp === 0) return null;
+      hp = Math.max(0, hp - 40);
+      streak = 0; charged = false;
+    }
+  }
+  if (session.combat?.legacyComplete === true) {
+    if (session.answers.length !== 4 || uses.length) return null;
+    hp = 0;
+  }
+  return { hp, streak, charged: charged && hp > 0 };
+}
+
+export function encounterHealth(id, session) {
+  return id === 'slime' ? slimeCombat(session).hp : Math.max(0, Math.ceil(100 * (session.wordIds.length - session.answers.length) / session.wordIds.length));
+}
+
+export function activateSlimeSkill(learning, session) {
+  if (learning.encounters.slime !== session || !slimeCombat(session)?.charged) return learning;
+  return { ...learning, encounters: { ...learning.encounters, slime: {
+    ...session, combat: { skillUses: [...session.combat.skillUses, session.answers.length] },
+  } } };
 }
 
 export function makeQuestion(encounterId, wordId, index) {
@@ -104,12 +147,13 @@ export function makeQuestion(encounterId, wordId, index) {
 }
 
 export function recordAnswer(learning, id, session, index, choice) {
-  if (index !== session.answers.length || index >= session.wordIds.length) return learning;
-  const question = makeQuestion(id, session.wordIds[index], index);
+  if (index !== session.answers.length || encounterHealth(id, session) === 0 ||
+      index >= (id === 'slime' ? 5 : session.wordIds.length)) return learning;
+  const question = encounterQuestion(id, session, index);
   if (!Number.isInteger(choice) || choice < 0 || choice >= question.options.length) return learning;
   return {
-    encounters: { ...learning.encounters, [id]: { wordIds: [...session.wordIds], answers: [...session.answers, choice] } },
-    history: [...answerHistory(learning), { encounterId: id, wordId: session.wordIds[index], index, choice }],
+    encounters: { ...learning.encounters, [id]: { ...session, wordIds: [...session.wordIds], answers: [...session.answers, choice] } },
+    history: [...answerHistory(learning), { encounterId: id, wordId: question.word.id, index, choice }],
   };
 }
 
@@ -133,11 +177,18 @@ export function readLearning(storage) {
       const expected = createEncounter(id, result);
       if (!session || !Array.isArray(session.wordIds) || !Array.isArray(session.answers) ||
           session.wordIds.length !== expected.wordIds.length || new Set(session.wordIds).size !== session.wordIds.length ||
-          session.answers.length > session.wordIds.length || session.wordIds.some((wordId, index) =>
+          session.answers.length > (id === 'slime' ? 5 : session.wordIds.length) || session.wordIds.some((wordId, index) =>
             !byId.has(wordId) || (id !== 'boss' && wordId !== expected.wordIds[index]) || (id === 'boss' && index < 4 && wordId !== expected.wordIds[index]))) continue;
-      if (session.answers.some((choice, index) => !Number.isInteger(choice) || choice < 0 || choice >= makeQuestion(id, session.wordIds[index], index).options.length)) continue;
-      result.encounters[id] = { wordIds: [...session.wordIds], answers: [...session.answers] };
-      if (!migrated) legacyHistory.push(...session.answers.map((choice, index) => ({ encounterId: id, wordId: session.wordIds[index], index, choice })));
+      if (session.answers.some((choice, index) => !Number.isInteger(choice) || choice < 0 || choice >= encounterQuestion(id, session, index).options.length)) continue;
+      const restored = { wordIds: [...session.wordIds], answers: [...session.answers] };
+      if (id === 'slime') {
+        if (session.combat !== undefined && (!session.combat || !Array.isArray(session.combat.skillUses))) continue;
+        restored.combat = session.combat ? { skillUses: [...session.combat.skillUses], ...(session.combat.legacyComplete === true ? { legacyComplete: true } : {}) }
+          : { skillUses: [], ...(session.answers.length === 4 ? { legacyComplete: true } : {}) };
+        if (!slimeCombat(restored)) continue;
+      }
+      result.encounters[id] = restored;
+      if (!migrated) legacyHistory.push(...session.answers.map((choice, index) => ({ encounterId: id, wordId: session.wordIds[index % session.wordIds.length], index, choice })));
     }
     if (Array.isArray(raw.history)) {
       result.history = raw.history.filter((event) => {

@@ -1,6 +1,7 @@
 import TitleScene from './TitleScene.jsx';
 import StoryProps from './StoryProps.jsx';
 import DungeonCorridor from './DungeonCorridor.jsx';
+import EnemyHealth from './EnemyHealth.jsx';
 
 import StoryCharacter from './StoryCharacter.jsx';
 export { default as StoryCharacter } from './StoryCharacter.jsx';
@@ -78,6 +79,7 @@ export default function StoryArt({ background, sceneId, lineIndex = 0, recording
         {(action === 'slash' || action === 'guard' || action === 'victory') && <g key={`fx-${token}`} className={`battle-scene-effect effect-${action}`}><path className="slash-arc" d="M303 199q100-120 208-55-130-17-170 89Z" fill="#ecdcad" /><circle className="magic-ring" cx="225" cy="230" r="43" fill="none" stroke="#89b6bb" strokeWidth="4" /><text className="battle-impact-label" x="390" y="132" textAnchor="middle" fill="#f1d6a1" fontSize="14" letterSpacing="2">{action === 'guard' ? 'GUARD' : action === 'victory' ? 'CLEAR' : 'BREAK'}</text></g>}
         {['solve', 'hint', 'restored'].includes(action) && <g key={`puzzle-${token}`} className={`puzzle-scene-effect effect-${action}`}><circle className="puzzle-light" cx="490" cy="183" r="54" fill="none" stroke="#a0bda2" strokeWidth="2" strokeDasharray="6 9" /><text className="puzzle-feedback-label" x="490" y="117" textAnchor="middle" fill="#cdd9b5" fontSize="11">{action === 'hint' ? '다시 읽어 보기' : action === 'restored' ? '복원 완료' : '문구 확인'}</text></g>}
       </svg>
+      {battleVisual?.mode === 'combat' && <EnemyHealth enemy={battleVisual.enemy} percent={battleVisual.healthPercent} kind={enemyKind} />}
       <StoryProps key={`${sceneId}-${prop}`} prop={prop} lineIndex={lineIndex} sceneId={sceneId} />
       <div key={`transition-${sceneId}`} className="scene-transition-shade" />
     </div>

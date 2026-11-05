@@ -1,14 +1,17 @@
 import StoryCharacter from './StoryCharacter.jsx';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { playSlimeSkill } from '../slimeSkill.js';
+import EnemyHealth from './EnemyHealth.jsx';
 
 export default function DungeonCorridor({ lineIndex, cue, enemyState, paused, battleVisual, limitedMotion, audio, soundEnabled, onSkillComplete }) {
   const stage = useRef(null);
   const playback = useRef(null);
+  const [impactToken, setImpactToken] = useState(null);
   const skill = battleVisual?.skill;
   useEffect(() => {
     if (!skill) return;
-    const player = playSlimeSkill(stage.current, { type: skill.type, limited: limitedMotion, audio, soundEnabled, onComplete: () => onSkillComplete(skill.token) });
+    const player = playSlimeSkill(stage.current, { type: skill.type, limited: limitedMotion, audio, soundEnabled,
+      onImpact: () => setImpactToken(skill.token), onComplete: () => onSkillComplete(skill.token) });
     playback.current = player;
     return () => { player.cancel(); playback.current = null; };
   }, [skill, limitedMotion, audio, soundEnabled, onSkillComplete]);
@@ -63,9 +66,10 @@ export default function DungeonCorridor({ lineIndex, cue, enemyState, paused, ba
       </g>}
     </svg>
     {battleVisual && <>
+      <EnemyHealth enemy={battleVisual.enemy} percent={skill && impactToken !== skill.token ? skill.healthBefore : battleVisual.healthPercent} kind="slime" />
       <div className="skill-vignette" aria-hidden="true" />
-      {skill?.type === 'finish' && <div className="skill-cutin" aria-hidden="true"><div className="skill-cutin-stripe" /><svg className="skill-portrait" viewBox="0 0 140 95" shapeRendering="crispEdges"><StoryCharacter character="용사" x="22" y="-6" width="105" height="126" /></svg><div className="skill-cutin-copy"><span>네 개의 뜻, 하나의 검</span><strong>해독검</strong><small>終結 <i>/</i> 종결</small></div></div>}
-      <div className="skill-stage-label"><span>{skill?.type === 'guard' ? 'DEFEND' : skill?.type === 'finish' ? 'FINAL SKILL' : 'DECODE BLADE'}</span><strong className="skill-phase-label">{action === 'cleared' ? '통로 확보' : skill ? '뜻을 검에 새깁니다' : '단어를 해독해 검에 힘을 실으세요'}</strong></div>
+      {skill?.type === 'finish' && <div className="skill-cutin" aria-hidden="true"><div className="skill-cutin-stripe" /><svg className="skill-portrait" viewBox="0 0 140 95" shapeRendering="crispEdges"><StoryCharacter character="용사" x="22" y="-6" width="105" height="126" /></svg><div className="skill-cutin-copy"><span>세 번의 해독, 하나의 검격</span><strong>해독검</strong><small>DECODE BLADE</small></div></div>}
+      <div className="skill-stage-label"><span>{skill?.type === 'guard' ? 'DEFEND' : skill?.type === 'finish' ? 'DECODE BLADE' : 'SWORD STRIKE'}</span><strong className="skill-phase-label">{action === 'cleared' ? '통로 확보' : skill ? '뜻을 검에 새깁니다' : '3연속 정답으로 해독검을 충전하세요'}</strong></div>
     </>}
     <div className="entrance-mist" />
     <div className="scene-transition-shade" />

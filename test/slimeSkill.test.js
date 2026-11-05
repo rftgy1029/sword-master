@@ -46,6 +46,52 @@ test('limited motion finishes without the long cinematic wait', () => {
   assert.deepEqual(run.sounds, ['finish']);
 });
 
+test('active decode lasts 2000ms and syncs impact and sound after its 800ms cut-in', () => {
+  let impacts = 0;
+  const run = playback({ type: 'finish', onImpact: () => impacts++ });
+  run.advance(1099);
+  assert.deepEqual(run.sounds, []);
+  run.advance(1);
+  assert.deepEqual(run.sounds, ['swing']);
+  run.advance(199);
+  assert.equal(impacts, 0);
+  run.advance(1);
+  assert.equal(impacts, 1);
+  assert.deepEqual(run.sounds, ['swing', 'finish']);
+  run.advance(699);
+  assert.equal(run.completions, 0);
+  run.advance(1);
+  assert.equal(run.completions, 1);
+  run.advance(5000);
+  assert.equal(impacts, 1);
+  assert.equal(run.completions, 1);
+});
+
+test('active cut-in and strike animations fill the same two-second clock', () => {
+  const timing = new Map();
+  const root = { dataset: {}, querySelector: () => null, querySelectorAll: (selector) => [{
+    animate: (_, options) => { timing.set(selector, options); return { pause() {}, cancel() {} }; },
+  }] };
+  const player = playSlimeSkill(root, { type: 'finish', now: () => 0, requestFrame: () => 1, cancelFrame() {}, onComplete() {} });
+  assert.equal(timing.get('.skill-cutin').duration, 800);
+  assert.equal(timing.get('.skill-mover').delay, 800);
+  assert.equal(timing.get('.skill-mover').duration, 1200);
+  player.cancel();
+});
+
+test('pausing and skipping the active cut-in cannot emit a late impact', () => {
+  let impacts = 0;
+  const run = playback({ type: 'finish', onImpact: () => impacts++ });
+  run.advance(700); run.player.pause(); run.advance(5000);
+  assert.equal(impacts, 0);
+  assert.equal(run.completions, 0);
+  run.player.resume(); run.advance(100);
+  assert.equal(run.label.textContent, '검에 뜻을 새긴다');
+  run.player.cancel(); run.advance(5000);
+  assert.equal(impacts, 0);
+  assert.equal(run.completions, 0);
+});
+
 test('audio remains optional when unsupported, blocked or muted', () => {
   const original = globalThis.AudioContext;
   try {

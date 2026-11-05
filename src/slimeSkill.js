@@ -1,17 +1,17 @@
-export const SKILL_DURATION = { decode: 1200, guard: 900, finish: 1800 };
+export const SKILL_DURATION = { decode: 1200, guard: 900, finish: 2000 };
 
 // One clock seeks every animation and dispatches sound cues. Hidden tabs cannot
 // advance a second timer while the character is paused.
-export function playSlimeSkill(root, { type, limited = false, audio, soundEnabled, onComplete,
+export function playSlimeSkill(root, { type, limited = false, audio, soundEnabled, onComplete, onImpact,
   now = () => performance.now(), requestFrame = requestAnimationFrame, cancelFrame = cancelAnimationFrame }) {
   const animations = [];
   const duration = limited ? 160 : SKILL_DURATION[type];
-  const lead = type === 'finish' ? 600 : 0;
+  const lead = type === 'finish' ? 800 : 0;
   const hit = type === 'guard' ? 380 : lead + 500;
   const cues = limited ? [[0, type === 'guard' ? 'guard' : type === 'finish' ? 'finish' : 'hit']]
     : type === 'guard' ? [[hit, 'guard']] : [[lead + 300, 'swing'], [hit, type === 'finish' ? 'finish' : 'hit']];
   const fired = new Set();
-  let elapsed = 0, previous = now(), frame, paused = false, ended = false;
+  let elapsed = 0, previous = now(), frame, paused = false, ended = false, impacted = false;
   const label = root.querySelector('.skill-phase-label');
   function animate(selector, frames, start = 0, length = duration) {
     if (limited) return;
@@ -58,15 +58,16 @@ export function playSlimeSkill(root, { type, limited = false, audio, soundEnable
     animate('.skill-impact', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'scale(1)', offset: .05 }, { opacity: 1, transform: 'scale(1)', offset: .28 }, { opacity: 0, transform: 'scale(1.5)' }], hit, 320);
     animate('.corridor-panorama', [{ transform: 'translate(0,0)' }, { transform: 'translate(-3px,1px)', offset: .2 }, { transform: 'translate(3px,-1px)', offset: .4 }, { transform: 'translate(-1px,0)', offset: .65 }, { transform: 'translate(0,0)' }], hit + 70, 150);
     if (type === 'finish') {
-      animate('.skill-cutin', [{ opacity: 0, transform: 'translateX(-10%)' }, { opacity: 1, transform: 'translateX(0)', offset: .14 }, { opacity: 1, transform: 'translateX(0)', offset: .83 }, { opacity: 0, transform: 'translateX(8%)' }], 0, 600);
+      animate('.skill-cutin', [{ opacity: 0, transform: 'translateX(-10%)' }, { opacity: 1, transform: 'translateX(0)', offset: .14 }, { opacity: 1, transform: 'translateX(0)', offset: .83 }, { opacity: 0, transform: 'translateX(8%)' }], 0, lead);
       animate('.skill-vignette', [{ opacity: 0 }, { opacity: .8, offset: .2 }, { opacity: .8, offset: .7 }, { opacity: 0 }]);
     }
   }
   function paint() {
     for (const animation of animations) animation.currentTime = elapsed;
-    const phase = limited ? '뜻 해독 완료' : elapsed >= duration ? type === 'guard' ? '방어 성공' : type === 'finish' ? '통로 확보' : '해독검 적중' : type === 'guard' ? '공격을 막아냈다' : elapsed < lead ? '해독검 · 종결' : elapsed < lead + 300 ? '검에 뜻을 새긴다' : elapsed < hit ? '빈틈을 향해 돌진' : elapsed < hit + 250 ? '명령을 베어낸다' : '자세를 되돌린다';
+    const phase = limited ? '뜻 해독 완료' : elapsed >= duration ? type === 'guard' ? '방어 성공' : type === 'finish' ? '해독검 적중' : '검격 적중' : type === 'guard' ? '공격을 막아냈다' : elapsed < lead ? '해독검' : elapsed < lead + 300 ? '검에 뜻을 새긴다' : elapsed < hit ? '빈틈을 향해 돌진' : elapsed < hit + 250 ? '명령을 베어낸다' : '자세를 되돌린다';
     root.dataset.skillPhase = phase;
     if (label) label.textContent = phase;
+    if (!impacted && elapsed >= (limited ? 0 : hit)) { impacted = true; onImpact?.(); }
     cues.forEach(([at, kind], index) => {
       if (elapsed >= at && !fired.has(index)) { fired.add(index); audio?.play(kind, soundEnabled); }
     });
