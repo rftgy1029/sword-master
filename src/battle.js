@@ -1,4 +1,5 @@
 import vocabulary from './data/vocabulary.json' with { type: 'json' };
+import { emptyEconomy, normalizeEconomy } from './shop.js';
 
 export const BRONZE_WORDS = vocabulary.filter(({ tier }) => tier === 'bronze');
 const byId = new Map(BRONZE_WORDS.map((word) => [word.id, word]));
@@ -51,7 +52,7 @@ function related(a, b) {
   return korean.some((token) => b.meaning.includes(token));
 }
 
-export function emptyLearning() { return { encounters: {}, history: [] }; }
+export function emptyLearning() { return { encounters: {}, history: [], economy: emptyEconomy() }; }
 
 function answerHistory(learning) {
   if (Array.isArray(learning.history)) return learning.history;
@@ -87,6 +88,10 @@ export function createEncounter(id, learning = emptyLearning()) {
 
 export function encounterQuestion(id, session, index = session.answers.length) {
   return makeQuestion(id, session.wordIds[id === 'slime' ? index % session.wordIds.length : index], index);
+}
+
+export function lensRemovedChoice(question, session, index) {
+  return question && session.hints?.includes(index) ? question.options.findIndex((_, i) => i !== question.answerIndex) : -1;
 }
 
 // Persist casts at their answer positions, so health and charge always replay
@@ -150,8 +155,9 @@ export function recordAnswer(learning, id, session, index, choice) {
   if (index !== session.answers.length || encounterHealth(id, session) === 0 ||
       index >= (id === 'slime' ? 5 : session.wordIds.length)) return learning;
   const question = encounterQuestion(id, session, index);
-  if (!Number.isInteger(choice) || choice < 0 || choice >= question.options.length) return learning;
+  if (!Number.isInteger(choice) || choice < 0 || choice >= question.options.length || choice === lensRemovedChoice(question, session, index)) return learning;
   return {
+    ...learning,
     encounters: { ...learning.encounters, [id]: { ...session, wordIds: [...session.wordIds], answers: [...session.answers, choice] } },
     history: [...answerHistory(learning), { encounterId: id, wordId: question.word.id, index, choice }],
   };
@@ -162,6 +168,7 @@ export function readLearning(storage) {
     const raw = JSON.parse((storage ?? globalThis.localStorage).getItem(LEARNING_KEY));
     if (raw?.version !== 1 || !raw.encounters || typeof raw.encounters !== 'object') return emptyLearning();
     const result = emptyLearning();
+    result.economy = normalizeEconomy(raw.economy, ENCOUNTERS.map(({ id }) => id));
     const legacyHistory = [];
     for (const { id } of ENCOUNTERS) {
       let session = raw.encounters[id];
@@ -181,6 +188,11 @@ export function readLearning(storage) {
             !byId.has(wordId) || (id !== 'boss' && wordId !== expected.wordIds[index]) || (id === 'boss' && index < 4 && wordId !== expected.wordIds[index]))) continue;
       if (session.answers.some((choice, index) => !Number.isInteger(choice) || choice < 0 || choice >= encounterQuestion(id, session, index).options.length)) continue;
       const restored = { wordIds: [...session.wordIds], answers: [...session.answers] };
+      if (session.rewarded === true) restored.rewarded = true;
+      if (Array.isArray(session.hints)) {
+        const hints = [...new Set(session.hints.filter((index) => Number.isInteger(index) && index >= 0 && index <= session.answers.length && index < (id === 'slime' ? 5 : session.wordIds.length)))];
+        if (hints.length) restored.hints = hints;
+      }
       if (id === 'slime') {
         if (session.combat !== undefined && (!session.combat || !Array.isArray(session.combat.skillUses))) continue;
         restored.combat = session.combat ? { skillUses: [...session.combat.skillUses], ...(session.combat.legacyComplete === true ? { legacyComplete: true } : {}) }
@@ -203,7 +215,7 @@ export function readLearning(storage) {
 
 export function saveLearning(learning, storage) {
   try {
-    (storage ?? globalThis.localStorage).setItem(LEARNING_KEY, JSON.stringify({ version: 1, encounters: learning.encounters, history: answerHistory(learning) }));
+    (storage ?? globalThis.localStorage).setItem(LEARNING_KEY, JSON.stringify({ version: 1, encounters: learning.encounters, history: answerHistory(learning), economy: learning.economy }));
     return true;
   } catch { return false; }
 }

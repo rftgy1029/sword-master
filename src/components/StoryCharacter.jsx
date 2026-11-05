@@ -54,7 +54,7 @@ export default function StoryCharacter({ character, sheathed = false, ...props }
   if (!nia) return (
     <svg viewBox="0 0 40 48" {...props} aria-hidden="true" shapeRendering="crispEdges">
       <g className="hero-rig">
-        <g className="hero-cape"><path fill="#8e5e49" d="M11 24h5v15H6v-5h3v-5h2Z" /><path fill="#b07c54" d="M11 24h3v9h-3v4H8v-4h1v-4h2Z" /></g>
+        <g className="hero-cape"><path fill="var(--hero-cloak, #8e5e49)" d="M11 24h5v15H6v-5h3v-5h2Z" /><path fill="var(--hero-cloak-light, #b07c54)" d="M11 24h3v9h-3v4H8v-4h1v-4h2Z" /></g>
         <g className="hero-legs"><path className="hero-leg-left" fill="#403d33" d="M15 38h5v7h-7v-3h2Z" /><path className="hero-leg-right" fill="#403d33" d="M24 38h5v7h-7v-3h2Z" /></g>
         <g className="hero-torso">
           <path fill="#705442" d="M13 3h14v3h4v12H10V7h3Z" />

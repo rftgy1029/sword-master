@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { activateSlimeSkill, createEncounter, encounterAction, encounterHealth, encounterQuestion, ENCOUNTERS, recordAnswer, slimeCombat } from '../battle.js';
+import { activateSlimeSkill, createEncounter, encounterAction, encounterHealth, encounterQuestion, ENCOUNTERS, lensRemovedChoice, recordAnswer, slimeCombat } from '../battle.js';
+import { battleReward, shopUnlocked, useFocusLens } from '../progression.js';
 
 export default function BattlePanel({ id, learning, onLearning, onComplete, onVisual, onPause, autoPlaying, suspended, audio, soundEnabled, skillDone, limitedMotion }) {
   const encounter = ENCOUNTERS.find((item) => item.id === id);
@@ -16,6 +17,8 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
   const heading = useRef(null);
   const locked = useRef(false);
   const motionLocked = useRef(false);
+  const lensLocked = useRef(false);
+  const alreadyRewarded = useRef(session.rewarded === true);
   const health = encounterHealth(id, session);
   const combat = slime ? slimeCombat(session) : null;
   const skillBusy = skill !== null && skillDone !== skill.token;
@@ -23,6 +26,7 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
   const complete = health === 0 && !watching && !skillBusy && (slime || feedback === null);
   const index = feedback ? session.answers.length - 1 : session.answers.length;
   const question = complete || finishing ? null : encounterQuestion(id, session, index);
+  const hiddenChoice = lensRemovedChoice(question, session, index);
   const correctCount = session.answers.reduce((sum, choice, i) => sum + (choice === encounterQuestion(id, session, i).answerIndex ? 1 : 0), 0);
 
   useEffect(() => {
@@ -61,7 +65,7 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
   }
 
   function answer(choice) {
-    if (locked.current || motionLocked.current || suspended || watching || complete || skillBusy || feedback !== null) return;
+    if (locked.current || motionLocked.current || suspended || watching || complete || skillBusy || feedback !== null || choice === hiddenChoice) return;
     locked.current = true;
     advancing.current = false;
     const updated = recordAnswer(learning, id, session, index, choice);
@@ -72,10 +76,20 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
     if (slime) { audio.unlock(soundEnabled); requestSkill(choice === question.answerIndex ? 'decode' : 'guard', health, encounterHealth(id, next)); }
   }
 
+  function useLens() {
+    if (lensLocked.current || locked.current || motionLocked.current || suspended || watching || complete || skillBusy || feedback !== null) return;
+    const next = useFocusLens(learning, id, session, index);
+    if (next === learning) return;
+    lensLocked.current = true;
+    setSession(next.encounters[id]);
+    onLearning(next);
+  }
+
   function nextQuestion() {
     if (suspended || !feedback || advancing.current || skillBusy || motionLocked.current) return;
     advancing.current = true;
     locked.current = false;
+    lensLocked.current = false;
     setFeedback(null);
     setSkill(null);
     heading.current?.focus({ preventScroll: true });
@@ -116,6 +130,8 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
   function replay() {
     const fresh = createEncounter(id, learning);
     setSession(fresh);
+    alreadyRewarded.current = false;
+    lensLocked.current = false;
     onLearning({ ...learning, encounters: { ...learning.encounters, [id]: fresh } });
     setFeedback(null);
     locked.current = false;
@@ -137,6 +153,7 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
         : watching ? <div className="battle-watch" role="status"><p className="battle-watch-magic">✦</p><h3>{[...(encounter.watchLines ?? (puzzle ? ['빛을 비춰 흐려진 문구를 읽습니다.', '뜻에 맞는 명령을 연결해 장치를 복원합니다.'] : ['용사의 검에 해독의 빛이 모입니다.', '모모가 공격을 피하고, 니아가 방어막을 펼칩니다.'])), encounter.success][watchStep]}</h3><p>{puzzle ? '복원' : '전투'} 연출을 감상 중이에요. 단어 응답 기록은 남기지 않아요.</p><button className="story-next-button" onClick={onComplete}>이야기 계속 →</button></div>
         : complete ? <div className="battle-result"><p className="battle-result-mark" aria-hidden="true">✦</p><h3>{puzzle ? id === 'signs' ? '길 안내 복원 완료' : '장치 복원 완료' : id === 'slime' ? '통로 확보' : '명령 해제 완료'}</h3><p>{encounter.success}</p>
           <p className="battle-result-score">정답 <strong>{correctCount}</strong> / {session.answers.length} <span>{slime ? '슬라임을 물러나게 했어요.' : '모든 명령의 뜻을 확인했어요.'}</span></p>
+          {!puzzle && <div className="battle-loot" data-animate={!alreadyRewarded.current && !limitedMotion} role="status"><span className="loot-coins" aria-hidden="true"><i>◈</i><i>◈</i><i>◈</i></span><div><strong>+{battleReward(id, session)} 코인</strong><p>{alreadyRewarded.current ? '이미 받은 전투 보상이에요.' : '전투 보상을 지갑에 담았어요.'} 보유 {learning.economy.coins.toLocaleString()} 코인</p></div></div>}
           {correctCount < session.answers.length && <details onToggle={(event) => { if (event.currentTarget.open) onPause(); }}><summary>이번 구간의 오답 확인</summary><ul>{session.answers.map((choice, i) => {
             const item = encounterQuestion(id, session, i);
             return choice !== item.answerIndex && <li key={i}><strong>{item.term}</strong><span>{item.answer}</span></li>;
@@ -145,7 +162,8 @@ export default function BattlePanel({ id, learning, onLearning, onComplete, onVi
           : <>
             <p className="battle-objective">{encounter.objective}</p>
             <div className="battle-question"><div><span className="battle-question-type">{question.type === 'meaning' ? '뜻 해독' : question.type === 'synonyms' ? '유의어 연결' : '반의어 해제'}</span><h3 lang="en">{question.term}</h3></div><p>{question.type === 'meaning' && encounter.questionPrompt ? encounter.questionPrompt : question.prompt}{question.type !== 'meaning' && <small>단어의 뜻: {question.word.meaning}</small>}</p></div>
-            <div className="battle-options" role="group" aria-label="명령의 정답 선택">{question.options.map((option, i) => <button key={option} disabled={feedback !== null || suspended || skillBusy} onClick={() => answer(i)} className={`${feedback && i === question.answerIndex ? 'is-answer' : ''}${feedback && i === feedback.choice && !feedback.correct ? ' is-wrong' : ''}`}><kbd>{i + 1}</kbd><span>{option}</span>{feedback && i === question.answerIndex && <span aria-label="정답">✓</span>}</button>)}</div>
+            {shopUnlocked(learning.economy) && !feedback && <div className="battle-item"><span>{hiddenChoice >= 0 ? '집중의 렌즈로 오답 보기 하나를 지웠어요.' : '어려운 문제에는 모험 도구를 사용해 보세요.'}</span><button className="story-text-button" disabled={suspended || skillBusy || hiddenChoice >= 0 || learning.economy.lenses < 1} onClick={useLens}>집중의 렌즈 사용 · {learning.economy.lenses}개</button></div>}
+            <div className="battle-options" role="group" aria-label="명령의 정답 선택">{question.options.map((option, i) => <button key={option} disabled={feedback !== null || suspended || skillBusy || i === hiddenChoice} onClick={() => answer(i)} className={`${i === hiddenChoice ? 'is-removed' : ''}${feedback && i === question.answerIndex ? ' is-answer' : ''}${feedback && i === feedback.choice && !feedback.correct ? ' is-wrong' : ''}`}><kbd>{i + 1}</kbd><span>{i === hiddenChoice ? '렌즈로 지운 보기' : option}</span>{feedback && i === question.answerIndex && <span aria-label="정답">✓</span>}</button>)}</div>
             {feedback && <div className="battle-feedback" role="status"><strong>{feedback.correct ? encounter.correctFeedback ?? (puzzle ? '뜻이 맞았어요. 장치의 문구가 제자리를 찾습니다.' : '명령 해독! 검에 빛이 실립니다.') : encounter.incorrectFeedback ?? (puzzle ? '뜻을 확인하고 연결을 다시 맞춰 봐요.' : '니아가 방어했어요. 정답을 확인하고 다시 나아가요.')}</strong><p><span lang="en">{question.term}</span> · {question.word.meaning}{question.type !== 'meaning' && <> / {question.type === 'synonyms' ? '유의어' : '반의어'}: {question.answer}</>}</p><button className="story-text-button" disabled={suspended || skillBusy} onClick={nextQuestion}>{health === 0 ? '결과 보기' : '다음 문제'} →</button>{skillBusy && <button className="story-text-button" disabled={suspended} onClick={skipMotion}>연출 건너뛰기 →</button>}</div>}
           </>}
       {!watching && !complete && !finishing && <div className="battle-bottom"><span>시간 제한 없이 <kbd>1</kbd>~<kbd>4</kbd> 또는 선택지 클릭{slime && ' · 뜻 확인 시 기본 피해 20%'}</span><button className="story-text-button" disabled={suspended || skillBusy} onClick={() => { setWatching(true); setFeedback(null); if (slime) { audio.unlock(soundEnabled); requestSkill('decode', 100, 80); } }}>{puzzle ? '복원' : '전투'} 연출만 보기 »</button></div>}
