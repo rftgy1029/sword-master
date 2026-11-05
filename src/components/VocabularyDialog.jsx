@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { findVocabulary, PAGE_SIZE, TIERS } from '../vocabulary.js';
 
-function TierCrest({ tier, small = false }) {
+export function TierCrest({ tier, small = false }) {
   return (
     <svg className={`tier-crest tier-${tier}${small ? ' is-small' : ''}`} viewBox="0 0 24 28" aria-hidden="true">
       <path d="M3 2h18v15h-3v4h-3v3H9v-3H6v-4H3Z" />

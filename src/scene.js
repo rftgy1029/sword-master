@@ -120,7 +120,7 @@ function floor(ctx) {
   ctx.fillRect(118, 237, 48, 4);
 }
 
-function hero(ctx, milliseconds) {
+export function hero(ctx, milliseconds) {
   ctx.save();
   ctx.translate(124, 168);
   ctx.scale(2, 2);
