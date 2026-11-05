@@ -1,0 +1,545 @@
+/* S'word Master: Spire Mode Stylesheet */
+
+.spire-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #111414;
+  color: #eeebdd;
+  font-family: GothicA1, sans-serif;
+  user-select: none;
+}
+
+/* Header bar */
+.spire-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 24px;
+  background: #181d1c;
+  border-bottom: 2px solid #2a3330;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.spire-header-stats {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.spire-stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #232a29;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #36423f;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.spire-stat-pill.hp {
+  border-color: #7a2e2e;
+}
+
+.spire-stat-pill.shield {
+  border-color: #2b5876;
+}
+
+.spire-stat-pill.gold {
+  border-color: #8a7333;
+  color: #f7d070;
+}
+
+.spire-stat-pill.combo {
+  border-color: #7b4397;
+  color: #d896ff;
+}
+
+.spire-header-relics {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spire-relic-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #252e2c;
+  border: 1px solid #455551;
+  border-radius: 4px;
+  font-size: 18px;
+  cursor: help;
+  position: relative;
+  transition: transform 0.15s ease;
+}
+
+.spire-relic-icon:hover {
+  transform: scale(1.15);
+  border-color: #d3ae63;
+}
+
+.spire-header-potions {
+  display: flex;
+  gap: 6px;
+}
+
+.spire-potion-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #252e2c;
+  border: 1px solid #4a5a56;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  color: #eeebdd;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.spire-potion-btn:hover:not(:disabled) {
+  border-color: #e07a5f;
+  background: #342626;
+}
+
+.spire-potion-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.spire-leave-btn {
+  background: transparent;
+  border: 1px solid #44524e;
+  color: #a7b0a6;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.spire-leave-btn:hover {
+  background: #252d2b;
+  color: #eeebdd;
+  border-color: #d3ae63;
+}
+
+/* Main Area */
+.spire-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  max-width: 1040px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Map Screen */
+.spire-map-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.spire-map-title {
+  text-align: center;
+}
+
+.spire-map-title h2 {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-family: Cormorant, serif;
+  color: #d3ae63;
+}
+
+.spire-map-floors {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 16px;
+  width: 100%;
+  max-width: 580px;
+  margin-top: 10px;
+}
+
+.spire-map-floor-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  padding: 12px;
+  background: #171d1c;
+  border-radius: 8px;
+  border: 1px solid #283330;
+  position: relative;
+}
+
+.spire-map-floor-row.active-row {
+  border-color: #d3ae63;
+  background: #1f2725;
+  box-shadow: 0 0 15px rgba(211, 174, 99, 0.2);
+}
+
+.spire-map-floor-label {
+  position: absolute;
+  left: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #798683;
+}
+
+.spire-map-node-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: #232c2a;
+  border: 2px solid #3f4e4a;
+  border-radius: 8px;
+  padding: 10px 18px;
+  color: #eeebdd;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 110px;
+}
+
+.spire-map-node-btn.clickable {
+  border-color: #d3ae63;
+  animation: pulse-node 2s infinite ease-in-out;
+}
+
+.spire-map-node-btn.clickable:hover {
+  transform: translateY(-3px) scale(1.05);
+  background: #333d3b;
+  border-color: #ffd777;
+  box-shadow: 0 6px 16px rgba(211, 174, 99, 0.35);
+}
+
+.spire-map-node-btn.cleared {
+  opacity: 0.45;
+  border-color: #2e3835;
+  background: #19201f;
+  cursor: default;
+}
+
+.spire-map-node-btn.locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+@keyframes pulse-node {
+  0%, 100% { border-color: #d3ae63; }
+  50% { border-color: #ffe699; box-shadow: 0 0 12px rgba(211, 174, 99, 0.5); }
+}
+
+/* Battle Screen */
+.spire-battle-arena {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.spire-combat-field {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding: 24px;
+  background: #171d1c;
+  border: 1px solid #2a3633;
+  border-radius: 8px;
+  min-height: 220px;
+}
+
+.spire-entity-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.spire-entity-sprite {
+  font-size: 64px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
+  animation: float-sprite 3s ease-in-out infinite;
+}
+
+@keyframes float-sprite {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.spire-hp-bar-wrap {
+  width: 100%;
+  max-width: 220px;
+  background: #251b1b;
+  border: 1px solid #4a2929;
+  border-radius: 4px;
+  height: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.spire-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c0392b, #e74c3c);
+  transition: width 0.3s ease;
+}
+
+.spire-hp-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+}
+
+.spire-intent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #2c2419;
+  border: 1px solid #b87333;
+  color: #ffb86c;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+/* Action Cards */
+.spire-action-deck {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.spire-card-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 12px;
+  background: #1c2422;
+  border: 2px solid #364642;
+  border-radius: 8px;
+  color: #eeebdd;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.spire-card-btn:hover:not(:disabled) {
+  transform: translateY(-6px);
+  border-color: #d3ae63;
+  background: #273330;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.spire-card-btn.decode-card {
+  border-color: #8e44ad;
+}
+
+.spire-card-btn.decode-card.charged {
+  background: linear-gradient(135deg, #2c1a3b, #4a2366);
+  border-color: #d896ff;
+  box-shadow: 0 0 16px rgba(216, 150, 255, 0.4);
+  animation: glow-decode 1.8s infinite alternate;
+}
+
+@keyframes glow-decode {
+  from { box-shadow: 0 0 8px rgba(216, 150, 255, 0.3); }
+  to { box-shadow: 0 0 20px rgba(216, 150, 255, 0.8); }
+}
+
+.spire-card-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.spire-card-icon {
+  font-size: 32px;
+}
+
+.spire-card-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #d3ae63;
+}
+
+.spire-card-desc {
+  font-size: 12px;
+  color: #a7b0a6;
+  text-align: center;
+}
+
+/* Quiz Overlay / Panel */
+.spire-quiz-modal {
+  background: #1e2624;
+  border: 2px solid #d3ae63;
+  border-radius: 8px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  animation: pop-in 0.2s ease;
+}
+
+@keyframes pop-in {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.spire-quiz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #364440;
+  padding-bottom: 12px;
+}
+
+.spire-quiz-term {
+  font-size: 26px;
+  font-family: Cormorant, serif;
+  font-weight: 700;
+  color: #f7d070;
+}
+
+.spire-quiz-prompt {
+  font-size: 15px;
+  color: #d1d8d0;
+}
+
+.spire-quiz-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.spire-quiz-opt-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #25302e;
+  border: 1px solid #435450;
+  border-radius: 6px;
+  color: #eeebdd;
+  font-size: 15px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.spire-quiz-opt-btn:hover:not(:disabled) {
+  background: #33423f;
+  border-color: #d3ae63;
+  transform: translateX(4px);
+}
+
+.spire-quiz-opt-btn.hidden-opt {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.spire-opt-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: #171d1c;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #d3ae63;
+  font-weight: bold;
+}
+
+/* Combat Log */
+.spire-log-box {
+  background: #141918;
+  border: 1px solid #232b29;
+  border-radius: 6px;
+  padding: 10px 14px;
+  max-height: 80px;
+  overflow-y: auto;
+  font-size: 12px;
+  color: #93a09b;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 4px;
+}
+
+/* Reward, Shop, Rest Screen */
+.spire-panel-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+  background: #18201e;
+  border: 1px solid #2e3d39;
+  border-radius: 8px;
+  padding: 36px 24px;
+  max-width: 680px;
+  margin: 20px auto;
+  width: 100%;
+}
+
+.spire-rewards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  width: 100%;
+  margin: 16px 0;
+}
+
+.spire-reward-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: #232c2a;
+  border: 1px solid #3d4c48;
+  border-radius: 6px;
+}
+
+.spire-btn-primary {
+  background: #34433f;
+  border: 1px solid #d3ae63;
+  color: #eeebdd;
+  padding: 10px 24px;
+  font-size: 15px;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.spire-btn-primary:hover {
+  background: #475a55;
+  border-color: #ffd777;
+  transform: translateY(-2px);
+}

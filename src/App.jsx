@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import TitleScene from './components/TitleScene.jsx';
-import MenuDialog from './components/MenuDialog.jsx';
 import SettingsDialog from './components/SettingsDialog.jsx';
 import VocabularyDialog from './components/VocabularyDialog.jsx';
+import MistakeReviewDialog from './components/MistakeReviewDialog.jsx';
+import SpireGame from './components/SpireGame.jsx';
 import { DEFAULT_SETTINGS, normalizeSettings, readSettings, saveSettings } from './settings.js';
 import { listenForMenuNavigation } from './menuNavigation.js';
+import { createInitialRun, loadRun } from './game/spireLogic.js';
 
 const MENU = [
-  { label: '새 모험', description: '학습 범위를 고르고 새로운 모험을 시작하세요.' },
+  { label: '새 모험', description: '브론즈 단어의 첨탑(Spire)으로 새로운 모험을 떠납니다.' },
   { label: '단어장', description: '티어별 단어와 뜻, 유의어·반의어를 살펴보세요.' },
-  { label: '오답 복습', description: '헷갈렸던 단어를 다시 만나 보세요.' },
-  { label: '설정', description: '나에게 편한 학습 환경을 준비하세요.' },
+  { label: '오답 복습', description: '전투 중 헷갈렸던 약점 단어를 확인하고 복습하세요.' },
+  { label: '설정', description: '나에게 편한 게임 및 화면 환경을 설정하세요.' },
 ];
 
 export default function App() {
@@ -18,18 +20,30 @@ export default function App() {
   const [openedMenu, setOpenedMenu] = useState(null);
   const [settings, setSettings] = useState(readSettings);
   const [settingsSaved, setSettingsSaved] = useState(null);
+  const [savedRun, setSavedRun] = useState(loadRun);
+  const [activeGameRun, setActiveGameRun] = useState(null);
+
   const buttons = useRef([]);
   const menu = useRef(null);
   const opener = useRef(null);
 
-  useEffect(() => { buttons.current[0]?.focus({ preventScroll: true }); }, []);
-  useEffect(() => { setSettingsSaved(saveSettings(settings)); }, [settings]);
   useEffect(() => {
-    if (openedMenu !== null) return;
+    buttons.current[0]?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
+    setSettingsSaved(saveSettings(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    if (openedMenu !== null || activeGameRun !== null) return;
     return listenForMenuNavigation(document, {
-      menu: menu.current, buttons: buttons.current, selected, onSelect: setSelected,
+      menu: menu.current,
+      buttons: buttons.current,
+      selected,
+      onSelect: setSelected,
     });
-  }, [openedMenu, selected]);
+  }, [openedMenu, activeGameRun, selected]);
 
   function focusMenu(index) {
     setSelected(index);
@@ -38,8 +52,37 @@ export default function App() {
 
   function closeMenu() {
     setOpenedMenu(null);
+    setSavedRun(loadRun());
     opener.current?.focus({ preventScroll: true });
   }
+
+  function startNewAdventure() {
+    const run = createInitialRun();
+    setActiveGameRun(run);
+  }
+
+  function resumeAdventure() {
+    const run = loadRun();
+    if (run && run.status !== 'gameover' && run.status !== 'victory') {
+      setActiveGameRun(run);
+    }
+  }
+
+  function exitGame() {
+    setActiveGameRun(null);
+    setSavedRun(loadRun());
+  }
+
+  // 게임 화면 진행 중일 때
+  if (activeGameRun) {
+    return (
+      <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect}>
+        <SpireGame initialRun={activeGameRun} onClose={exitGame} />
+      </div>
+    );
+  }
+
+  const hasResume = savedRun && savedRun.status !== 'gameover' && savedRun.status !== 'victory';
 
   return (
     <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect}>
@@ -69,17 +112,28 @@ export default function App() {
                       if (openedMenu !== null) return;
                       setSelected(index);
                       opener.current = event.currentTarget;
-                      setOpenedMenu(label);
+                      if (label === '새 모험') {
+                        startNewAdventure();
+                      } else {
+                        setOpenedMenu(label);
+                      }
                     }}
                   >
                     <span className="marker" aria-hidden="true">▸</span>
                     <span>{label}</span>
                     <span className="enter" aria-hidden="true">↵</span>
                   </button>
+
+                  {/* 이어하기 버튼 */}
                   {index === 0 && (
-                    <button className="menu-button continue-button" disabled>
+                    <button
+                      className="menu-button continue-button"
+                      disabled={!hasResume}
+                      onClick={resumeAdventure}
+                    >
                       <span className="marker" aria-hidden="true">▸</span>
-                      <span>이어하기</span><small>저장된 기록 없음</small>
+                      <span>이어하기</span>
+                      <small>{hasResume ? `첨탑 ${savedRun.floor}층 진행 중` : '저장된 모험 없음'}</small>
                     </button>
                   )}
                 </div>
@@ -99,15 +153,23 @@ export default function App() {
             <span><kbd>Esc</kbd> 닫기</span>
             <span className="pointer-hint">클릭으로 선택할 수 있어요</span>
           </div>
-          <p className="version">미리보기 <span aria-hidden="true">/</span> v0.5</p>
+          <p className="version">스파이어 에디션 <span aria-hidden="true">/</span> v1.0</p>
         </footer>
       </main>
+
       {openedMenu === '설정' ? (
-        <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu}
+        <SettingsDialog
+          settings={settings}
+          saved={settingsSaved}
+          onClose={closeMenu}
           onChange={(key, value) => setSettings((current) => normalizeSettings({ ...current, [key]: value }))}
-          onReset={() => setSettings({ ...DEFAULT_SETTINGS })} />
-      ) : openedMenu === '단어장' ? <VocabularyDialog onClose={closeMenu} />
-        : <MenuDialog title={openedMenu} onClose={closeMenu} />}
+          onReset={() => setSettings({ ...DEFAULT_SETTINGS })}
+        />
+      ) : openedMenu === '단어장' ? (
+        <VocabularyDialog onClose={closeMenu} />
+      ) : openedMenu === '오답 복습' ? (
+        <MistakeReviewDialog onClose={closeMenu} />
+      ) : null}
     </div>
   );
 }
