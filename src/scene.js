@@ -120,7 +120,7 @@ function floor(ctx) {
   ctx.fillRect(118, 237, 48, 4);
 }
 
-function hero(ctx, milliseconds) {
+function hero(ctx, milliseconds, cloak) {
   ctx.save();
   ctx.translate(124, 168);
   ctx.scale(2, 2);
@@ -146,13 +146,13 @@ function hero(ctx, milliseconds) {
     const movement = Math.round(Math.sin(milliseconds / 760 - index * .14) * index / 16);
     const y = 11 + index;
     const x = left + movement;
-    rect(x, y, rightEdge[index] - left, 1, COLORS.cloak);
-    rect(x, y, Math.min(2, rightEdge[index] - left), 1, COLORS.cloakShade);
-    if (index < 13) rect(x + 3, y, 2, 1, COLORS.cloakLight);
+    rect(x, y, rightEdge[index] - left, 1, cloak?.color ?? COLORS.cloak);
+    rect(x, y, Math.min(2, rightEdge[index] - left), 1, cloak?.shade ?? COLORS.cloakShade);
+    if (index < 13) rect(x + 3, y, 2, 1, cloak?.light ?? COLORS.cloakLight);
   });
-  rect(4, 9, 10, 3, COLORS.cloakShade);
-  rect(3, 10, 11, 2, COLORS.cloak);
-  rect(5, 9, 8, 1, COLORS.cloakLight);
+  rect(4, 9, 10, 3, cloak?.shade ?? COLORS.cloakShade);
+  rect(3, 10, 11, 2, cloak?.color ?? COLORS.cloak);
+  rect(5, 9, 8, 1, cloak?.light ?? COLORS.cloakLight);
   // Hair and face are not part of the animated cloth.
   rect(5, 1, 7, 1, '#594735');
   rect(3, 2, 10, 6, '#473c30');
@@ -203,7 +203,7 @@ function torch(ctx, x, y, milliseconds, phase) {
   ctx.fillRect(x + lean * 2, Math.round(y - 12 - ember * 12), 1, 1);
 }
 
-export async function startTitleScene(canvas, { signal, motionPreference = 'normal', storyAction, heroOffset = 0, hideHero = false } = {}) {
+export async function startTitleScene(canvas, { signal, motionPreference = 'normal', storyAction, heroOffset = 0, hideHero = false, cloak } = {}) {
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx || signal?.aborted) return;
   canvas.width = WIDTH;
@@ -243,7 +243,7 @@ export async function startTitleScene(canvas, { signal, motionPreference = 'norm
     const offset = heroOffset - (walking ? Math.max(0, 18 - elapsed / 80) : 0);
     const recoil = storyAction === 'startle' && !isStatic() ? -Math.max(0, 8 - elapsed / 100) : 0;
     ctx.translate(Math.round(offset + recoil), walking ? Math.round(Math.sin(time / 100) * 1.5) : 0);
-    if (!hideHero) hero(ctx, time);
+    if (!hideHero) hero(ctx, time, cloak);
     ctx.restore();
   }
   function frame(now) {

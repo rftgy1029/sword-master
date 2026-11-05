@@ -6,6 +6,7 @@ import StoryArt, { StoryCharacter } from './StoryArt.jsx';
 import TierCrest from './TierCrest.jsx';
 import { createBattleAudio } from '../battleAudio.js';
 import { festivalVisual } from '../festivalDirection.js';
+import { shopUnlocked } from '../progression.js';
 
 export default function StoryPlayer({ tier, initialProgress, settings, learning, onLearning, learningSaved, onProgress, onClose, onSelectTier }) {
   const story = STORIES[tier];
@@ -101,6 +102,7 @@ export default function StoryPlayer({ tier, initialProgress, settings, learning,
           <p className="story-complete-title">{story.title}</p>
           {summary.answered > 0 && <p className="story-learning-summary">학습한 단어 <strong>{summary.learned} / 64</strong> · 정답 <strong>{summary.correct} / {summary.answered}</strong></p>}
           <p className="story-complete-quote">“내가 분명히 구한 사람들과 방송 기록은<br />왜 다른 이야기를 하고 있는 걸까?”</p>
+          <div className="story-shop-unlock" role="status">{shopUnlocked(learning.economy) ? <><strong>◈ 모험가의 상점 해금!</strong><p>모아 둔 {learning.economy.coins.toLocaleString()}코인으로 망토와 도구를 구매해 보세요.</p><button className="story-text-button" onClick={onClose}>타이틀로 돌아가기 →</button></> : <><strong>상점 해금까지 한 걸음 더</strong><p>브론즈 전투·퍼즐 {learning.economy.cleared.length} / {ENCOUNTERS.length} 완료<br />남은 구간을 직접 풀면 타이틀의 상점이 열려요.</p></>}</div>
           <div className="story-next-destination"><span>NEXT DESTINATION</span><strong>팔레트 마법학교</strong><p>지워진 오늘의 기록을 찾아서.<br />다음 장의 이야기는 준비 중이에요.</p></div>
           <div className="story-complete-actions"><button className="story-text-button" onClick={() => { setProgress(firstStoryProgress(tier)); setContentsOpen(false); }}>처음부터 다시 보기</button>
             <button className="return-button" onClick={onSelectTier}>티어 선택으로 <span aria-hidden="true">→</span></button></div>
