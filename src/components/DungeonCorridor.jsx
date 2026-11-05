@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { playSlimeSkill } from '../slimeSkill.js';
 import EnemyHealth from './EnemyHealth.jsx';
 
-export default function DungeonCorridor({ lineIndex, cue, enemyState, paused, battleVisual, limitedMotion, audio, soundEnabled, onSkillComplete }) {
+export default function DungeonCorridor({ sceneId, lineIndex, cue, enemyState, paused, battleVisual, limitedMotion, audio, soundEnabled, onSkillComplete }) {
   const stage = useRef(null);
   const playback = useRef(null);
   const [impactToken, setImpactToken] = useState(null);
@@ -19,7 +19,7 @@ export default function DungeonCorridor({ lineIndex, cue, enemyState, paused, ba
     if (paused) playback.current?.pause(); else playback.current?.resume();
   }, [paused, skill, limitedMotion, soundEnabled]);
   const action = battleVisual?.action ?? cue;
-  const token = battleVisual?.token ?? `corridor-${lineIndex}`;
+  const token = battleVisual?.token ?? sceneId;
   const visibleSlime = enemyState === 'hostile' || enemyState === 'retreating';
   const warmExit = enemyState === 'gone';
   const heroX = lineIndex >= 12 ? 360 : 170;

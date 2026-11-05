@@ -93,8 +93,11 @@ function Sign({ broken }) {
 
 export default function FestivalArt({ visual, sceneId, lineIndex, speaker, cue, paused, battleVisual }) {
   const { place, state, focus, cast, id: shot } = visual;
-  const action = battleVisual?.action ?? cue;
-  const token = battleVisual?.token ?? `${sceneId}-${lineIndex}`;
+  // A chase or a collision spans several lines in the same shot. Keep its
+  // animation and actors alive instead of starting the action on every line.
+  const motionCue = !battleVisual && ['chase', 'bump'].includes(state) ? state : cue;
+  const action = battleVisual?.action ?? motionCue;
+  const token = battleVisual ? `${sceneId}-${battleVisual.token}-${action}` : sceneId;
   const viewBox = battleVisual ? '90 65 500 235' : VIEWS[focus] ?? VIEWS.wide;
   const balloon = sceneId === 'S03' && lineIndex <= 18;
   const puppet = sceneId === 'S04' && lineIndex >= 19 && lineIndex <= 34;
@@ -105,7 +108,7 @@ export default function FestivalArt({ visual, sceneId, lineIndex, speaker, cue, 
     sceneId === 'S07' || sceneId === 'S08' || (sceneId === 'S05' && place === 'backstage') || (sceneId === 'S04' && lineIndex < 19)
   ));
   const showPaper = ['letter', 'date', 'performer', 'stamp'].includes(focus) || shot === 'script-confrontation';
-  return <div className={`story-art story-art-festival story-art-${place} cue-${cue} action-${action}${battleVisual ? battleVisual.mode === 'puzzle' ? ' is-solving' : ' is-fighting' : ''}`}
+  return <div className={`story-art story-art-festival story-art-${place} cue-${motionCue} action-${action}${battleVisual ? battleVisual.mode === 'puzzle' ? ' is-solving' : ' is-fighting' : ''}`}
     data-paused={paused} data-place={place} data-shot={shot} data-focus={focus}>
     <svg className="story-panorama festival-panorama" viewBox={viewBox} role="img" aria-label={`${visual.location}. ${visual.title}${focus === 'wide' ? '' : ` · ${focus === speaker ? `${speaker}의 대화` : visual.title}`}`} shapeRendering="crispEdges">
       <g key={place} className="festival-backdrop"><FestivalBackdrop place={place} state={state} /></g>
