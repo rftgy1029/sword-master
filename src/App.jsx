@@ -14,6 +14,7 @@ import './cinematics.css';
 import './slime-skill.css';
 
 const StoryPlayer = lazy(() => import('./components/StoryPlayer.jsx'));
+const DungeonEntry = lazy(() => import('./components/DungeonEntry.jsx'));
 
 const MENU = [
   { label: '게임 시작', description: '티어를 고르고 그 티어의 이야기를 시작하세요.' },
@@ -29,27 +30,37 @@ export default function App() {
   const [settingsSaved, setSettingsSaved] = useState(null);
   const [storyProgress, setStoryProgress] = useState(readStoryProgress);
   const [playingTier, setPlayingTier] = useState(null);
+  const [enteringTier, setEnteringTier] = useState(null);
   const [initialProgress, setInitialProgress] = useState(null);
   const [learning, setLearning] = useState(readLearning);
   const [learningSaved, setLearningSaved] = useState(true);
   const menuItems = [MENU[0], ...(storyProgress ? [{ label: '이어보기', description: '마지막으로 읽던 브론즈 이야기를 이어서 보세요.' }] : []), ...MENU.slice(1)];
   const buttons = useRef([]);
   const menu = useRef(null);
+  const entryRequest = useRef(null);
+  const finishEntry = useCallback(() => {
+    const tier = entryRequest.current;
+    if (!tier) return;
+    entryRequest.current = null;
+    setInitialProgress(firstStoryProgress(tier));
+    setEnteringTier(null);
+    setPlayingTier(tier);
+  }, []);
   const updateLearning = useCallback((next) => {
     setLearning(next);
     setLearningSaved(saveLearning(next));
   }, []);
 
   useEffect(() => {
-    if (openedMenu === null && playingTier === null) buttons.current[selected]?.focus({ preventScroll: true });
-  }, [openedMenu, playingTier, selected]);
+    if (openedMenu === null && playingTier === null && enteringTier === null) buttons.current[selected]?.focus({ preventScroll: true });
+  }, [openedMenu, playingTier, enteringTier, selected]);
   useEffect(() => { setSettingsSaved(saveSettings(settings)); }, [settings]);
   useEffect(() => {
-    if (openedMenu !== null || playingTier !== null) return;
+    if (openedMenu !== null || playingTier !== null || enteringTier !== null) return;
     return listenForMenuNavigation(document, {
       menu: menu.current, buttons: buttons.current.slice(0, menuItems.length), selected, onSelect: setSelected,
     });
-  }, [openedMenu, playingTier, selected, menuItems.length]);
+  }, [openedMenu, playingTier, enteringTier, selected, menuItems.length]);
 
   function focusMenu(index) {
     setSelected(index);
@@ -61,9 +72,15 @@ export default function App() {
   }
 
   function startStory(tier, resume = false) {
-    setInitialProgress(resume ? storyProgress : firstStoryProgress(tier));
+    if (entryRequest.current || !Object.hasOwn(STORIES, tier)) return;
     setOpenedMenu(null);
-    setPlayingTier(tier);
+    if (resume) {
+      setInitialProgress(storyProgress);
+      setPlayingTier(tier);
+    } else {
+      entryRequest.current = tier;
+      setEnteringTier(tier);
+    }
   }
 
   function closeStory(selectTier = false) {
@@ -80,6 +97,14 @@ export default function App() {
     setOpenedMenu(null);
     setPlayingTier('bronze');
   }
+
+  if (enteringTier) return (
+    <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect}>
+      <Suspense fallback={<main className="story-loading" role="status">✦ 던전으로…</main>}>
+        <DungeonEntry tier={enteringTier} motionPreference={settings.backgroundMotion} onComplete={finishEntry} />
+      </Suspense>
+    </div>
+  );
 
   if (playingTier) return (
     <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect}>

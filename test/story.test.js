@@ -70,9 +70,11 @@ test('blocked storage does not stop story navigation or report a successful save
 
 test('the dungeon passage and its slime fight precede the festival, with no future companions in the tutorial', () => {
   const [entrance, corridor, village] = STORIES.bronze.scenes;
-  assert.equal(entrance.background, 'entrance');
+  assert.equal(entrance.background, 'corridor');
   assert.equal(entrance.lines.length, 6);
-  assert.equal(entrance.lines.some(({ cue }) => cue === 'walk'), false);
+  assert.match(entrance.lines[0].text, /석문이 완전히 닫혔다/);
+  assert.equal(entrance.lines.every(({ enemyState }) => enemyState === 'hidden'), true);
+  assert.equal(entrance.lines.some(({ text }) => /일단 안으로 들어가|입장 담당|석문에 두 손/.test(text)), false);
   assert.equal(corridor.background, 'corridor');
   const fight = corridor.lines.findIndex(({ battleId }) => battleId === 'slime');
   assert.ok(fight > 0 && fight < corridor.lines.length - 1);

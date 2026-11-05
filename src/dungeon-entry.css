@@ -1,0 +1,12 @@
+.entry-screen { min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 25px; background: #151919; }
+.entry-tier { display: flex; align-items: center; gap: 9px; margin: 0; color: #b9a77d; font-size: calc(11px * var(--text-scale)); letter-spacing: 1px; }
+.entry-tier .tier-crest { width: 16px; height: 20px; }
+.entry-screen h1 { margin: 0; color: #d9d2b6; font-size: calc(23px * var(--text-scale)); font-weight: 400; line-height: 1.6; text-align: center; }
+.entry-screen h1:focus { outline: none; }
+.entry-stage { position: relative; width: min(720px, 100%, 90svh); aspect-ratio: 4 / 3; }
+.entry-stage .scene { width: 100%; max-width: none; }
+.entry-actors { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.entry-status { min-height: 24px; margin: 0; color: #aeb99e; text-align: center; font-size: calc(12px * var(--text-scale)); line-height: 1.8; }
+.entry-skip { gap: 12px; min-height: 44px; color: #9da58f; }
+.entry-skip:focus-visible { outline: 2px solid #ccb477; outline-offset: 2px; }
+@media (max-width: 650px) { .entry-screen { padding: 20px; gap: 16px; } .entry-screen h1 { font-size: calc(21px * var(--text-scale)); } }
