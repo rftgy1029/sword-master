@@ -1,3 +1,4 @@
+import { TransitionVeil, useSceneTransition } from './SceneTransition.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { findVocabulary, PAGE_SIZE, TIERS } from '../vocabulary.js';
 
@@ -13,6 +14,8 @@ export function TierCrest({ tier, small = false }) {
 
 export default function VocabularyDialog({ onClose }) {
   const dialog = useRef(null);
+  const transition = useSceneTransition();
+  const requestClose = () => transition(() => dialog.current.close());
   const tabButtons = useRef([]);
   const body = useRef(null);
   const results = useRef(null);
@@ -74,12 +77,12 @@ export default function VocabularyDialog({ onClose }) {
   }
 
   return (
-    <dialog ref={dialog} className="vocabulary-dialog" aria-labelledby="vocabulary-title" onClose={onClose}
+    <dialog ref={dialog} className="vocabulary-dialog" aria-labelledby="vocabulary-title" onClose={onClose} onCancel={(event) => { event.preventDefault(); requestClose(); }}
       onClick={(event) => {
         const bounds = event.currentTarget.getBoundingClientRect();
         if (event.target === event.currentTarget &&
           (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) {
-          event.currentTarget.close();
+          requestClose();
         }
       }}>
       <header className="vocabulary-header">
@@ -88,7 +91,7 @@ export default function VocabularyDialog({ onClose }) {
           <h2 id="vocabulary-title">단어장</h2>
           <p className="vocabulary-intro">모험에 필요한 단어를, 티어별로 차근차근.</p>
         </div>
-        <button className="settings-close" aria-label="단어장 닫기" onClick={() => dialog.current.close()}>
+        <button className="settings-close" aria-label="단어장 닫기" onClick={requestClose}>
           <span aria-hidden="true">×</span>
         </button>
       </header>
@@ -183,8 +186,8 @@ export default function VocabularyDialog({ onClose }) {
 
       <footer className="vocabulary-footer">
         <p><kbd>↑ ↓</kbd> 티어 이동 <span><kbd>Esc</kbd> 닫기</span></p>
-        <button className="return-button" onClick={() => dialog.current.close()}>타이틀로 돌아가기 <span aria-hidden="true">↵</span></button>
+        <button className="return-button" onClick={requestClose}>타이틀로 돌아가기 <span aria-hidden="true">↵</span></button>
       </footer>
-    </dialog>
+    <TransitionVeil /></dialog>
   );
 }

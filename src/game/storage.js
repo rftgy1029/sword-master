@@ -35,9 +35,14 @@ function validBattle(b, run) {
   return Array.isArray(b.used) && unique(b.used) && b.used.every((id) => questionById(id)) &&
     typeof b.firstAttack === 'boolean' && typeof b.springUsed === 'boolean' && Array.isArray(b.log) && b.log.length <= 5 &&
     b.log.every((s) => typeof s === 'string') && object(b.effect) && integer(b.effect.id) && integer(b.effect.amount) &&
-    ['start', 'attack', 'heal', 'block', 'miss', 'hurt', 'enemy'].includes(b.effect.kind);
+    ['start', 'attack', 'heal', 'block', 'miss', 'hurt', 'enemy'].includes(b.effect.kind) &&
+    (b.effect.impacts === undefined || (Array.isArray(b.effect.impacts) && b.effect.impacts.length <= 10 && b.effect.impacts.every((n) => integer(n)))) &&
+    (b.effect.cardType === undefined || !!CARDS[b.effect.cardType]) &&
+    (b.effect.upgraded === undefined || typeof b.effect.upgraded === 'boolean') &&
+    (b.effect.enemyAction === undefined || ['block', 'buff', 'charge', 'wait'].includes(b.effect.enemyAction));
 }
 function validRun(run) {
+  if (run?.encounterHistory !== undefined && (!Array.isArray(run.encounterHistory) || run.encounterHistory.length > 32 || !run.encounterHistory.every((id) => !!MONSTERS[id]))) return false;
   if (!object(run) || !tier(run.tier) || !integer(run.rng, 4294967295) || !integer(run.seed, 4294967295)) return false;
   if (!['map', 'battle', 'reward', 'rest', 'forge', 'result'].includes(run.phase)) return false;
   if (!Number.isInteger(run.floor) || run.floor < -1 || run.floor > 7 || !integer(run.lane, 2)) return false;
@@ -61,6 +66,7 @@ function validRun(run) {
   }
   if (lastLane !== run.lane) return false;
   if (run.phase === 'result') return object(run.result) && typeof run.result.won === 'boolean' &&
+    (run.result.unlockedTier === undefined || run.result.unlockedTier === null || tier(run.result.unlockedTier)) &&
     typeof run.result.unlocked === 'boolean' && integer(run.result.cards) && integer(run.result.relics) && !run.deck.length && !run.relics.length && run.battle === null;
   if (!run.hp || !run.deck.length || (run.floor === 7 && run.phase === 'map')) return false;
   const node = run.map[run.floor]?.find((n) => n.lane === run.lane);

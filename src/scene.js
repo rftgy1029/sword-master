@@ -1,3 +1,5 @@
+import { loadHeroRig, drawHeroRig } from './game/heroRig.js';
+
 // Small, layered pixel scene. Every coordinate belongs to a 384 × 288 grid.
 // Walls are cached once; the cloth and torch pixels are painted independently.
 const WIDTH = 384;
@@ -87,7 +89,7 @@ function doorway(ctx) {
   ctx.fillRect(279, 78, 4, 4);
 }
 
-function floor(ctx) {
+function floor(ctx, heroShadow = true) {
   ctx.fillStyle = '#1d2724';
   ctx.fillRect(20, 236, 348, 38);
   for (let row = 0; row < 3; row++) {
@@ -116,11 +118,13 @@ function floor(ctx) {
   ctx.fillRect(56, 231, 3, 3);
   ctx.fillRect(323, 233, 16, 2);
   ctx.fillRect(326, 231, 4, 3);
-  ctx.fillStyle = '#131e1c';
-  ctx.fillRect(118, 237, 48, 4);
+  if (heroShadow) {
+    ctx.fillStyle = '#131e1c';
+    ctx.fillRect(118, 237, 48, 4);
+  }
 }
 
-export function hero(ctx, milliseconds) {
+export function hero(ctx, milliseconds, walking = false, armAngle = 0) {
   ctx.save();
   ctx.translate(124, 168);
   ctx.scale(2, 2);
@@ -128,13 +132,16 @@ export function hero(ctx, milliseconds) {
     ctx.fillStyle = color;
     ctx.fillRect(x, y, width, height);
   };
-  // Two boots, trousers, tunic. Feet remain on the same ground plane.
-  rect(5, 20, 6, 9, '#333b31');
-  rect(11, 20, 5, 9, '#3f4536');
-  rect(4, 28, 5, 5, '#392f29');
-  rect(12, 28, 4, 5, '#483b2f');
-  rect(3, 32, 6, 2, '#272a24');
-  rect(12, 32, 6, 2, '#272a24');
+  // The entrance can animate the stride while the title and combat keep the standing pose.
+  const stride = walking ? Math.round(Math.sin(milliseconds / 100) * 2) : 0;
+  const leftLift = Math.max(0, stride);
+  const rightLift = Math.max(0, -stride);
+  rect(5 + stride, 20, 6, 9, '#333b31');
+  rect(11 - stride, 20, 5, 9, '#3f4536');
+  rect(4 + stride, 28 - leftLift, 5, 5, '#392f29');
+  rect(12 - stride, 28 - rightLift, 4, 5, '#483b2f');
+  rect(3 + stride, 32 - leftLift, 6, 2, '#272a24');
+  rect(12 - stride, 32 - rightLift, 6, 2, '#272a24');
   rect(5, 11, 10, 11, '#65664a');
   rect(10, 12, 4, 8, '#7c7a54');
   rect(5, 20, 10, 2, '#493c30');
@@ -164,6 +171,7 @@ export function hero(ctx, milliseconds) {
   rect(10, 8, 4, 1, '#8d7655');
   rect(6, 2, 5, 1, '#69543c');
   // Arm, gauntlet, sword: a few readable blocks, no painted texture.
+  if (armAngle) { ctx.save(); ctx.translate(14, 13); ctx.rotate(armAngle); ctx.translate(-14, -13); }
   rect(13, 12, 3, 7, '#838369');
   rect(14, 14, 2, 2, '#b1ab83');
   rect(15, 18, 2, 3, '#515848');
@@ -174,6 +182,7 @@ export function hero(ctx, milliseconds) {
   }
   rect(17, 20, 5, 1, '#a68b52');
   rect(18, 21, 1, 3, '#564532');
+  if (armAngle) ctx.restore();
   ctx.restore();
 }
 
@@ -203,9 +212,19 @@ function torch(ctx, x, y, milliseconds, phase) {
   ctx.fillRect(x + lean * 2, Math.round(y - 12 - ember * 12), 1, 1);
 }
 
+export function dungeonEntrance(ctx) {
+  masonry(ctx);
+  doorway(ctx);
+  floor(ctx, false);
+  torch(ctx, 209, 137, 0, 0);
+  torch(ctx, 351, 137, 0, 2);
+}
+
 export async function startTitleScene(canvas, { signal, motionPreference = 'normal' } = {}) {
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx || signal?.aborted) return;
+  const rig = await loadHeroRig();
+  if (signal?.aborted) return;
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
   ctx.imageSmoothingEnabled = false;
@@ -231,7 +250,8 @@ export async function startTitleScene(canvas, { signal, motionPreference = 'norm
     const time = isStatic() ? 0 : elapsed * speed;
     torch(ctx, 209, 137, time, 0);
     torch(ctx, 351, 137, time, 2);
-    hero(ctx, time);
+    if (rig) drawHeroRig(ctx, rig, { time, x: 144, y: 236, scale: 1.15, motion: !isStatic() });
+    else hero(ctx, time);
   }
   function frame(now) {
     if (signal?.aborted) return;

@@ -4,18 +4,21 @@
   "version": "0.6.0",
   "type": "module",
   "scripts": {
+    "assets:hero": "python3 scripts/export_hero.py",
+    "assets:check": "python3 scripts/export_hero.py --check",
     "dev": "vite --host 127.0.0.1 --port 8175 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8176 --strictPort",
     "test": "node --test"
   },
   "dependencies": {
+    "phaser": "^4.2.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.2.1",
-    "vite": "^8.3.5"
+    "vite": "^8.3.6"
   },
   "allowScripts": {
     "fsevents@2.3.3": true

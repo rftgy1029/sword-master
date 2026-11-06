@@ -6,7 +6,12 @@ import { questionById } from '../src/game/quiz.js';
 import { loadProgress, persistProgress, validProgress } from '../src/game/storage.js';
 import { TIERS } from '../src/vocabulary.js';
 
-function start(seed = 1, tier = 'bronze') { return gameReducer(emptyProgress(), { type: 'START', tier, seed }); }
+function start(seed = 1, tier = 'bronze') {
+  const progress = emptyProgress();
+  const index = TIERS.findIndex((t) => t.id === tier);
+  if (index > 0) progress.learning.clears[TIERS[index - 1].id] = 1;
+  return gameReducer(progress, { type: 'START', tier, seed });
+}
 function act(p, action) {
   const next = gameReducer(p, action);
   assert.notStrictEqual(next, p, action.type);
@@ -125,10 +130,12 @@ test('boss victory records one clear, unlocks a card, and keeps records for the 
   assert.equal(p.run.phase, 'result');
   assert.equal(p.run.result.won, true);
   assert.equal(p.learning.clears.bronze, 1);
+  assert.equal(p.run.result.unlockedTier, 'silver');
   assert.deepEqual(p.learning.unlocked, ['oath']);
   assert.strictEqual(gameReducer(p, { type: 'ACK' }), p);
   const l = structuredClone(p.learning);
-  p = act(p, { type: 'START', seed: 2, tier: 'master' });
+  assert.strictEqual(gameReducer(p, { type: 'START', seed: 2, tier: 'master' }), p);
+  p = act(p, { type: 'START', seed: 2, tier: 'silver' });
   assert.deepEqual(p.learning.entries, l.entries);
   assert.deepEqual(p.learning.clears, l.clears);
   assert.deepEqual(p.learning.unlocked, ['oath']);

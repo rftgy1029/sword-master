@@ -10,7 +10,9 @@ function memory(entries = []) {
   return { data, getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
 }
 function pendingQuiz() {
-  let p = gameReducer(emptyProgress(), { type: 'START', seed: 8, tier: 'silver' });
+  const initial = emptyProgress();
+  initial.learning.clears.bronze = 1;
+  let p = gameReducer(initial, { type: 'START', seed: 8, tier: 'silver' });
   p = gameReducer(p, { type: 'SELECT_NODE', id: reachableNodes(p.run)[0].id });
   return gameReducer(p, { type: 'SELECT_CARD', uid: p.run.battle.hand[0] });
 }
@@ -73,7 +75,7 @@ test('wrong questions remain through defeat/new run, need two consecutive correc
   const q = p.run.battle.pending.question;
   const source = questionById(q.id);
   p = gameReducer(p, { type: 'ANSWER', id: q.id, answer: q.options.find((s) => !source.answers.includes(s)) });
-  p = gameReducer(p, { type: 'START', tier: 'gold', seed: 18 });
+  p = gameReducer(p, { type: 'START', tier: 'silver', seed: 18 });
   const answerReview = () => {
     p = gameReducer(p, { type: 'REVIEW_START', id: q.id, seed: 12 });
     const action = { type: 'REVIEW_ANSWER', id: q.id, answer: p.review.question.options.find((s) => source.answers.includes(s)) };

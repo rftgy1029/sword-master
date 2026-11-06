@@ -1,3 +1,4 @@
+import { TransitionVeil, useSceneTransition } from './SceneTransition.jsx';
 import { useEffect, useRef } from 'react';
 import { questionById, QUIZ_TYPES } from '../game/quiz.js';
 import { navigateGameButtons } from './AdventureDialog.jsx';
@@ -5,15 +6,17 @@ import QuizPanel from './QuizPanel.jsx';
 
 export default function ReviewDialog({ progress, dispatch, error, onClose }) {
   const dialog = useRef(null);
+  const transition = useSceneTransition();
+  const requestClose = () => transition(() => dialog.current.close());
   const review = progress.review;
   const learning = progress.learning;
   const weaknesses = Object.entries(learning.entries).filter(([, e]) => e.active).sort((a, b) => b[1].wrong - a[1].wrong);
   const completed = Object.values(learning.entries).filter((e) => e.wrong > 0 && !e.active).length;
   useEffect(() => { if (!dialog.current.open) dialog.current.showModal(); }, []);
   useEffect(() => { dialog.current.querySelector('[data-initial-focus]:not(:disabled)')?.focus(); }, [review?.question.id, !!review?.feedback]);
-  return <dialog ref={dialog} className="game-dialog review-dialog" onClose={onClose} onKeyDown={navigateGameButtons} aria-labelledby="review-title">
+  return <dialog ref={dialog} className="game-dialog review-dialog" onClose={onClose} onCancel={(event) => { event.preventDefault(); requestClose(); }} onKeyDown={navigateGameButtons} aria-labelledby="review-title">
     <header className="game-header"><div><p className="game-eyebrow">✦ S’WORD MASTER / WORD PRACTICE</p><h2 id="review-title">오답 복습</h2></div>
-      <button className="settings-close" aria-label="오답 복습 닫기" onClick={() => dialog.current.close()}>×</button></header>
+      <button className="settings-close" aria-label="오답 복습 닫기" onClick={requestClose}>×</button></header>
     {error && <p className="game-save-error" role="alert">{error}</p>}
     <div className="game-body">
       <div className="learning-summary"><span>총 풀이 <strong>{learning.attempts}</strong></span><span>정답률 <strong>{learning.attempts ? Math.round(learning.correct / learning.attempts * 100) : 0}%</strong></span><span>남은 약점 <strong>{weaknesses.length}</strong></span><span>복습 완료 <strong>{completed}</strong></span></div>
@@ -28,9 +31,9 @@ export default function ReviewDialog({ progress, dispatch, error, onClose }) {
             onClick={() => dispatch({ type: 'REVIEW_START', id, seed: crypto.getRandomValues(new Uint32Array(1))[0] })}>
             <span><strong lang="en">{q.word.term}</strong><small>{QUIZ_TYPES[q.type]} · 오답 {entry.wrong}회 · 연속 정답 {entry.consecutive}/2</small></span><span>복습 ▸</span>
           </button>;
-        })}</div> : <div className="review-empty"><span aria-hidden="true">✦</span><h3>{completed ? '약점 복습을 마쳤습니다' : '아직 기록된 오답이 없어요'}</h3><p>모험에서 틀린 문제는 여기에 모입니다.</p><button className="game-primary" data-initial-focus onClick={() => dialog.current.close()}>타이틀로 돌아가기</button></div>}
+        })}</div> : <div className="review-empty"><span aria-hidden="true">✦</span><h3>{completed ? '약점 복습을 마쳤습니다' : '아직 기록된 오답이 없어요'}</h3><p>모험에서 틀린 문제는 여기에 모입니다.</p><button className="game-primary" data-initial-focus onClick={requestClose}>타이틀로 돌아가기</button></div>}
       </>}
       <p className="game-help">던전 클리어 {Object.values(learning.clears).reduce((a, b) => a + b, 0)}회 · 모험 시작 {learning.runs}회</p>
     </div><footer className="game-footer"><span><kbd>방향키</kbd> 이동 <kbd>Enter</kbd> 선택 <kbd>Esc</kbd> 닫기</span><span>{error ? '저장 상태를 확인하세요' : '학습 기록 자동 저장'}</span></footer>
-  </dialog>;
+  <TransitionVeil /></dialog>;
 }

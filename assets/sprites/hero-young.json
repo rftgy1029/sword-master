@@ -1,0 +1,12 @@
+{
+  "source": "assets/concepts/young-warrior-pixel.png.pxo",
+  "sourceSha256": "b6c4c9319a078a324322ba51e8e1729ed9b83d4dc89089124a53aba1e49866c0",
+  "width": 64,
+  "height": 64,
+  "frames": 1,
+  "anchor": {
+    "x": 32,
+    "y": 61
+  },
+  "note": "Exact Pixelorama RGBA cel export; eye and face pixels preserved."
+}

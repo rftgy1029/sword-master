@@ -56,7 +56,15 @@ export const MONSTERS = {
   crawler: { name: '이끼 발톱', hp: 36, art: 'crawler', pattern: [{ kind: 'attack', value: 7 }, { kind: 'attack', value: 9 }, { kind: 'block', value: 7 }] },
   sentinel: { name: '석문 파수병', hp: 43, art: 'sentinel', pattern: [{ kind: 'block', value: 10 }, { kind: 'attack', value: 11 }, { kind: 'buff', value: 2 }] },
   ember: { name: '불씨 망령', hp: 34, art: 'ember', pattern: [{ kind: 'buff', value: 3 }, { kind: 'attack', value: 12 }, { kind: 'attack', value: 6 }] },
-  ravager: { name: '금간 집행자', hp: 66, art: 'sentinel', pattern: [{ kind: 'charge', value: 18 }, { kind: 'attack', value: 18 }, { kind: 'block', value: 12 }, { kind: 'attack', value: 10 }] },
-  watcher: { name: '재의 감시자', hp: 62, art: 'ember', pattern: [{ kind: 'attack', value: 10 }, { kind: 'buff', value: 3 }, { kind: 'attack', value: 16 }] },
+  bat: { name: '유리날개 박쥐', hp: 30, art: 'bat', pattern: [{ kind: 'attack', value: 4, hits: 2 }, { kind: 'wait', value: 0 }, { kind: 'attack', value: 9 }] },
+  slime: { name: '비취 방울', hp: 39, art: 'slime', pattern: [{ kind: 'block', value: 8 }, { kind: 'attack', value: 8 }, { kind: 'wait', value: 0 }] },
+  mushroom: { name: '별점 버섯', hp: 35, art: 'mushroom', pattern: [{ kind: 'buff', value: 2 }, { kind: 'attack', value: 4, hits: 2 }, { kind: 'wait', value: 0 }] },
+  scarab: { name: '청동 딱정벌레', hp: 42, art: 'scarab', pattern: [{ kind: 'block', value: 9 }, { kind: 'attack', value: 10 }, { kind: 'attack', value: 6 }] },
+  wisp: { name: '서리 등불', hp: 32, art: 'wisp', pattern: [{ kind: 'charge', value: 13 }, { kind: 'attack', value: 13 }, { kind: 'wait', value: 0 }] },
+  hound: { name: '그늘 사냥개', hp: 37, art: 'hound', pattern: [{ kind: 'attack', value: 3, hits: 3 }, { kind: 'wait', value: 0 }, { kind: 'attack', value: 10 }] },
+  ravager: { name: '금간 집행자', hp: 66, art: 'ravager', pattern: [{ kind: 'charge', value: 18 }, { kind: 'attack', value: 18 }, { kind: 'block', value: 12 }, { kind: 'attack', value: 10 }] },
+  watcher: { name: '재의 감시자', hp: 62, art: 'watcher', pattern: [{ kind: 'attack', value: 10 }, { kind: 'buff', value: 3 }, { kind: 'attack', value: 16 }] },
   boss: { name: '황혼의 수문장', hp: 115, art: 'boss', pattern: [{ kind: 'attack', value: 10 }, { kind: 'block', value: 15 }, { kind: 'buff', value: 2 }, { kind: 'charge', value: 23 }, { kind: 'attack', value: 23 }, { kind: 'attack', value: 13 }] },
 };
+
+export const NORMAL_MONSTERS = ['crawler', 'sentinel', 'ember', 'bat', 'slime', 'mushroom', 'scarab', 'wisp', 'hound'];

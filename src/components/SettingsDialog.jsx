@@ -1,3 +1,4 @@
+import { TransitionVeil, useSceneTransition } from './SceneTransition.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS } from '../settings.js';
 
@@ -28,6 +29,8 @@ function SettingOptions({ name, title, description, choices, value, onChange }) 
 
 export default function SettingsDialog({ settings, onChange, onReset, saved, onClose }) {
   const dialog = useRef(null);
+  const transition = useSceneTransition();
+  const requestClose = () => transition(() => dialog.current.close());
   const tabButtons = useRef([]);
   const panel = useRef(null);
   const [tab, setTab] = useState('display');
@@ -87,12 +90,12 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
   }
 
   return (
-    <dialog className="settings-dialog" ref={dialog} aria-labelledby="settings-title" onClose={onClose}
+    <dialog className="settings-dialog" ref={dialog} aria-labelledby="settings-title" onClose={onClose} onCancel={(event) => { event.preventDefault(); requestClose(); }}
       onClick={(event) => {
         const bounds = event.currentTarget.getBoundingClientRect();
         if (event.target === event.currentTarget &&
           (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) {
-          event.currentTarget.close();
+          requestClose();
         }
       }}>
       <header className="settings-header">
@@ -101,7 +104,7 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
           <h2 id="settings-title">설정</h2>
           <p className="settings-intro">나에게 편한 화면으로 모험을 준비하세요.</p>
         </div>
-        <button className="settings-close" aria-label="설정 닫기" onClick={() => dialog.current.close()}>
+        <button className="settings-close" aria-label="설정 닫기" onClick={requestClose}>
           <span aria-hidden="true">×</span>
         </button>
       </header>
@@ -131,7 +134,7 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
               <SettingOptions name="textSize" title="글자 크기" description="메뉴와 안내 글자의 크기를 조절해요."
                 choices={[[ 'normal', '보통' ], [ 'large', '크게' ], [ 'larger', '아주 크게' ]]}
                 value={settings.textSize} onChange={changeSetting} />
-              <SettingOptions name="backgroundMotion" title="배경 움직임" description="망토와 횃불의 움직임을 조절해요."
+              <SettingOptions name="backgroundMotion" title="게임 애니메이션" description="화면 전환, 카드 기술과 배경의 움직임을 조절해요."
                 choices={[[ 'normal', '기본' ], [ 'reduced', '줄이기' ], [ 'off', '끄기' ]]}
                 value={settings.backgroundMotion} onChange={changeSetting} />
               <SettingOptions name="selectionEffect" title="메뉴 선택 효과" description="선택한 항목의 밝기 변화를 조절해요."
@@ -173,9 +176,9 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
         </p>
         <div className="settings-footer-actions">
           <button className="settings-reset" disabled={defaultsActive} onClick={resetSettings}>기본값 복원</button>
-          <button className="return-button" onClick={() => dialog.current.close()}>돌아가기 <span aria-hidden="true">↵</span></button>
+          <button className="return-button" onClick={requestClose}>돌아가기 <span aria-hidden="true">↵</span></button>
         </div>
       </footer>
-    </dialog>
+    <TransitionVeil /></dialog>
   );
 }

@@ -1,10 +1,15 @@
-import { CARDS, MONSTERS, RELICS, cardDetails } from './catalog.js';
+import { CARDS, MONSTERS, NORMAL_MONSTERS, RELICS, cardDetails } from './catalog.js';
 import { random, shuffle } from './random.js';
 import { isCorrectAnswer, makeQuestion, nextQuestion, questionById } from './quiz.js';
 import { TIERS } from '../vocabulary.js';
 
 export function emptyProgress() {
   return { version: 1, run: null, review: null, learning: { entries: {}, attempts: 0, correct: 0, runs: 0, clears: {}, unlocked: [] } };
+}
+// Old victories also open earlier tiers; unfinished legacy runs remain resumable.
+export function unlockedTierIds(progress) {
+  const highest = TIERS.reduce((max, tier, i) => progress.learning.clears[tier.id] > 0 ? i : max, -1);
+  return TIERS.slice(0, Math.min(TIERS.length, highest + 2)).map((tier) => tier.id);
 }
 const relicLevel = (run, id) => run.relics.find((r) => r.id === id)?.level ?? 0;
 const rng = (run) => () => random(run);
@@ -29,7 +34,7 @@ function addCard(run, type) {
 function createRun(tier, seed) {
   const run = { tier, rng: seed >>> 0, seed: seed >>> 0, phase: 'map', floor: -1, lane: 1, visited: [],
     hp: 72, maxHp: 72, gold: 35, deck: [], relics: [{ id: 'bastion', level: 1 }], nextCard: 0,
-    battle: null, reward: null, service: null, result: null, fights: 0, answers: 0, correct: 0 };
+    battle: null, reward: null, service: null, result: null, fights: 0, answers: 0, correct: 0, encounterHistory: [] };
   for (const type of ['strike', 'strike', 'strike', 'guard', 'guard', 'heavy', 'twin', 'heal', 'empower', 'weaken', 'focus', 'flow']) addCard(run, type);
   run.map = generateMap(run);
   return run;
@@ -43,7 +48,7 @@ export function reachableNodes(run) {
 export function intentFor(enemy) {
   const base = MONSTERS[enemy.type].pattern[enemy.step % MONSTERS[enemy.type].pattern.length];
   const value = base.kind === 'attack' ? Math.floor((base.value + enemy.strength) * (enemy.weak > 0 ? .75 : 1)) : base.value;
-  const labels = { attack: `공격 ${value}`, block: `방어 ${value} 획득`, buff: `힘 +${value}`, charge: `강타 준비 · 다음 행동에 기본 피해 ${value}` };
+  const labels = { attack: `공격 ${value}${base.hits ? ` × ${base.hits}회` : ''}`, block: `방어 ${value} 획득`, buff: `힘 +${value}`, charge: `강타 준비 · 다음 행동에 기본 피해 ${value}`, wait: '숨 고르기 · 이번 행동은 공격하지 않음' };
   return { ...base, value, label: labels[base.kind] };
 }
 
@@ -59,8 +64,18 @@ function drawCards(run, count) {
   }
 }
 
+export function chooseEncounter(run, type) {
+  const pool = type === 'boss' ? ['boss'] : type === 'elite' ? ['ravager', 'watcher'] : NORMAL_MONSTERS;
+  const history = run.encounterHistory ?? [];
+  const unseen = pool.filter((id) => !history.includes(id));
+  const choices = unseen.length ? unseen : pool.filter((id) => id !== history.at(-1));
+  const selected = pick(run, choices.length ? choices : pool);
+  run.encounterHistory = [...history, selected].slice(-32);
+  return selected;
+}
+
 function startBattle(run, type) {
-  const monsterType = type === 'boss' ? 'boss' : pick(run, type === 'elite' ? ['ravager', 'watcher'] : ['crawler', 'sentinel', 'ember']);
+  const monsterType = chooseEncounter(run, type);
   const monster = MONSTERS[monsterType];
   const maxHp = monster.hp + (type === 'boss' ? 0 : run.floor * 2);
   run.phase = 'battle';
@@ -88,11 +103,13 @@ function applyCard(run, card) {
   const focus = c.focus ? 0 : b.focus;
   if (!c.focus) b.focus = 0;
   let damage = 0;
+  const impacts = [];
   if (c.damage) {
     const first = b.firstAttack && relicLevel(run, 'whetstone') ? (relicLevel(run, 'whetstone') === 1 ? 4 : 7) : 0;
     for (let i = 0; i < (c.hits ?? 1); i++) {
       const echo = i > 0 && relicLevel(run, 'echo') ? (relicLevel(run, 'echo') === 1 ? 3 : 5) : 0;
-      damage += damageEnemy(run, c.damage + b.strength + focus + first + echo);
+      const dealt = damageEnemy(run, c.damage + b.strength + focus + first + echo);
+      damage += dealt; impacts.push(dealt);
     }
     b.firstAttack = false;
   }
@@ -107,7 +124,8 @@ function applyCard(run, card) {
     b.springUsed = true;
     if (relicLevel(run, 'spring') === 2) drawCards(run, 1);
   }
-  b.effect = { id: b.effect.id + 1, kind: c.damage ? 'attack' : c.heal ? 'heal' : 'block', amount: damage || c.block || c.heal || c.strength || c.focus || c.weak };
+  b.effect = { id: b.effect.id + 1, kind: c.damage ? 'attack' : c.heal ? 'heal' : 'block', amount: damage || c.block || c.heal || c.strength || c.focus || c.weak,
+    cardType: card.type, upgraded: card.upgraded, impacts };
   return c.damage ? `피해 ${damage}` : c.block ? `방어 +${c.block + focus}` : c.heal ? `HP 회복 ${c.heal + focus}` : '효과 발동';
 }
 
@@ -153,12 +171,14 @@ function makeReward(progress, nodeType) {
 
 function finishRun(progress, won) {
   const run = progress.run;
+  const previouslyOpen = unlockedTierIds(progress);
   const unlocked = won && !progress.learning.unlocked.includes('oath');
   if (won) {
     progress.learning.clears[run.tier] = (progress.learning.clears[run.tier] ?? 0) + 1;
     if (unlocked) progress.learning.unlocked.push('oath');
   }
-  run.result = { won, cards: run.deck.length, relics: run.relics.length, unlocked };
+  const unlockedTier = won ? unlockedTierIds(progress).find((id) => !previouslyOpen.includes(id)) ?? null : null;
+  run.result = { won, cards: run.deck.length, relics: run.relics.length, unlocked, unlockedTier };
   run.phase = 'result';
   run.deck = [];
   run.relics = [];
@@ -179,7 +199,7 @@ function finishVictory(progress) {
 // learning records. UI double-clicks and stale actions cannot grant extra effects.
 export function gameReducer(current, action) {
   if (action.type === 'START') {
-    if (!TIERS.some((t) => t.id === action.tier) || !Number.isInteger(action.seed)) return current;
+    if (!unlockedTierIds(current).includes(action.tier) || !Number.isInteger(action.seed)) return current;
     const next = structuredClone(current);
     next.run = createRun(action.tier, action.seed);
     next.learning.runs++;
@@ -247,8 +267,14 @@ export function gameReducer(current, action) {
       recordAnswer(next, question, correct);
       b.streak = correct ? b.streak + 1 : 0;
       const effect = correct ? applyCard(run, card) : '효과 없음';
-      if (!correct) b.effect = { id: b.effect.id + 1, kind: 'miss', amount: 0 };
-      if (correct && b.streak % 3 === 0 && relicLevel(run, 'cadence')) damageEnemy(run, relicLevel(run, 'cadence') === 1 ? 6 : 10);
+      if (!correct) b.effect = { id: b.effect.id + 1, kind: 'miss', amount: 0, cardType: card.type, upgraded: card.upgraded };
+      if (correct && b.streak % 3 === 0 && relicLevel(run, 'cadence')) {
+        const bonus = damageEnemy(run, relicLevel(run, 'cadence') === 1 ? 6 : 10);
+        if (b.effect.kind === 'attack') {
+          b.effect.amount += bonus;
+          b.effect.impacts[b.effect.impacts.length - 1] += bonus;
+        }
+      }
       b.feedback = { question, answer: action.answer, correct, cardName: CARDS[card.type].name };
       b.log = [`${CARDS[card.type].name} · ${correct ? effect : '오답 · 에너지와 카드 소비, 효과 없음'}`, ...b.log].slice(0, 5);
       break;
@@ -267,15 +293,21 @@ export function gameReducer(current, action) {
       b.hand = [];
       b.enemy.block = 0;
       if (intent.kind === 'attack') {
-        const amount = Math.max(0, intent.value - b.block);
+        let remainingBlock = b.block;
+        const impacts = Array.from({ length: intent.hits ?? 1 }, () => {
+          const blocked = Math.min(remainingBlock, intent.value);
+          remainingBlock -= blocked;
+          return intent.value - blocked;
+        });
+        const amount = impacts.reduce((total, hit) => total + hit, 0);
         run.hp = Math.max(0, run.hp - amount);
-        b.log = [`적 공격 ${intent.value} · 방어 ${Math.min(b.block, intent.value)} · HP −${amount}`, ...b.log];
-        b.effect = { id: b.effect.id + 1, kind: 'hurt', amount };
+        b.log = [`${intent.label} · 방어 ${b.block - remainingBlock} · HP −${amount}`, ...b.log];
+        b.effect = { id: b.effect.id + 1, kind: 'hurt', amount, impacts };
       } else if (intent.kind === 'block') b.enemy.block = intent.value;
       else if (intent.kind === 'buff') b.enemy.strength += intent.value;
       if (intent.kind !== 'attack') {
         b.log = [`적 행동 · ${intent.label}`, ...b.log];
-        b.effect = { id: b.effect.id + 1, kind: 'enemy', amount: 0 };
+        b.effect = { id: b.effect.id + 1, kind: 'enemy', amount: 0, enemyAction: intent.kind };
       }
       b.log = b.log.slice(0, 5);
       b.enemy.step++;

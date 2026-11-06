@@ -11,9 +11,9 @@ export function useProgress() {
   const conflict = useRef(false);
 
   function dispatch(action) {
-    if (conflict.current) return;
+    if (conflict.current) return false;
     const next = gameReducer(current.current, action);
-    if (next === current.current) return;
+    if (next === current.current) return false;
     // Save synchronously before the next browser event, rather than an effect
     // after paint. Closing/reloading the quiz cannot refund its consumed card.
     if (!initial.blocked) {
@@ -21,13 +21,14 @@ export function useProgress() {
       if (saved.conflict) {
         conflict.current = true;
         setError(saved.error);
-        return;
+        return false;
       }
       if (saved.ok) raw.current = saved.raw;
       setError(saved.error);
     }
     current.current = next;
     setProgress(next);
+    return true;
   }
   return { progress, dispatch, error };
 }

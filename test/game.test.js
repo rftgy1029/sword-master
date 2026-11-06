@@ -144,6 +144,7 @@ test('defeat resets temporary deck/relics, keeps learning and leaves clear recor
 test('new adventures retain learning and preserve cumulative tier meaning', () => {
   let p = answer(select(start(), 'strike'), false);
   const records = p.learning.entries;
+  p.learning.clears.platinum = 1; // Existing higher-tier clears remain honored.
   p = gameReducer(p, { type: 'START', tier: 'master', seed: 7 });
   assert.deepEqual(p.learning.entries, records);
   assert.equal(p.learning.runs, 2);
