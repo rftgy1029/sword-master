@@ -7,6 +7,8 @@ import { ATTACK_HITS, ATTACK_DURATION, impactsCrossed } from './attackTimeline.j
 import { paintAttack } from './attackEffects.js';
 import { heroImage, monsterSheet, monsterFrame } from './spriteAssets.js';
 import { createHeroRig, drawHeroRig } from './heroRig.js';
+import { enemyAttackPlan, enemyImpactsCrossed } from './enemyAttackTimeline.js';
+import { paintEnemyAttack } from './enemyAttackEffects.js';
 
 function monster(ctx, art) {
   const rect = (x, y, w, h, color) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
@@ -90,7 +92,7 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       }
       this.foe = this.add.container();
       const enemyFigure = this.textures.exists('monster-art')
-        ? this.add.image(0, 0, 'monster-art', monsterFrame(monsterType)).setOrigin(.5, ['ember', 'watcher', 'wisp', 'bat'].includes(monsterType) ? 1 : 58 / 64).setScale(1.8)
+        ? this.add.image(0, 0, 'monster-art', monsterFrame(monsterType)).setOrigin(.5, ['ember', 'watcher', 'wisp', 'bat'].includes(monsterType) ? 1 : 58 / 64).setScale(1.8).setFlipX(monsterType === 'hound')
         : this.add.graphics();
       if (!this.textures.exists('monster-art')) {
         const ctx = drawingContext(enemyFigure);
@@ -184,6 +186,20 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
           if (attack.effect.cardType === 'heavy' || attack.effect.cardType === 'nova') this.cameras.main.shake(100, .003);
         }
         if (attack.elapsed >= ATTACK_DURATION) this.finishEffect?.();
+      }
+      if (this.enemyAttack) {
+        const attack = this.enemyAttack, before = attack.elapsed;
+        attack.elapsed = Math.min(attack.plan.duration, before + (delta ?? 16));
+        paintEnemyAttack(this, attack, attack.elapsed);
+        for (const { index } of enemyImpactsCrossed(attack.plan, before, attack.elapsed)) {
+          onImpact(index, 'player');
+          const amount = attack.effect.impacts?.[index] ?? attack.effect.amount;
+          const number = this.add.text(this.heroHome.x, this.floor - 75 * this.actorScale, amount ? '−' + amount : '방어',
+            { fontFamily: 'Cormorant, serif', fontSize: '38px', color: amount ? '#ffc1a7' : '#b7f4ef', stroke: '#17251d', strokeThickness: 4 }).setOrigin(.5);
+          this.transient(number, 680, { y: number.y - 45 });
+          this.cameras.main.shake(100, ['boss', 'ravager'].includes(monsterType) ? .004 : .002);
+        }
+        if (attack.elapsed >= attack.plan.duration) this.finishEffect?.();
       }
     }
 
@@ -317,8 +333,24 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       if (this.finishEffect) this.finishEffect();
       if (reduced()) { this.foe.setAlpha(state.enemy.hp <= 0 ? 0 : 1); onBusy(false); return; }
       const effect = state.effect;
-      const duration = effect.kind === 'miss' ? 600 : effect.kind === 'hurt' ? 650 + ((effect.impacts?.length ?? 1) - 1) * 190 : CARD_MOTIONS[effect.cardType]?.duration ?? 650;
+      const duration = effect.kind === 'miss' ? 600 : CARD_MOTIONS[effect.cardType]?.duration ?? 650;
       onBusy(true);
+      if (effect.kind === 'hurt') {
+        this.enemyAttack = { effect, type: monsterType, elapsed: 0, plan: enemyAttackPlan(monsterType, effect) };
+        this.playerFalling = state.playerDead;
+        this.finishEffect = () => {
+          this.enemyAttack = null; this.enemyPose = null; this.attackInk.clear();
+          this.heroSprite?.setAlpha(1);
+          if (!this.playerFalling) this.adventurer.setPosition(this.heroHome.x, this.floor).setAngle(0);
+          this.foe.setPosition(this.enemyHome.x, this.floor).setAngle(0).setScale(this.actorScale);
+          this.finishEffect = null;
+          if (this.pendingLayout) { const layout = this.pendingLayout; this.pendingLayout = null; this.redraw(layout); }
+          if (this.playerFalling) this.adventurer.setPosition(this.heroHome.x, this.floor + 12).setAngle(-65);
+          onBusy(false);
+        };
+        paintEnemyAttack(this, this.enemyAttack, 0);
+        return;
+      }
       if (effect.kind === 'attack' && ATTACK_HITS[effect.cardType]) {
         this.attack = { effect, color: CARD_MOTIONS[effect.cardType].color, elapsed: 0 };
         this.finishEffect = () => {
@@ -338,20 +370,6 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
         return;
       }
       this.skill(effect);
-      if (effect.kind === 'hurt') {
-        this.enemyPose = 2;
-        const hits = effect.impacts?.length ?? 1;
-        for (let i = 0; i < hits; i++) {
-          this.lunge(this.foe, this.enemyHome, -1, ['boss', 'ravager'].includes(monsterType), i * 190);
-          this.recoil(this.adventurer, -1, 180 + i * 190);
-          this.slash(this.heroHome.x, this.floor - 100, 0xe98665, i % 2 === 0, 150 + i * 190);
-        }
-        this.cameras.main.shake(120, .0025);
-        if (state.playerDead) {
-          this.tweens.add({ targets: this.adventurer, alpha: .2, angle: -65, y: this.floor + 12, delay: 350, duration: 220 });
-          this.tweens.add({ targets: this.heroShadow, alpha: 0, delay: 350, duration: 220 });
-        }
-      }
       if (effect.kind === 'enemy') {
         const ex = this.enemyHome.x, ey = this.floor - 80;
         if (effect.enemyAction === 'block') {
@@ -414,12 +432,14 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       return { running: game.isRunning, paused: game.isPaused, frame: game.loop.frame,
         loop: game.loop.running, scene: scene.sys.settings.status, clock: scene.time?.now,
         tweens: scene.tweens?.getTweens().length, canvas: [game.canvas?.width, game.canvas?.height],
+        enemyAttack: scene.enemyAttack ? { type: monsterType, elapsed: scene.enemyAttack.elapsed, duration: scene.enemyAttack.plan.duration } : null,
         time: Date.now(), hidden: document.hidden };
     },
     // Development preview can scrub a real frame even when Safari suspends a hidden tab.
     sampleFrame(milliseconds) {
       if (!scene.fx || disposed) return 0;
       if (scene.attack) paintAttack(scene, scene.attack, milliseconds);
+      else if (scene.enemyAttack) paintEnemyAttack(scene, scene.enemyAttack, milliseconds);
       else scene.tweens.getTweens().forEach((tween) => tween.seek(milliseconds, 16.6, true));
       game.renderer.preRender(); game.scene.render(game.renderer); game.renderer.postRender();
       return scene.fx.length + scene.attackInk.commandBuffer.length;
@@ -428,10 +448,14 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       if (resize) scene.redraw(resize);
       for (let elapsed = 0; elapsed < milliseconds; elapsed += 16) scene.update(elapsed, Math.min(16, milliseconds - elapsed));
       game.renderer.preRender(); game.scene.render(game.renderer); game.renderer.postRender();
-      return { active: !!scene.attack, pendingResize: !!scene.pendingLayout, width: scene.layoutWidth, height: scene.layoutHeight };
+      return { active: !!(scene.attack || scene.enemyAttack), pendingResize: !!scene.pendingLayout, width: scene.layoutWidth, height: scene.layoutHeight,
+        enemyX: scene.foe?.x, heroX: scene.adventurer?.x, home: scene.enemyHome?.x, heroAlpha: scene.adventurer?.alpha };
     },
     settlePreview() {
       scene.finishEffect?.(); scene.tweens?.killAll(); scene.fx?.removeAll(true); scene.attackInk?.clear();
+      scene.playerFalling = false;
+      scene.adventurer?.setAlpha(1).setPosition(scene.heroHome.x, scene.floor).setAngle(0);
+      scene.heroShadow?.setAlpha(.7);
     },
     setState(next) { state = next; scene.sync(); },
     destroy() { if (disposed) return; disposed = true; observer.disconnect(); game.destroy(true); },

@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { CARDS, MONSTERS } from '../src/game/catalog.js';
 import { startCombatScene } from '../src/game/combatScene.js';
 import { startCardDealScene } from '../src/game/cardDealScene.js';
+import { emptyProgress, gameReducer, reachableNodes } from '../src/game/engine.js';
+import { enemyAttackPlan } from '../src/game/enemyAttackTimeline.js';
 import '../styles.css';
 import '../src/components/adventure.css';
 
@@ -10,6 +12,8 @@ function Preview() {
   const arena = useRef(null), dealer = useRef(null), combat = useRef(null), draw = useRef(null);
   const effectId = useRef(0), automatic = useRef(false), current = useRef(0), timer = useRef(null);
   const impacts = useRef([]);
+  const enemyImpacts = useRef([]);
+  const busyEvents = useRef([]);
   const [enemyType, setEnemyType] = useState('ember');
   const [ready, setReady] = useState(false), [busy, setBusy] = useState(false), [status, setStatus] = useState('장면 준비 중');
   const [upgraded, setUpgraded] = useState(false), [motion, setMotion] = useState('normal');
@@ -23,11 +27,13 @@ function Preview() {
   const types = Object.keys(CARDS);
   useEffect(() => {
     setReady(false);
+    setBusy(false);
     combat.current = startCombatScene(arena.current, enemyType, {
       initialEffectId: effectId.current,
-      onImpact: (index) => impacts.current.push(index),
+      onImpact: (index, target) => target === 'player' ? enemyImpacts.current.push(index) : impacts.current.push(index),
       onReady: () => { setReady(true); setStatus('장면 준비 완료'); },
       onBusy: (value) => {
+        busyEvents.current.push(value);
         setBusy(value);
         if (!value && automatic.current) {
           const count = ++current.current;
@@ -55,6 +61,36 @@ function Preview() {
     if (!automatic.current) setStatus(card.name + (miss ? ' · 오답' : ' · 기술 재생'));
   };
   playRef.current = play;
+  const playEnemy = (blocked = false, fatal = false) => {
+    let p = gameReducer(emptyProgress(), { type: 'START', tier: 'bronze', seed: 42 });
+    p = gameReducer(p, { type: 'SELECT_NODE', id: reachableNodes(p.run)[0].id });
+    Object.assign(p.run.battle.enemy, { type: enemyType, step: MONSTERS[enemyType].pattern.findIndex((intent) => intent.kind === 'attack') });
+    p.run.battle.block = blocked ? 100 : 0;
+    const result = gameReducer(p, { type: 'END_TURN' });
+    const effect = { ...result.run.battle.effect, id: ++effectId.current };
+    combat.current.setState({ effect, enemy: result.run.battle.enemy, playerDead: fatal, motion });
+    setStatus(MONSTERS[enemyType].name + ' · ' + (blocked ? '전부 방어' : fatal ? '치명타' : '공격') + ' · 피해 ' + effect.impacts.join(' + '));
+    return effect;
+  };
+  const validateEnemy = () => {
+    const results = [];
+    automatic.current = false; clearTimeout(timer.current);
+    for (const mode of ['attack', 'blocked', 'fatal']) {
+      combat.current.settlePreview(); enemyImpacts.current = []; busyEvents.current = [];
+      const effect = playEnemy(mode === 'blocked', mode === 'fatal'), plan = enemyAttackPlan(enemyType, effect);
+      const first = combat.current.advancePreview(500, { width: 740, height: 330 });
+      const middle = combat.current.advancePreview(300);
+      const end = combat.current.advancePreview(plan.duration - 800);
+      if (!first.active || !first.pendingResize || !middle.active || end.active || end.pendingResize || Math.abs(end.enemyX - end.home) > .01 ||
+        enemyImpacts.current.join(',') !== plan.hits.map((_, i) => i).join(',') || busyEvents.current.join(',') !== 'true,false' || (mode === 'fatal' && end.heroAlpha > .21)) {
+        setStatus('몬스터 검사 실패 ' + JSON.stringify({ first, middle, end, hits: enemyImpacts.current })); return;
+      }
+      results.push(({ attack: '공격', blocked: '방어', fatal: '치명타' })[mode] + ' ' + plan.hits.length + '회');
+    }
+    combat.current.settlePreview(); setBusy(false);
+    combat.current.advancePreview(0, { width: arena.current.clientWidth, height: arena.current.clientHeight });
+    setStatus(MONSTERS[enemyType].name + ' 실제 Scene 통과: ' + results.join(' / ') + ' · 피해 콜백·도중 리사이즈·복귀·입력 잠금 해제');
+  };
   const validate = () => {
     automatic.current = false;
     clearTimeout(timer.current);
@@ -108,6 +144,10 @@ function Preview() {
       <button disabled={!ready || busy} onClick={() => { automatic.current = true; current.current = 0; play(types[0]); }}>12종 자동 재생</button>
       <button disabled={!ready} onClick={validate}>12종 프레임 검사</button>
       <button disabled={!ready} onClick={validateTimeline}>공격 2초·크기 변경 검사</button>
+      <button disabled={!ready || busy} onClick={() => playEnemy()}>몬스터 공격</button>
+      <button disabled={!ready || busy} onClick={() => playEnemy(true)}>몬스터 공격 전부 방어</button>
+      <button disabled={!ready || busy} onClick={() => playEnemy(false, true)}>몬스터 치명타</button>
+      <button disabled={!ready} onClick={validateEnemy}>몬스터 공격·방어·크기 검사</button>
       {[450, 1000, 1600].map((ms) => <button key={ms} disabled={!ready} onClick={() => combat.current.sampleFrame(ms)}>현재 기술 {ms}ms</button>)}
       {[650, 1100, 1750].map((ms) => <button key={ms} disabled={!ready} onClick={() => { play('nova'); combat.current.sampleFrame(ms); }}>낙인 {ms}ms</button>)}
       <button disabled={!ready || busy} onClick={deal}>덱에서 5장 뽑기</button>

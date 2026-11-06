@@ -114,18 +114,24 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
   const [visualReady, setVisualReady] = useState(false);
   const [fatal, setFatal] = useState(false);
   const [shownEnemyHP, setShownEnemyHP] = useState(run.battle.enemy.hp);
+  const [shownPlayerHP, setShownPlayerHP] = useState(run.hp);
+  const [shownIntent, setShownIntent] = useState(() => intentFor(run.battle.enemy));
   const transition = useSceneTransition();
   const b = run.battle;
   const pending = b.pending;
   const feedback = b.feedback;
   const locked = !!(pending || feedback);
   const intent = intentFor(b.enemy);
+  const combatEffect = fatal ? { id: b.effect.id + 1, kind: 'hurt', amount: run.hp,
+    impacts: Array.from({ length: intent.hits ?? 1 }, (_, i) => Math.max(0, Math.min(intent.value, (i + 1) * intent.value - b.block))) } : b.effect;
   const selectedCard = pending && run.deck.find((c) => c.uid === pending.uid);
   const hand = useMemo(() => b.hand.map((uid) => run.deck.find((c) => c.uid === uid)), [b.hand, run.deck]);
   const deal = useCardDeal({ section, canvas: dealCanvas, cards: hand, turn: b.turn, drawCount: b.draw.length,
     suspended: locked || skillBusy || !visualReady, animateOpening, motionPreference, onOpeningDone });
   const busy = !visualReady || skillBusy || deal.busy;
   useEffect(() => { if (!skillBusy) setShownEnemyHP(b.enemy.hp); }, [skillBusy, b.enemy.hp]);
+  useEffect(() => { if (!skillBusy) setShownPlayerHP(fatal ? 0 : run.hp); }, [skillBusy, run.hp, fatal]);
+  useEffect(() => { if (!skillBusy) setShownIntent(intentFor(b.enemy)); }, [skillBusy, b.enemy]);
   useEffect(() => {
     const active = document.activeElement;
     if (!busy && (!active || ['BODY', 'DIALOG', 'H2'].includes(active.tagName) || active.disabled)) {
@@ -140,21 +146,23 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
   return <section ref={section} className={`battle-screen${busy ? ' is-animating' : ''}`} aria-label="턴제 카드 전투" aria-busy={busy}>
       <div className="combat-hud">
         <section className="combatant-hud player-hud" aria-label="모험가 상태">
-          <div className="combatant-heading"><h3>모험가</h3><span>HP {run.hp} / {run.maxHp}</span></div>
-          <meter min="0" max={run.maxHp} value={run.hp} aria-label="모험가 체력" />
+          <div className="combatant-heading"><h3>모험가</h3><span>HP {shownPlayerHP} / {run.maxHp}</span></div>
+          <meter min="0" max={run.maxHp} value={shownPlayerHP} aria-label="모험가 체력" />
           <StatusBadges battle={b} />
         </section>
         <section className="combatant-hud enemy-hud" aria-label="적 상태">
           <div className="combatant-heading"><h3>{MONSTERS[b.enemy.type].name}</h3><span>HP {shownEnemyHP} / {b.enemy.maxHp}</span></div>
           <meter min="0" max={b.enemy.maxHp} value={shownEnemyHP} aria-label="적 체력" />
-          <p className={`enemy-intent intent-${intent.kind}`} aria-live="polite"><small>다음 행동</small><strong>{intent.label}</strong></p>
+          <p className={`enemy-intent intent-${shownIntent.kind}`} aria-live="polite"><small>{skillBusy && ['hurt', 'enemy'].includes(combatEffect.kind) ? '진행 중' : '다음 행동'}</small><strong>{shownIntent.label}</strong></p>
           <StatusBadges battle={b} enemy />
         </section>
       </div>
     <div className="battlefield">
-      <CombatScene enemy={b.enemy} effect={fatal ? { id: b.effect.id + 1, kind: 'hurt', amount: run.hp,
-        impacts: Array.from({ length: intent.hits ?? 1 }, (_, i) => Math.max(0, Math.min(intent.value, (i + 1) * intent.value - b.block))) } : b.effect} playerDead={fatal} motionPreference={motionPreference} onReady={() => setVisualReady(true)}
-        onImpact={(index) => setShownEnemyHP((hp) => Math.max(b.enemy.hp, hp - (b.effect.impacts?.[index] ?? b.effect.amount)))}
+      <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} motionPreference={motionPreference} onReady={() => setVisualReady(true)}
+        onImpact={(index, target) => {
+          if (target === 'player') setShownPlayerHP((hp) => Math.max(fatal ? 0 : run.hp, hp - (combatEffect.impacts?.[index] ?? combatEffect.amount)));
+          else setShownEnemyHP((hp) => Math.max(b.enemy.hp, hp - (b.effect.impacts?.[index] ?? b.effect.amount)));
+        }}
         onBusy={(value) => { setSkillBusy(value); if (fatal && !value) transition(() => dispatch({ type: 'END_TURN' })); }} />
 
       <span className="battle-turn">TURN <strong>{String(b.turn).padStart(2, '0')}</strong></span>
@@ -165,7 +173,7 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
         <button className="game-primary end-turn" disabled={locked || busy} data-initial-focus={!locked && !hand.some((card) => CARDS[card.type].cost <= b.energy) ? '' : undefined}
           onClick={endTurn}>턴 종료 <span aria-hidden="true">▸</span></button></div>
       <div className="pile-status"><div className="deck-pile draw-pile" aria-label={`뽑을 카드 ${b.draw.length}장`}><span>✦</span><small>뽑기 {b.draw.length}</small></div>
-        <span className="draw-status" role="status">{deal.busy ? '덱에서 카드를 뽑고 있습니다…' : skillBusy ? '단어의 힘이 펼쳐집니다' : '카드를 선택해 단어의 힘을 깨우세요'}</span>
+        <span className="draw-status" role="status">{deal.busy ? '덱에서 카드를 뽑고 있습니다…' : skillBusy ? combatEffect.kind === 'hurt' ? '몬스터가 공격하고 있습니다' : combatEffect.kind === 'enemy' ? '몬스터가 행동하고 있습니다' : '단어의 힘이 펼쳐집니다' : '카드를 선택해 단어의 힘을 깨우세요'}</span>
         <div className="deck-pile discard-pile" aria-label={`버린 카드 ${b.discard.length}장`}><span>◇</span><small>버림 {b.discard.length} · 소멸 {b.exhaust.length}</small></div></div>
       {locked ? <QuizPanel compact busy={skillBusy} question={pending?.question ?? feedback.question} feedback={feedback}
         cardName={selectedCard ? CARDS[selectedCard.type].name : feedback.cardName}

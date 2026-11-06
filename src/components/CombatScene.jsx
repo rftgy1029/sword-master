@@ -22,7 +22,7 @@ export default function CombatScene({ enemy, effect, motionPreference = 'normal'
     import('../game/combatScene.js').then(({ startCombatScene }) => {
       if (cancelled) return;
       controller = startCombatScene(host.current, monsterType, { initialEffectId: latest.current.effect.id,
-        onImpact: (index) => { if (!cancelled) impactCallback.current?.(index); },
+        onImpact: (index, target) => { if (!cancelled) impactCallback.current?.(index, target); },
         onReady: () => { if (!cancelled) readyCallback.current?.(); }, onBusy: (value) => { if (!cancelled) busyCallback.current?.(value); } });
       renderer.current = controller;
       controller.setState(latest.current);
@@ -41,7 +41,7 @@ export default function CombatScene({ enemy, effect, motionPreference = 'normal'
   return <div className={`combat-scene effect-${effect.kind}`}>
     <div ref={host} className="combat-canvas" aria-hidden="true" />
     {error && <p className="combat-scene-error" role="status">{error}</p>}
-    {effect.amount > 0 && effect.kind !== 'attack' && <span key={effect.id} className="combat-number" aria-hidden="true">{['attack', 'hurt'].includes(effect.kind) ? '−' : '+'}{effect.amount}</span>}
+    {effect.amount > 0 && !['attack', 'hurt'].includes(effect.kind) && <span key={effect.id} className="combat-number" aria-hidden="true">+{effect.amount}</span>}
     <span className="scene-vignette" aria-hidden="true" />
   </div>;
 }
