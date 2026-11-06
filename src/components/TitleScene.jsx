@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { startTitleScene } from '../scene.js';
 
 export default function TitleScene({ motionPreference = 'normal' }) {
   const canvas = useRef(null);
   useEffect(() => {
     const controller = new AbortController();
-    startTitleScene(canvas.current, { signal: controller.signal, motionPreference }).catch((error) => {
+    import('../game/titleScene.js').then(({ startPhaserTitleScene }) => {
+      if (!controller.signal.aborted) startPhaserTitleScene(canvas.current, { signal: controller.signal, motionPreference });
+    }).catch((error) => {
       if (!controller.signal.aborted) console.warn('배경 애니메이션을 불러오지 못했습니다.', error);
     });
     const syncVisibility = () => document.documentElement.classList.toggle('paused', document.hidden);

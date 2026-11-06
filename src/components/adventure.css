@@ -515,3 +515,14 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .map-hero-art:is(img) { object-fit: contain; image-rendering: pixelated; }
 .map-traveler:has(img)::after { left: 0; }
 .map-traveler:has(img) > i { left: 6px; }
+
+/* Shortcut labels show hand position, separate from the card energy cost. */
+.card-shortcut { margin-left: auto; min-width: 21px; height: 21px; display: grid; place-items: center; border: 1px solid #7e896b; color: #d7dfc7; font-size: 10px; line-height: 1; }
+.card-shortcut + small { margin-left: 8px; }
+
+/* A focused shortcut is a preview; a second press visibly confirms it. */
+.card-hand .game-card:focus-visible, .quiz-options button:focus-visible, .end-turn:focus-visible { outline: 2px solid #f5d28a; outline-offset: 2px; }
+.shortcut-confirming { animation: shortcut-confirm .18s ease-out both !important; }
+@keyframes shortcut-confirm { 0% { filter: brightness(1); transform: scale(1); } 45% { filter: brightness(1.8); transform: scale(.96); } 100% { filter: brightness(1.2); transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .shortcut-confirming { animation: none !important; } }
+.app[data-background-motion="off"] .shortcut-confirming { animation: none !important; }

@@ -10,6 +10,7 @@ import QuizPanel from './QuizPanel.jsx';
 import { TransitionVeil, useSceneTransition } from './SceneTransition.jsx';
 import { useCardDeal } from './useCardDeal.js';
 import { navigateTiers } from '../game/tierNavigation.js';
+import { cardShortcutIndex, confirmShortcut, cancelShortcut } from '../game/combatShortcuts.js';
 import StatusBadges from './StatusBadges.jsx';
 import { heroImage } from '../game/spriteAssets.js';
 import './adventure.css';
@@ -31,12 +32,12 @@ export function navigateGameButtons(event) {
   buttons[next]?.focus();
 }
 
-export function Card({ card, onClick, disabled, actionLabel, initialFocus = false, compact = false, hidden = false }) {
+export function Card({ card, onClick, disabled, actionLabel, initialFocus = false, compact = false, hidden = false, shortcut }) {
   const c = cardDetails(card);
   return <button data-card-uid={card.uid} className={`game-card rarity-${c.rarity}${card.upgraded ? ' is-upgraded' : ''}${hidden ? ' is-dealing' : ''}`} disabled={disabled}
     onClick={onClick} data-initial-focus={initialFocus ? '' : undefined}
-    aria-label={`${c.name}${card.upgraded ? '+' : ''}, 에너지 ${c.cost}, ${describeCard(card)}${actionLabel ? `, ${actionLabel}` : ''}`}>
-    <span className="card-top"><span className="card-cost" title="필요 에너지">{c.cost}</span><small>{compact ? c.kind : `${c.rarity} · ${c.kind}`}</small></span>
+    aria-label={`${shortcut ? `단축키 ${shortcut}, ` : ''}${c.name}${card.upgraded ? '+' : ''}, 에너지 ${c.cost}, ${describeCard(card)}${actionLabel ? `, ${actionLabel}` : ''}`}>
+    <span className="card-top"><span className="card-cost" title="필요 에너지">{c.cost}</span>{shortcut && <span className="card-shortcut" aria-hidden="true">{shortcut}</span>}<small>{compact ? c.kind : `${c.rarity} · ${c.kind}`}</small></span>
     {!compact && <span className="card-icon" aria-hidden="true">{c.icon}</span>}
     <strong>{c.name}{card.upgraded && '+'}</strong>
     <span className="card-description">{describeCard(card)}</span>
@@ -110,6 +111,8 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
 function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone }) {
   const section = useRef(null);
   const dealCanvas = useRef(null);
+  const shortcut = useRef(null);
+  useEffect(() => () => cancelShortcut(shortcut), []);
   const [skillBusy, setSkillBusy] = useState(false);
   const [visualReady, setVisualReady] = useState(false);
   const [fatal, setFatal] = useState(false);
@@ -138,11 +141,46 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
       section.current?.querySelector('[data-initial-focus]:not(:disabled)')?.focus({ preventScroll: true });
     }
   }, [busy, locked]);
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const index = cardShortcutIndex(event);
+      if (index === null || busy || locked || document.hidden) return;
+      const target = event.target;
+      const root = section.current;
+      if (!root || !(root.contains(target) || target === root.closest('dialog') || target === document.body)) return;
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
+      const card = hand[index];
+      if (!card || CARDS[card.type].cost > b.energy) return;
+      event.preventDefault();
+      const button = root.querySelectorAll('.card-hand .game-card')[index];
+      confirmShortcut(shortcut, `card:${card.uid}`, button, () => dispatch({ type: 'SELECT_CARD', uid: card.uid }));
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [busy, locked, hand, b.energy, dispatch]);
   const endTurn = () => {
     if (busy) return;
     if (intent.kind === 'attack' && intent.value * (intent.hits ?? 1) - b.block >= run.hp) { setSkillBusy(true); setFatal(true); }
     else if (dispatch({ type: 'END_TURN' })) setSkillBusy(true);
   };
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key !== 'Enter' || event.repeat || event.isComposing || event.defaultPrevented ||
+          event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || busy || locked || document.hidden) return;
+      const target = event.target;
+      const root = section.current;
+      if (!root || !(root.contains(target) || target === root.closest('dialog') || target === document.body)) return;
+      if (target instanceof Element) {
+        if (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
+        const button = target.closest('button, summary, a');
+        if (button && !button.matches('.card-hand .game-card, .end-turn')) return;
+      }
+      event.preventDefault();
+      confirmShortcut(shortcut, 'end-turn', root.querySelector('.end-turn'), endTurn);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  });
   return <section ref={section} className={`battle-screen${busy ? ' is-animating' : ''}`} aria-label="턴제 카드 전투" aria-busy={busy}>
       <div className="combat-hud">
         <section className="combatant-hud player-hud" aria-label="모험가 상태">
@@ -171,15 +209,15 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
       <div className="hand-toolbar"><div className="energy-orb" aria-label={`에너지 ${b.energy}`} title="매 턴 에너지 3으로 시작합니다"><span>{b.energy}</span><small>에너지</small></div>
         <p className="battle-message" aria-live="polite">{pending ? '단어 문제를 풀어 카드의 효과를 발동하세요.' : b.log[0]}</p>
         <button className="game-primary end-turn" disabled={locked || busy} data-initial-focus={!locked && !hand.some((card) => CARDS[card.type].cost <= b.energy) ? '' : undefined}
-          onClick={endTurn}>턴 종료 <span aria-hidden="true">▸</span></button></div>
+          onClick={endTurn}>턴 종료 <span aria-hidden="true">↵</span></button></div>
       <div className="pile-status"><div className="deck-pile draw-pile" aria-label={`뽑을 카드 ${b.draw.length}장`}><span>✦</span><small>뽑기 {b.draw.length}</small></div>
-        <span className="draw-status" role="status">{deal.busy ? '덱에서 카드를 뽑고 있습니다…' : skillBusy ? combatEffect.kind === 'hurt' ? '몬스터가 공격하고 있습니다' : combatEffect.kind === 'enemy' ? '몬스터가 행동하고 있습니다' : '단어의 힘이 펼쳐집니다' : '카드를 선택해 단어의 힘을 깨우세요'}</span>
+        <span className="draw-status" role="status">{deal.busy ? '덱에서 카드를 뽑고 있습니다…' : skillBusy ? combatEffect.kind === 'hurt' ? '몬스터가 공격하고 있습니다' : combatEffect.kind === 'enemy' ? '몬스터가 행동하고 있습니다' : '단어의 힘이 펼쳐집니다' : '숫자 키 2번으로 카드 선택 · Enter 2번으로 턴 종료'}</span>
         <div className="deck-pile discard-pile" aria-label={`버린 카드 ${b.discard.length}장`}><span>◇</span><small>버림 {b.discard.length} · 소멸 {b.exhaust.length}</small></div></div>
       {locked ? <QuizPanel compact busy={skillBusy} question={pending?.question ?? feedback.question} feedback={feedback}
         cardName={selectedCard ? CARDS[selectedCard.type].name : feedback.cardName}
         onAnswer={(answer) => { if (dispatch({ type: 'ANSWER', id: pending.question.id, answer })) setSkillBusy(true); }}
         onContinue={() => { if (skillBusy) return; if (b.enemy.hp <= 0) transition(() => dispatch({ type: 'ACK' })); else dispatch({ type: 'ACK' }); }} /> : <div className="card-hand" data-keyboard-group aria-label="손에 든 카드">
-        {hand.map((card) => <Card key={card.uid} card={card} compact hidden={deal.hidden.includes(card.uid)} disabled={busy || CARDS[card.type].cost > b.energy}
+        {hand.map((card, index) => <Card key={card.uid} card={card} compact shortcut={index < 4 ? index + 1 : undefined} hidden={deal.hidden.includes(card.uid)} disabled={busy || CARDS[card.type].cost > b.energy}
           onClick={() => { if (!busy) dispatch({ type: 'SELECT_CARD', uid: card.uid }); }} initialFocus={CARDS[card.type].cost <= b.energy} />)}
         {!hand.length && <p className="empty-hand game-muted">손에 든 카드가 없습니다. 턴을 종료해 새 카드를 뽑으세요.</p>}
       </div>}

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { hero } from '../scene.js';
 import { drawingContext } from './phaserDrawing.js';
+import { battleMapForMonster, createMapLayers, preloadMap } from './mapAssets.js';
 import { CARD_MOTIONS } from './cardMotions.js';
 import { MONSTERS } from './catalog.js';
 import { ATTACK_HITS, ATTACK_DURATION, impactsCrossed } from './attackTimeline.js';
@@ -63,6 +64,7 @@ function drawArena(ctx, w, h) {
 // The background, actors, shadows and skill effects have independent transforms.
 export function startCombatScene(parent, monsterType, { initialEffectId = 0, onBusy = () => {}, onReady = () => {}, onImpact = () => {} } = {}) {
   let disposed = false;
+  const backgroundAsset = battleMapForMonster(monsterType);
   let state = null;
   let lastEffectId = initialEffectId;
   const reduced = () => state?.motion !== 'normal' || matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -70,6 +72,7 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
   class BattleScene extends Phaser.Scene {
     constructor() { super('battle'); }
     preload() {
+      preloadMap(this, backgroundAsset);
       this.load.spritesheet('monster-art', monsterSheet, { frameWidth: 64, frameHeight: 64 });
       this.load.image('hero-art', heroImage);
     }
@@ -77,7 +80,17 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       this.tweens.setLagSmooth();
       if (disposed) return;
       this.stage = this.add.container();
-      this.background = this.add.graphics();
+      this.background = this.add.container();
+      const tiled = createMapLayers(this, backgroundAsset, ['Masonry and floor', 'Architecture and lights']);
+      if (tiled) {
+        this.background.add(tiled.layers);
+        this.mainMapLayers = tiled.layers;
+        this.mapWidth = tiled.map.widthInPixels; this.mapHeight = tiled.map.heightInPixels;
+        this.mapRepeats = [];
+      } else {
+        this.fallbackBackground = this.add.graphics();
+        this.background.add(this.fallbackBackground);
+      }
       this.atmosphere = this.add.container();
       this.heroShadow = this.add.ellipse(0, 0, 45, 5, 0x071611, .7);
       this.enemyShadow = this.add.ellipse(0, 0, 54, 6, 0x071611, .7);
@@ -115,14 +128,36 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       this.cameras.main.setViewport(0, 0, width, height);
       if (this.finishEffect) {
         this.pendingLayout = { width, height };
-        this.stage.setScale(width / this.layoutWidth, height / this.layoutHeight);
+        const scale = Math.min(width / this.layoutWidth, height / this.layoutHeight);
+        this.stage.setScale(scale).setPosition((width - this.layoutWidth * scale) / 2, (height - this.layoutHeight * scale) / 2);
         return;
       }
-      this.stage.setScale(1);
+      this.stage.setScale(1).setPosition(0, 0);
       this.layoutWidth = width; this.layoutHeight = height;
       const w = Math.max(1, Math.round(width / 2)), h = Math.max(1, Math.round(height / 2));
-      this.background.clear().setScale(width / w, height / h);
-      drawArena(drawingContext(this.background), w, h);
+      if (this.fallbackBackground) {
+        this.background.setPosition(0, 0).setScale(width / w, height / h);
+        this.fallbackBackground.clear();
+        drawArena(drawingContext(this.fallbackBackground), w, h);
+      } else {
+        // Keep source pixels square; repeat the map sideways when the arena is wide.
+        const scale = height / this.mapHeight;
+        const repeats = Math.max(0, Math.ceil((width / scale - this.mapWidth) / (2 * this.mapWidth)));
+        while (this.mapRepeats.length < repeats) {
+          const pair = [0, 1].flatMap(() => {
+            const copy = createMapLayers(this, backgroundAsset, ['Masonry and floor', 'Architecture and lights']);
+            return copy.layers;
+          });
+          this.background.add(pair);
+          this.mapRepeats.push(pair);
+        }
+        this.mainMapLayers.forEach((layer) => layer.setPosition(repeats * this.mapWidth, 0));
+        this.mapRepeats.forEach((pair, index) => pair.forEach((layer, sideIndex) => {
+          const x = (repeats + (sideIndex < 2 ? -index - 1 : index + 1)) * this.mapWidth;
+          layer.setPosition(x, 0).setVisible(index < repeats);
+        }));
+        this.background.setPosition((width - this.mapWidth * scale) / 2 - repeats * this.mapWidth * scale, 0).setScale(scale);
+      }
       this.floor = height * .86;
       this.actorScale = Math.min(3.3, Math.max(1, (this.floor - 136) / 102));
       this.heroHome = { x: width * .24, y: this.floor };
