@@ -98,6 +98,7 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .map-node.is-visited > span { color: var(--amber); }
 .battle-screen { display: flex; flex-direction: column; flex: 1; width: 100%; min-width: 0; }
 .battlefield { position: relative; flex: 1 0 280px; min-height: 280px; overflow: hidden; background: #17201e; }
+.battle-screen:has(.battle-controls.is-answering) .battlefield { flex: 1 1 180px; min-height: 180px; }
 .combat-scene { position: absolute; inset: 0; overflow: hidden; background: #17201e; }
 .combat-canvas { position: absolute; inset: 0; pointer-events: none; }
 .combat-scene canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
@@ -169,13 +170,13 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .game-dialog .quiz-feedback p { margin-bottom: 6px; font-size: calc(11px * var(--text-scale)); }
 .quiz-feedback strong { color: #d8d5ad; font-weight: 400; }
 .quiz-feedback .game-primary { margin-top: 12px; }
-.battle-controls .quiz-panel { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); gap: 4px 26px; max-width: 1100px; margin: 0 auto; padding: 16px 20px; }
+.battle-controls .quiz-panel { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); grid-template-rows: repeat(3, max-content); align-content: start; gap: 4px 26px; max-width: 1100px; margin: 0 auto; padding: 12px 20px; }
 .battle-controls .quiz-heading-row { grid-column: 1; display: block; margin-bottom: 4px; }
 .battle-controls .quiz-heading-row > span { display: block; line-height: 1.8; }
-.battle-controls .quiz-panel h3 { grid-column: 1; display: block; margin: 0; }
+.battle-controls .quiz-panel h3 { grid-column: 1; display: block; margin: 0; line-height: 1.25; }
 .battle-controls .quiz-panel h3 > span { display: block; }
-.battle-controls .quiz-panel h3 small { display: block; margin-top: 4px; line-height: 1.8; }
-.battle-controls .quiz-context { grid-column: 1; margin: 4px 0 0; }
+.battle-controls .quiz-panel h3 small { display: block; margin-top: 2px; line-height: 1.5; }
+.battle-controls .quiz-context { grid-column: 1; margin: 2px 0 0; line-height: 1.5; }
 .battle-controls .quiz-options, .battle-controls .quiz-feedback { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
 .battle-controls .quiz-options button { min-height: 54px; }
 .battle-controls .quiz-feedback { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 20px; }
