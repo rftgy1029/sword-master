@@ -83,6 +83,7 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       this.background = this.add.container();
       const tiled = createMapLayers(this, backgroundAsset, ['Masonry and floor', 'Architecture and lights']);
       if (tiled) {
+        tiled.layers.forEach((layer) => layer.setSkipCull(true));
         this.background.add(tiled.layers);
         this.mainMapLayers = tiled.layers;
         this.mapWidth = tiled.map.widthInPixels; this.mapHeight = tiled.map.heightInPixels;
@@ -146,7 +147,7 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
         while (this.mapRepeats.length < repeats) {
           const pair = [0, 1].flatMap(() => {
             const copy = createMapLayers(this, backgroundAsset, ['Masonry and floor', 'Architecture and lights']);
-            return copy.layers;
+            return copy.layers.map((layer) => layer.setSkipCull(true));
           });
           this.background.add(pair);
           this.mapRepeats.push(pair);
