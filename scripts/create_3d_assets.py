@@ -1,25 +1,35 @@
 """Original articulated S’word Master models. Run with Blender 4.3+:
 blender --background --python scripts/create_3d_assets.py
+(only the hero: blender --background --python scripts/create_3d_assets.py -- hero)
 Creates GLB meshes, PBR materials and named NLA animations; no external assets.
+Also saves each model scene as assets/models/<name>.blend for viewing in Blender.
 """
 import bpy
 import math
 import json
 import struct
+import sys
 from pathlib import Path
 from mathutils import Vector
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'public/models'
 OUT.mkdir(parents=True, exist_ok=True)
+# Blender에서 열어 볼 수 있는 원본 장면. 게임은 GLB만 읽으며, 이 스크립트를 다시 실행하면 덮어쓴다.
+BLEND_OUT = ROOT / 'assets/models'
+BLEND_OUT.mkdir(parents=True, exist_ok=True)
 MATS = {}
 JOINTS = []
+# Blender UI가 한국어여도 새 데이터 이름은 영어로 만들어 어느 컴퓨터에서든 같은 GLB가 나오게 한다.
+bpy.context.preferences.view.use_translate_new_dataname = False
+bpy.context.preferences.filepaths.save_version = 0  # .blend1 백업 파일을 만들지 않는다.
 
 def material(name, color, metal=0, rough=.55, glow=0, alpha=1):
     if name in MATS: return MATS[name]
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
-    node = mat.node_tree.nodes.get('Principled BSDF')
+    # 노드 이름은 Blender 언어 설정(예: '프린시플드 BSDF')에 따라 바뀌므로 종류로 찾는다.
+    node = next(n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
     srgb = tuple(int(color[i:i+2], 16) / 255 for i in (1, 3, 5))
     rgb = tuple(value / 12.92 if value <= .04045 else ((value + .055) / 1.055) ** 2.4 for value in srgb)
     node.inputs['Base Color'].default_value = (*rgb, alpha)
@@ -90,17 +100,17 @@ def gem(name, loc, radius, mat, parent):
     obj=bpy.context.object; obj.location=loc; obj.scale=(.7,.45,1.25)
     return mesh_finish(obj,name,mat,parent)
 
-def cloth(root, royal=False):
+def cloth(root, royal=False, top=(0,.16,1.65), length=None, width=(.38,.60), flare=.28, clasps=((-.24,-.025,1.67),(.24,-.025,1.67)), clasp_size=(.055,.045,.055)):
     red=material('oxblood cloth','#802c32',rough=.88)
     gold=material('aged brass','#bc9555',.65,.32)
-    cape=joint('cape',(0,.16,1.65),root,'cape')
+    cape=joint('cape',top,root,'cape')
     vertices=[]; faces=[]; cols=9; rows=10
-    length=1.36 if royal else 1.08
+    length=length or (1.36 if royal else 1.08)
     for row in range(rows):
-        t=row/(rows-1); width=.38+t*.22
+        t=row/(rows-1); half=width[0]+t*(width[1]-width[0])
         for col in range(cols):
             u=col/(cols-1)
-            vertices.append(((u-.5)*width*2, .05+t*.28+math.cos(u*math.pi*6)*.035*t, -t*length + (math.sin(u*math.pi*5)*.06 if row==rows-1 else 0)))
+            vertices.append(((u-.5)*half*2, .05+t*flare+math.cos(u*math.pi*6)*.035*t, -t*length + (math.sin(u*math.pi*5)*.06 if row==rows-1 else 0)))
     for row in range(rows-1):
         for col in range(cols-1):
             a=row*cols+col; faces.append((a,a+1,a+1+cols,a+cols))
@@ -110,11 +120,11 @@ def cloth(root, royal=False):
     mod=obj.modifiers.new('cloth thickness','SOLIDIFY'); mod.thickness=.018
     bpy.context.view_layer.objects.active=obj; bpy.ops.object.modifier_apply(modifier=mod.name)
     for side in [0,cols-1]: curve('cape stitched edge',[vertices[row*cols+side] for row in range(rows)],.01,gold,cape)
-    for x in [-.24,.24]: sphere('cape clasp',(x,-.025,1.67),(.055,.045,.055),gold,root)
+    for loc in clasps: sphere('cape clasp',loc,clasp_size,gold,root)
 
-def sword(parent, gold, steel, heavy=False, axe=False):
+def sword(parent, gold, steel, heavy=False, axe=False, hand=-.57):
     weapon=bpy.data.objects.new('weapon',None); bpy.context.collection.objects.link(weapon); weapon.parent=parent
-    weapon.location=(0,0,-.57); weapon.rotation_euler.x=2.1
+    weapon.location=(0,0,hand); weapon.rotation_euler.x=2.1
     leather=material('weapon leather','#3b261e',rough=.8)
     rod('bound grip',(0,0,-.13),(0,0,.12),.038,leather,weapon)
     sphere('pommel',(0,0,-.16),(.06,.06,.06),gold,weapon)
@@ -216,6 +226,85 @@ def humanoid(root, kind):
         for x in [-.22,0,.22]: box('hanging armor plate',(x,-.17,.88),(.19,.08,.29),plate,root,.035)
     if royal: root.scale=(1.2,1.2,1.2)
     elif not hero: root.scale=(1.12,1.12,1.12)
+
+def hero(root):
+    """약 4.8등신의 날렵한 젊은 검사. 넓은 어깨·좁은 허리·긴 다리와 작은 눈·결연한 눈썹으로
+    2D 일러스트(assets/illustrations/hero.webp)의 인상에 맞춘다.
+    관절 이름(torso·head·arm_*·leg_*·cape)은 전투 연출·검사와 공유하므로 바꾸지 않는다."""
+    skin=material('warm skin','#dcaa84',rough=.68)
+    tunic=material('forest tunic','#466346',rough=.88)
+    tunic_dark=material('tunic hem','#33493a',rough=.9)
+    steel=material('moon steel','#a8b7b9',.8,.28)
+    gold=material('aged brass','#bc9555',.65,.32)
+    trousers=material('navy trousers','#2a3040',rough=.85)
+    leather=material('worn leather','#6e4a33',rough=.75)
+    boot=material('dark leather','#3a2a22',rough=.8)
+    hair=material('chestnut hair','#4a2b1e',rough=.9)
+    shine=material('eye shine','#ffffff',glow=.6)
+    # 이름이 ' detail'로 끝나는 재질은 게임에서 외곽선을 붙이지 않는다(src/game/three/toon.js).
+    ivory=material('eye white detail','#f1e8d4')
+    iris=material('iris detail','#2e2219',rough=.4)
+    nose=material('nose detail','#dcaa84',rough=.68)
+    brow=material('brow detail','#2f1a12',rough=.9)
+    lips=material('mouth detail','#7d4535',rough=.8)
+
+    torso=joint('torso',(0,0,0),root,'torso')
+    # 허리에서 어깨로 넓어지는 역삼각형 몸통. 앞면을 납작하게 해 둥근 가슴처럼 보이지 않게 한다.
+    chest=cone('chest',(0,0,1.29),.155,.44,tunic,torso,.215,20); chest.scale.y=.6
+    sphere('shoulder line',(0,0,1.48),(.215,.125,.075),tunic,torso)
+    skirt=cone('tunic skirt',(0,0,.97),.215,.26,tunic_dark,torso,.165); skirt.scale.y=.78
+    cone('collar',(0,-.005,1.535),.095,.06,tunic_dark,torso,.07)
+    rod('chest strap',(-.17,-.125,1.49),(.15,-.13,1.07),.022,leather,torso,1)
+    box('strap buckle',(-.01,-.15,1.29),(.05,.025,.05),gold,torso,.008)
+    belt=cone('broad belt',(0,0,1.065),.185,.07,leather,torso,.185); belt.scale.y=.76
+    box('belt buckle',(0,-.145,1.065),(.075,.03,.06),gold,torso,.01)
+    box('belt pouch',(.155,-.085,1.0),(.08,.06,.09),leather,torso,.02)
+
+    for side in [-1,1]:
+        hip=joint('leg_left' if side<0 else 'leg_right',(side*.095,0,1.0),root,'legL' if side<0 else 'legR')
+        rod('trouser thigh',(0,0,-.02),(0,0,-.46),.072,trousers,hip,.82)
+        sphere('knee pad',(0,-.055,-.48),(.058,.045,.06),leather,hip)
+        rod('boot shaft',(0,0,-.50),(0,0,-.88),.06,boot,hip,1.12)
+        cone('boot cuff',(0,0,-.51),.075,.06,leather,hip,.07)
+        sphere('boot toe',(0,-.05,-.935),(.068,.125,.06),boot,hip)
+        box('boot strap',(0,-.058,-.70),(.12,.025,.028),leather,hip,.006)
+        hip.rotation_euler.y=-side*.06  # 발을 어깨너비로 벌린 안정된 자세
+
+        arm=joint('arm_left' if side<0 else 'arm_right',(side*.245,0,1.47),torso,'armL' if side<0 else 'armR')
+        sphere('shoulder pad',(side*.018,0,.005),(.082,.078,.065),leather,arm)
+        rod('upper sleeve',(0,0,-.02),(0,0,-.26),.054,tunic,arm,.9)
+        rod('forearm bracer',(0,0,-.26),(0,0,-.46),.056,leather,arm,.82)
+        box('bracer trim',(0,-.05,-.36),(.06,.016,.12),gold,arm,.008)
+        sphere('gloved hand',(0,-.008,-.51),(.05,.054,.058),boot,arm)
+        if side>0: sword(arm,gold,steel,hand=-.52)
+        arm.rotation_euler.x=-.7 if side>0 else -.15
+        arm.rotation_euler.y=side*-.1
+
+    head=joint('head',(0,-.005,1.555),torso,'head')
+    rod('neck',(0,0,-.05),(0,0,.07),.052,skin,head,1)
+    sphere('skull',(0,-.005,.21),(.145,.155,.17),skin,head,20)
+    jaw=cone('jaw',(0,-.03,.095),.05,.15,skin,head,.125,20); jaw.scale.y=.95
+    sphere('nose',(0,-.163,.165),(.016,.02,.022),nose,head)
+    for sign in [-1,1]:
+        sphere('ear',(sign*.143,0,.19),(.028,.02,.045),skin,head)
+        sphere('eye white',(sign*.057,-.141,.204),(.034,.012,.021),ivory,head)
+        sphere('iris',(sign*.055,-.149,.203),(.019,.008,.02),iris,head)
+        sphere('eye shine',(sign*.049,-.155,.21),(.005,.003,.005),shine,head)
+        rod('brow',(sign*.022,-.153,.232),(sign*.098,-.137,.252),.0095,brow,head,.65)
+        rod('upper lash',(sign*.026,-.152,.216),(sign*.09,-.141,.221),.0055,brow,head,.7)
+    curve('mouth',[(-.026,-.148,.105),(0,-.151,.103),(.026,-.148,.105)],.0045,lips,head)
+
+    sphere('hair crown',(0,.03,.30),(.16,.17,.12),hair,head,20)
+    sphere('hair back',(0,.065,.20),(.148,.125,.16),hair,head,20)
+    for x in [-.11,-.055,0,.055,.11]:
+        rod('fringe lock',(x,-.10,.37),(x*1.25+.045,-.162,.27-abs(x)*.25),.042,hair,head,.06)
+    for i,x in enumerate([-.12,-.06,0,.06,.12]):
+        rod('swept spike',(x,.0,.39),(x*1.45,.20,.35+(i%2)*.04),.05,hair,head,.06)
+    for sign in [-1,1]:
+        rod('side lock',(sign*.14,-.03,.28),(sign*.155,-.055,.15),.032,hair,head,.1)
+
+    cloth(root,top=(0,.14,1.48),length=1.0,width=(.20,.32),flare=.2,
+          clasps=((-.13,-.12,1.50),(.13,-.12,1.50)),clasp_size=(.035,.028,.035))
 
 def eye_pair(parent, z, y, spread, color='#ffd986', radius=.06):
     dark=material('eye sockets','#16232a')
@@ -391,12 +480,21 @@ def optimize_meshes():
         objects[0].name=(parent.name if parent else 'root')+'_'+mat.name
 
 catalog=['hero','crawler','sentinel','ember','bat','slime','mushroom','scarab','wisp','hound','ravager','watcher','boss']
-manifest={'source':'scripts/create_3d_assets.py','license':'Original S’word Master artwork; no third-party model assets.','coordinateSystem':'glTF Y-up, forward +Z, feet at Y=0','models':{}}
-for kind in catalog:
+# 게임의 용사는 Kenney Mini Characters(CC0)를 scripts/import_kenney_hero.py로 변환한 모델이다.
+# 그래서 기본 실행은 몬스터 12종만 만든다. 이 파일의 hero()는 직접 조형한 이전 용사로,
+# `-- hero`를 명시했을 때만 public/models/hero.glb를 그 모델로 되돌린다.
+default=[name for name in catalog if name!='hero']
+manifest={'source':'scripts/create_3d_assets.py, scripts/import_kenney_hero.py','license':'Monsters: original S’word Master artwork (scripts/create_3d_assets.py). Hero: Kenney Mini Characters, CC0 (scripts/import_kenney_hero.py).','coordinateSystem':'glTF Y-up, forward +Z, feet at Y=0','models':{}}
+# `-- sentinel boss` 처럼 이름을 넘기면 해당 모델만 다시 만든다. 만들지 않은 모델의 manifest 항목은 항상 유지한다.
+selected=[name for name in (sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []) if name in catalog]
+if (OUT/'manifest.json').exists():
+    manifest['models']=json.loads((OUT/'manifest.json').read_text())['models']
+for kind in (selected or default):
     bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
     MATS={}; JOINTS=[]
     root=bpy.data.objects.new(kind,None); bpy.context.collection.objects.link(root)
-    if kind in ['hero','sentinel','ravager','boss']: humanoid(root,kind)
+    if kind=='hero': hero(root)
+    elif kind in ['sentinel','ravager','boss']: humanoid(root,kind)
     elif kind in ['crawler','hound','scarab']: beast(root,kind)
     elif kind in ['ember','wisp','watcher']: spirit(root,kind)
     else: odd(root,kind)
@@ -404,6 +502,7 @@ for kind in catalog:
     animate()
     bpy.context.scene.frame_start=1; bpy.context.scene.frame_end=48; bpy.context.scene.render.fps=24
     bpy.context.scene.frame_set(1)
+    bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_OUT/(kind+'.blend')),copy=True,compress=True)
     bpy.ops.object.select_all(action='SELECT')
     filepath=OUT/(kind+'.glb')
     options=dict(filepath=str(filepath),export_format='GLB',use_selection=True,export_animations=True,export_animation_mode='NLA_TRACKS',export_nla_strips=True,export_force_sampling=True,export_frame_range=False,export_materials='EXPORT',export_cameras=False,export_lights=False)
@@ -413,5 +512,6 @@ for kind in catalog:
     data=json.loads(raw[20:20+count])
     manifest['models'][kind]={'file':kind+'.glb','bytes':len(raw),'clips':[item['name'] for item in data.get('animations',[])],'meshes':len(data.get('meshes',[])),'rig':'articulated transform hierarchy','ground':0}
     print('SWORD_MODEL',kind,filepath.stat().st_size,flush=True)
-(OUT/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
-print('SWORD_MODELS_COMPLETE',len(catalog),flush=True)
+manifest['models']={name:manifest['models'][name] for name in catalog if name in manifest['models']}
+(OUT/'manifest.json').write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n')
+print('SWORD_MODELS_COMPLETE',len(selected or default),flush=True)
