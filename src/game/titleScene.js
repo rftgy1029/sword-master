@@ -5,7 +5,7 @@ import { createHeroRig, drawHeroRig } from './heroRig.js';
 import { heroImage } from './spriteAssets.js';
 import { createMapLayers, preloadMap, titleMap } from './mapAssets.js';
 
-export function startPhaserTitleScene(canvas, { signal, motionPreference = 'normal' } = {}) {
+export function startPhaserTitleScene(canvas, { signal, motionPreference = 'normal', onReady, onError } = {}) {
   if (signal?.aborted) return;
   const media = matchMedia('(prefers-reduced-motion: reduce)');
   const still = () => media.matches || motionPreference === 'off';
@@ -20,22 +20,23 @@ export function startPhaserTitleScene(canvas, { signal, motionPreference = 'norm
     }
     create() {
       if (disposed) return;
-      const background = createMapLayers(this, titleMap, ['Walls and floor', 'Entrance and torches']);
-      if (!background) {
-        // Keep the original painted scene available if an asset cannot be loaded.
-        import('../scene.js').then(({ startTitleScene }) => {
-          if (!disposed) { game.destroy(false); startTitleScene(canvas, { signal, motionPreference }); }
+      try {
+        const background = createMapLayers(this, titleMap, ['Walls and floor', 'Entrance and torches']);
+        if (!background) throw new Error('던전 입구 맵을 불러오지 못했습니다.');
+        this.shadow = this.add.ellipse(144, 238, 46, 5, 0x101b18, .7);
+        this.figure = this.add.graphics();
+        if (this.textures.exists('title-hero')) {
+          this.rig = createHeroRig(this.textures.get('title-hero').getSourceImage());
+          this.surface = this.textures.createCanvas('title-hero-animated', 96, 96);
+          this.add.image(144, 236, 'title-hero-animated').setOrigin(.5, 82 / 96).setScale(1.15);
+        }
+        this.paintHero(0);
+        this.game.events.once(Phaser.Core.Events.POST_RENDER, () => {
+          if (!disposed) onReady?.();
         });
-        return;
+      } catch (error) {
+        onError?.(error);
       }
-      this.shadow = this.add.ellipse(144, 238, 46, 5, 0x101b18, .7);
-      this.figure = this.add.graphics();
-      if (this.textures.exists('title-hero')) {
-        this.rig = createHeroRig(this.textures.get('title-hero').getSourceImage());
-        this.surface = this.textures.createCanvas('title-hero-animated', 96, 96);
-        this.add.image(144, 236, 'title-hero-animated').setOrigin(.5, 82 / 96).setScale(1.15);
-      }
-      this.paintHero(0);
     }
     paintHero(time) {
       if (this.rig) {
