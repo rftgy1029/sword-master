@@ -1,6 +1,10 @@
 # S’word Master
 
-학교 영어 클래스룸의 티어별 단어 목록으로 공부하는 영단어 덱빌딩 웹게임입니다. 2026년 2학기 기말고사부터 2027년 수능까지 활용할 수 있는 학습 도구를 목표로 합니다. 현재 타이틀 표시는 **v0.6**, 패키지 버전은 **0.6.0**입니다.
+학교 영어 클래스룸의 티어별 단어 목록으로 공부하는 영단어 덱빌딩 웹게임입니다. 2026년 2학기 기말고사부터 2027년 수능까지 활용할 수 있는 학습 도구를 목표로 합니다. 현재 타이틀과 패키지 버전은 **0.7.0**입니다.
+
+기본 장면은 **Three.js + React Three Fiber의 실제 3D**입니다. 용사와 몬스터 12종, 던전·입장·경로·보상·휴식·대장간·결과 장면을 입체로 구성하고 전체 UI를 같은 녹색·아이보리·금색 규칙으로 개편했습니다. 모바일 퀴즈는 큰 세로 선택지를 사용합니다. [구현과 검증 기록](docs/UI_3D_IMPLEMENTATION.md) · [실행한 계획](docs/UI_3D_UPGRADE_PLAN.md)
+
+설정에서 입체·간편 화면과 그래픽 품질을 고릅니다. 그래픽 오류 시 기존 저장을 유지하며 2D 일러스트 화면으로 복구합니다. Blender 모델 생성 코드는 `scripts/create_3d_assets.py`, GLB 13개와 자산 목록은 `public/models/`에 있습니다. [전투 화면](docs/screenshots/3d-battle-production.png)
 
 ## 실행
 
@@ -37,7 +41,7 @@ npm run preview
 
 ## 버전별 변경
 
-날짜는 각 변경이 처음 기록된 커밋 기준입니다. 현재 타이틀에 표시되는 v0.6은 브론즈 스토리 전투를 되돌린 뒤 시작한 덱빌딩 버전입니다. Git 이력에 남은 v0.7~v0.9와 스파이어 에디션 v1.0은 그보다 앞선 전투 실험입니다.
+날짜는 각 변경이 처음 기록된 커밋 기준입니다. 현재 v0.7.0은 v0.6 덱빌딩 게임에 전체 UI·3D 개편을 적용한 버전입니다. Git 이력에 남은 이전 v0.7~v0.9 스토리 실험과 스파이어 에디션 v1.0은 별도 개발 이력입니다.
 
 | 날짜 | 버전·변경 | 주요 차이 | 커밋 |
 | --- | --- | --- | --- |
@@ -51,6 +55,7 @@ npm run preview
 | 2026-11-06 | v0.6 전투 연출 | Phaser 전투와 던전 입장, 카드별 기술·드로우 연출, 보스 클리어에 따른 티어 순차 해금을 추가했습니다. 용사 스프라이트를 연결하고, 몬스터 동작과 타격 시점의 피해 표시를 개선했습니다. [구현 기록](docs/priority-implementation.md) | `ac99ecc`, `7597480` |
 | 2026-11-06 | v0.6 맵·키보드 조작 | 타이틀 던전 입구와 전투 배경 3종을 Tiled 맵으로 구성했습니다. 카드·퀴즈·턴 종료에 두 번 눌러 확정하는 단축키를 추가했습니다. [맵 편집 안내](assets/maps/README.md) | `e30bd48` |
 | 2026-11-10 | v0.6 전투 화면 수정 | 퀴즈를 풀 때 전투 장면 높이와 문제 패널의 여백을 줄였습니다. 넓은 전투 화면에서 반복 배치한 타일이 잘려 보이는 문제를 수정했습니다. | `3955eb8` |
+| 2026-11-12 | v0.7.0 UI·3D 개편 | 실제 3D 용사·몬스터 12종과 던전·기술·전체 UI, 품질 설정과 간편 화면 복구를 추가했습니다. [구현 기록](docs/UI_3D_IMPLEMENTATION.md) | 이 PR |
 
 ## 코드와 에셋
 
@@ -59,8 +64,26 @@ npm run preview
 | `src/App.jsx`, `src/menuNavigation.js` | 타이틀 메뉴와 키보드 초점 처리 |
 | `src/components/AdventureDialog.jsx`, `src/components/QuizPanel.jsx` | 티어 선택, 경로, 전투·퀴즈, 보상과 결과 UI |
 | `src/game/engine.js`, `catalog.js`, `quiz.js`, `storage.js` | 전투 규칙, 카드·유물 데이터, 출제 및 진행 상태 저장 |
-| `src/game/titleScene.js`, `entranceScene.js`, `combatScene.js` | Phaser 타이틀·입장·전투 렌더링 |
+| `src/components/SceneView.jsx`, `src/game/three/` | 3D 장면·관절 애니메이션·기술·품질 설정과 간편 화면 연결 |
+| `src/game/titleScene.js`, `entranceScene.js`, `combatScene.js` | 간편 화면용 Phaser 타이틀·입장·전투 렌더링 |
 | `src/vocabulary.js`, `src/data/vocabulary.json` | 티어별 단어 자료와 검색 |
-| `assets/maps/`, `assets/source/` | Tiled 맵과 용사 에셋 원본 |
+| `assets/maps/`, `assets/source/`, `assets/illustrations/` | Tiled 맵·Pixelorama 보관 원본과 2D 일러스트 |
+| `public/models/`, `scripts/create_3d_assets.py` | 실제 3D GLB·자산 목록과 Blender 생성 코드 |
+| `src/styles/premium.css`, `src/components/ui/` | 공통 UI 규칙과 벡터 아이콘 |
 
-React와 JavaScript가 게임 상태와 UI를 관리하고, Phaser가 장면과 기술 효과를 그립니다. Vite로 개발 서버와 배포 빌드를 실행합니다. 용사 Pixelorama 원본을 수정한 뒤 `npm run assets:hero`로 PNG를 갱신하고 `npm run assets:check`로 일치 여부를 확인할 수 있습니다. [용사 에셋 안내](assets/source/README.md)
+React와 JavaScript가 게임 상태와 UI를 관리하고, Three.js가 입체 장면과 기술 효과를 그립니다. Phaser는 간편 화면에 사용합니다. Vite로 개발 서버와 배포 빌드를 실행합니다. 용사 Pixelorama 원본을 수정한 뒤 `npm run assets:hero`로 PNG를 갱신하고 `npm run assets:check`로 일치 여부를 확인할 수 있습니다. [용사 에셋 안내](assets/source/README.md)
+
+
+## 검증
+
+자동 검사 76개, 배포 빌드, 기존 Pixelorama 원본 일치 검사가 통과했습니다. 실제 Chromium WebGL에서 8층 모험 완주, 몬스터 12종·카드 12종과 강화형, PC·모바일 퀴즈·터치·복습·설정, 치명타 결과와 2D 복구를 확인했습니다. 실제 학교 컴퓨터·휴대폰의 GPU 성능과 교실 플레이테스트는 남아 있습니다.
+
+개발 서버가 실행 중일 때 아래 브라우저 검증을 실행할 수 있습니다. 최초 1회 `npx playwright install chromium`으로 브라우저를 설치합니다. 이미 설치된 Chromium은 `CHROMIUM_PATH`로 지정할 수 있습니다.
+
+```sh
+npm run test:3d
+npm run test:ui
+npm run test:journey
+```
+
+저장 없이 확인하는 3D 미리보기는 `/dev/three-preview.html`입니다. 2D 일러스트는 `npm run assets:illustrations`, 모델은 Blender 4.3 이상에서 `npm run assets:models`로 다시 생성할 수 있습니다. [보관 원본과 자산 안내](assets/source/README.md)

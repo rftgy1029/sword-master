@@ -6,8 +6,8 @@ import { CARD_MOTIONS } from './cardMotions.js';
 import { MONSTERS } from './catalog.js';
 import { ATTACK_HITS, ATTACK_DURATION, impactsCrossed } from './attackTimeline.js';
 import { paintAttack } from './attackEffects.js';
-import { heroImage, monsterSheet, monsterFrame } from './spriteAssets.js';
-import { createHeroRig, drawHeroRig } from './heroRig.js';
+import { heroPoses, monsterSheet, monsterAtlas, monsterFrame } from './spriteAssets.js';
+import { createHeroRig, drawHeroRig, HERO_SURFACE_SCALE, HERO_ART_SIZE } from './illustratedHero.js';
 import { enemyAttackPlan, enemyImpactsCrossed } from './enemyAttackTimeline.js';
 import { paintEnemyAttack } from './enemyAttackEffects.js';
 
@@ -73,8 +73,8 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
     constructor() { super('battle'); }
     preload() {
       preloadMap(this, backgroundAsset);
-      this.load.spritesheet('monster-art', monsterSheet, { frameWidth: 64, frameHeight: 64 });
-      this.load.image('hero-art', heroImage);
+      this.load.atlas('monster-art', monsterSheet, monsterAtlas);
+      this.load.image('hero-art', heroPoses);
     }
     create() {
       this.tweens.setLagSmooth();
@@ -100,13 +100,13 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       this.adventurer.add(this.heroFigure);
       if (this.textures.exists('hero-art')) {
         this.heroRig = createHeroRig(this.textures.get('hero-art').getSourceImage());
-        this.heroSurface = this.textures.createCanvas('hero-animated', 128, 128);
-        this.heroSprite = this.add.image(0, 0, 'hero-animated').setOrigin(.5, 112 / 128).setScale(1.5);
+        this.heroSurface = this.textures.createCanvas('hero-animated', 128 * HERO_SURFACE_SCALE, 128 * HERO_SURFACE_SCALE);
+        this.heroSprite = this.add.image(0, 0, 'hero-animated').setOrigin(.5, 112 / 128).setScale(1.5 / HERO_SURFACE_SCALE);
         this.adventurer.add(this.heroSprite); this.heroFigure.setVisible(false);
       }
       this.foe = this.add.container();
       const enemyFigure = this.textures.exists('monster-art')
-        ? this.add.image(0, 0, 'monster-art', monsterFrame(monsterType)).setOrigin(.5, ['ember', 'watcher', 'wisp', 'bat'].includes(monsterType) ? 1 : 58 / 64).setScale(1.8).setFlipX(monsterType === 'hound')
+        ? this.add.image(0, 0, 'monster-art', monsterFrame(monsterType)).setOriginFromFrame().setScale(1.8 * 64 / HERO_ART_SIZE)
         : this.add.graphics();
       if (!this.textures.exists('monster-art')) {
         const ctx = drawingContext(enemyFigure);
@@ -179,8 +179,8 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
     paintHero(time) {
       if (this.heroSprite) {
         const ctx = this.heroSurface.context;
-        ctx.clearRect(0, 0, 128, 128);
-        drawHeroRig(ctx, this.heroRig, { time, x: 64, y: 112, armAngle: this.armAngle ?? 0, motion: !reduced() });
+        ctx.clearRect(0, 0, this.heroSurface.width, this.heroSurface.height);
+        drawHeroRig(ctx, this.heroRig, { time, x: 64 * HERO_SURFACE_SCALE, y: 112 * HERO_SURFACE_SCALE, scale: HERO_SURFACE_SCALE, armAngle: this.armAngle ?? 0, motion: !reduced() });
         this.heroSurface.refresh();
         return;
       }
@@ -194,11 +194,11 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       this.paintHero(still ? 0 : time);
       const breath = still ? 0 : Math.sin(time / 470);
       this.heroFigure.setPosition(0, breath * .65).setScale(1, 1 + breath * .009);
-      if (this.heroSprite) this.heroSprite.setY(breath * .65).setScale(1.5, 1.5 + breath * .012);
+      if (this.heroSprite) this.heroSprite.setY(breath * .65).setScale(1.5 / HERO_SURFACE_SCALE, (1.5 + breath * .012) / HERO_SURFACE_SCALE);
       const ghost = ['ember', 'watcher', 'wisp', 'bat'].includes(monsterType);
       const crawl = monsterType === 'crawler';
       this.enemyFigure.y = still ? 0 : ghost ? Math.sin(time / 390) * 3.5 - 3 : Math.sin(time / 580) * (crawl ? .8 : .45);
-      const enemyScale = this.enemyFigure.setFrame ? 1.8 : 1;
+      const enemyScale = this.enemyFigure.setFrame ? 1.8 * 64 / HERO_ART_SIZE : 1;
       this.enemyFigure.scaleY = enemyScale * (still ? 1 : 1 + Math.sin(time / (crawl ? 270 : 550)) * (crawl ? .025 : .012));
       this.enemyFigure.rotation = still ? 0 : Math.sin(time / 750) * (ghost ? .025 : .005);
       if (this.enemyFigure.setFrame) {
@@ -453,7 +453,7 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
   const game = new Phaser.Game({
     type: Phaser.CANVAS, parent,
     width: Math.max(1, parent.clientWidth), height: Math.max(1, parent.clientHeight),
-    backgroundColor: '#17201e', pixelArt: true, banner: false, autoFocus: false,
+    backgroundColor: '#17201e', pixelArt: false, antialias: true, roundPixels: false, banner: false, autoFocus: false,
     audio: { noAudio: true },
     input: { keyboard: false, mouse: false, touch: false, gamepad: false, windowEvents: false },
     fps: { target: 60, forceSetTimeOut: true, smoothStep: false },

@@ -13,6 +13,8 @@ import { navigateTiers } from '../game/tierNavigation.js';
 import { cardShortcutIndex, confirmShortcut, cancelShortcut } from '../game/combatShortcuts.js';
 import StatusBadges from './StatusBadges.jsx';
 import { heroImage } from '../game/spriteAssets.js';
+import SceneView from './SceneView.jsx';
+import GameIcon from './ui/GameIcon.jsx';
 import './adventure.css';
 
 const tierLabel = (id) => TIERS.find((t) => t.id === id)?.label;
@@ -34,11 +36,11 @@ export function navigateGameButtons(event) {
 
 export function Card({ card, onClick, disabled, actionLabel, initialFocus = false, compact = false, hidden = false, shortcut }) {
   const c = cardDetails(card);
-  return <button data-card-uid={card.uid} className={`game-card rarity-${c.rarity}${card.upgraded ? ' is-upgraded' : ''}${hidden ? ' is-dealing' : ''}`} disabled={disabled}
+  return <button data-card-uid={card.uid} className={`game-card card-type-${card.type} rarity-${c.rarity}${card.upgraded ? ' is-upgraded' : ''}${hidden ? ' is-dealing' : ''}`} disabled={disabled}
     onClick={onClick} data-initial-focus={initialFocus ? '' : undefined}
     aria-label={`${shortcut ? `단축키 ${shortcut}, ` : ''}${c.name}${card.upgraded ? '+' : ''}, 에너지 ${c.cost}, ${describeCard(card)}${actionLabel ? `, ${actionLabel}` : ''}`}>
     <span className="card-top"><span className="card-cost" title="필요 에너지">{c.cost}</span>{shortcut && <span className="card-shortcut" aria-hidden="true">{shortcut}</span>}<small>{compact ? c.kind : `${c.rarity} · ${c.kind}`}</small></span>
-    {!compact && <span className="card-icon" aria-hidden="true">{c.icon}</span>}
+    <span className="card-art" aria-hidden="true"><span/><GameIcon name={card.type}/><i/></span>
     <strong>{c.name}{card.upgraded && '+'}</strong>
     <span className="card-description">{describeCard(card)}</span>
     {!compact && <span className="card-action">{actionLabel || '단어로 발동'}</span>}
@@ -83,6 +85,7 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
   return <section ref={map} className="dungeon-map living-map" aria-label="던전 경로">
     <div className="map-intro"><div><p className="game-eyebrow">THE LIVING DUNGEON</p><h3>황혼의 석문</h3></div>
       <p>빛이 흐르는 길을 따라가세요.<br /><span className="game-muted">휴식과 보물, 석문 너머의 보스가 기다리고 있습니다.</span></p></div>
+    <div className="map-overview"><SceneView mode="map" run={run} inspecting={inspecting} onSelect={(id)=>{const node=run.map.flat().find(item=>item.id===id);if(node&&reachable.has(id))choose(node);}}/></div>
     <div className="map-place-summary" aria-live="polite"><strong>{highlighted ? NODE_TYPES[highlighted.type].name : '지나온 여정'}</strong><span>{highlighted ? NODE_TYPES[highlighted.type].hint : '용사가 지나온 길과 앞으로의 장소를 확인하세요.'}</span></div>
     <div className="map-scroll"><div className="map-fog" aria-hidden="true" /><div className="map-grid">
       <svg className="map-lines" viewBox="0 0 600 1152" preserveAspectRatio="none" aria-hidden="true">
@@ -99,7 +102,7 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
         {row.map((node) => <button key={node.id} style={{ gridColumn: node.lane + 1 }} className={`map-node place-${node.type}${reachable.has(node.id) ? ' is-reachable' : ''}${run.visited.includes(node.id) ? ' is-visited' : ''}${destination?.id === node.id ? ' is-destination' : ''}`}
           onFocus={() => setHighlight(node.id)} onMouseEnter={() => setHighlight(node.id)} disabled={!reachable.has(node.id) || !!destination} onClick={() => choose(node)} data-initial-focus={reachable.has(node.id) ? '' : undefined}
           aria-label={`${f + 1}층 ${node.lane + 1}번 경로, ${NODE_TYPES[node.type].name}, ${NODE_TYPES[node.type].hint}`}>
-          <span className="place-icon" aria-hidden="true">{NODE_TYPES[node.type].icon}</span>
+          <span className="place-icon" aria-hidden="true"><GameIcon name={{battle:'strike',elite:'oath',treasure:'spark',rest:'empower',forge:'heavy',boss:'oath'}[node.type]}/></span>
           <strong>{NODE_TYPES[node.type].name}{run.visited.includes(node.id) && ' ✓'}</strong>
         </button>)}
       </div>)}
@@ -251,6 +254,7 @@ function Reward({ run, dispatch }) {
   const reward = run.reward;
   const existingRelic = run.relics.find((r) => r.id === reward.relic);
   return <section className="reward-screen"><p className="game-eyebrow">SPOILS OF THE DUNGEON</p><h3>{reward.cards.length ? '전투 승리' : '보물 발견'}</h3>
+    <div className="location-scene"><SceneView mode="reward"/></div>
     <p>금화 <strong className="gold-text">+{reward.gold}</strong>를 받았습니다. 덱을 완성할 다음 선택을 하세요.</p>
     {reward.cards.length > 0 && <><h4>{reward.cardTaken ? '카드 선택 완료' : '카드 한 장을 선택하세요'}</h4>
       <div className="reward-cards" data-keyboard-group>{reward.cards.map((type) => <Card key={type} card={{ type }} disabled={reward.cardTaken}
@@ -281,6 +285,7 @@ function Services({ run, dispatch }) {
     } else if (dispatch(action)) setSpark({ id: Date.now(), kind: 'forging' });
   };
   return <section className="service-screen"><p className="game-eyebrow">{rest ? 'A MOMENT OF REST' : 'DUNGEON FORGE'}</p><h3>{rest ? '돌불 쉼터' : '불씨 대장간'}</h3>
+    <div className="location-scene"><SceneView mode={rest?'rest':'forge'}/></div>
     <div className={`service-fire${rest ? ' campfire' : ''}`} aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ '--spark': i }} />)}<span>♨</span></div>
     {spark && <div key={spark.id} className={`service-burst ${spark.kind}`} role="status">{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ '--spark': i }} />)}<span>{spark.kind === 'healing' ? '✚ 생명이 차오릅니다' : '✦ 새로운 힘이 새겨집니다'}</span></div>}
     <p>{rest ? '회복과 카드 강화 중 하나를 선택하세요.' : '금화로 덱과 유물을 다듬으세요. 구입은 한 번, 강화는 금화가 허용하는 만큼 가능합니다.'}</p>
@@ -316,6 +321,7 @@ function TierSelection({ progress, dispatch, onStarted }) {
     tiers: [...selection.current.querySelectorAll('[data-tier]:not(:disabled)')], start: startButton.current, select: setTier,
   })}><p className="game-eyebrow">CHOOSE YOUR WORDS</p><h3>이번 모험의 학습 범위</h3>
     <p>브론즈부터 석문의 보스를 쓰러뜨리고 다음 티어의 문을 여세요. 티어마다 누적 학습 범위가 넓어집니다.</p>
+    <div className="location-scene tier-scene"><SceneView mode="title"/></div>
     <div className="adventure-tiers" role="group" aria-label="모험 티어" data-keyboard-group>
       {TIERS.map((t, i) => <button key={t.id} data-tier={t.id} className={`tier-choice tier-${t.id}${!unlocked.includes(t.id) ? ' is-locked' : ''}`} disabled={!unlocked.includes(t.id)} aria-pressed={t.id === tier} data-initial-focus={i === 0 ? '' : undefined} onClick={() => setTier(t.id)}>
         <TierCrest tier={t.id} /><span><strong>{t.label}</strong><small>{t.english}</small></span><span>{t.count.toLocaleString()}개</span>
@@ -332,6 +338,7 @@ function TierSelection({ progress, dispatch, onStarted }) {
 function Result({ run, progress, onClose }) {
   const nextTier = TIERS.find((tier) => tier.id === run.result.unlockedTier);
   return <section className="run-result"><span className="result-sigil" aria-hidden="true">{run.result.won ? '♛' : '◇'}</span><p className="game-eyebrow">{run.result.won ? 'DUNGEON CLEARED' : 'ADVENTURE COMPLETE'}</p>
+    <div className="location-scene"><SceneView mode="result" won={run.result.won}/></div>
     <h3>{run.result.won ? '석문을 돌파했습니다' : '다음 도전을 준비하세요'}</h3>
     <p>{tierLabel(run.tier)} · {run.fights}회 전투 승리 · 정답 {run.correct}/{run.answers}</p>
     <p>이번 덱 {run.result.cards}장 · 유물 {run.result.relics}개</p>

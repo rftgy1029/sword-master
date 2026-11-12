@@ -1,0 +1,118 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {CombatPlayback,combatPose} from '../src/game/three/playback.js';
+import {MODEL_TYPES,qualityProfile} from '../src/game/three/quality.js';
+import {MONSTERS,CARDS} from '../src/game/catalog.js';
+import {ATTACK_HITS} from '../src/game/attackTimeline.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {AnimationMixer} from 'three';
+
+test('all 13 original GLBs have complete meshes, materials, matching manifests and usable animation clips',()=>{
+  const manifest=JSON.parse(readFileSync(new URL('../public/models/manifest.json',import.meta.url)));
+  assert.deepEqual(new Set(MODEL_TYPES),new Set(['hero',...Object.keys(MONSTERS)]));
+  let total=0;
+  for(const name of MODEL_TYPES){
+    const bytes=readFileSync(new URL(`../public/models/${name}.glb`,import.meta.url));
+    assert.equal(bytes.toString('ascii',0,4),'glTF');
+    assert.equal(bytes.readUInt32LE(4),2);
+    assert.equal(bytes.readUInt32LE(8),bytes.length);
+    assert.equal(bytes.length,manifest.models[name].bytes);
+    const gltf=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
+    assert.ok(gltf.meshes.length>=4);
+    assert.ok(gltf.materials.length>=3);
+    const clips=gltf.animations.map(a=>a.name);
+    assert.deepEqual(clips,manifest.models[name].clips);
+    assert.ok(clips.includes('idle')&&clips.includes('attack'));
+    for(const clip of gltf.animations){assert.ok(clip.channels.length);assert.ok(clip.samplers.length);}
+    if(['hero','sentinel'].includes(name))for(const clip of ['walk','hit','guard','victory','death'])assert.ok(clips.includes(clip));
+    total+=bytes.length;
+  }
+  assert.ok(total<12*1024*1024,'All models fit inside the first-scene model budget');
+});
+
+test('3D presentation does not replay a restored effect and delivers every hit once across skipped frames',()=>{
+  for(const [cardType,hits] of Object.entries(ATTACK_HITS)){
+    const busy=[],impacts=[];
+    const player=new CombatPlayback({initialEffectId:7,onBusy:x=>busy.push(x),onImpact:i=>impacts.push(i)});
+    assert.equal(player.start({id:7,kind:'attack',cardType},'sentinel'),false);
+    player.start({id:8,kind:'attack',cardType},'sentinel');
+    player.advance(550);player.advance(1000);player.advance(900);
+    assert.deepEqual(impacts,hits.map((_,i)=>i));
+    assert.deepEqual(busy,[true,false]);
+    assert.equal(player.active,null);
+    player.advance(10000);player.finish();
+    assert.equal(player.start({id:8,kind:'attack',cardType},'sentinel'),false);
+    assert.deepEqual(impacts,hits.map((_,i)=>i));
+  }
+});
+
+test('every enemy animation supports blocked multi-hits and releases the UI after its actual last hit',()=>{
+  for(const type of Object.keys(MONSTERS)){
+    const hits=[],busy=[];
+    const p=new CombatPlayback({onBusy:x=>busy.push(x),onImpact:(i,target)=>hits.push([i,target])});
+    p.start({id:1,kind:'hurt',amount:0,impacts:[0,0,0]},type);
+    const duration=p.active.duration;
+    for(let elapsed=0;elapsed<duration;elapsed+=73){
+      const pose=combatPose(p.active);
+      assert.ok(Object.values(pose).every(Number.isFinite));
+      p.advance(73);
+    }
+    assert.deepEqual(hits,[[0,'player'],[1,'player'],[2,'player']]);
+    assert.deepEqual(busy,[true,false]);
+  }
+});
+
+test('motion off finishes all supported card effects immediately, while disposal cannot advance game callbacks',()=>{
+  for(const cardType of Object.keys(CARDS)){
+    const busy=[],hits=[];
+    const p=new CombatPlayback({onBusy:x=>busy.push(x),onImpact:i=>hits.push(i)});
+    p.start({id:1,kind:CARDS[cardType].damage?'attack':'block',cardType},'boss',true);
+    assert.deepEqual(busy,[true,false]);
+    assert.equal(p.active,null);
+    assert.equal(hits.length,ATTACK_HITS[cardType]?.length??0);
+  }
+  const busy=[];const p=new CombatPlayback({onBusy:x=>busy.push(x)});
+  p.start({id:1,kind:'hurt',impacts:[10]},'boss');p.dispose();p.advance(5000);p.finish();
+  assert.deepEqual(busy,[true]);
+});
+
+test('graphics quality caps resolution, particles and shadows for compact screens',()=>{
+  const low=qualityProfile('auto',{compact:true,pixelRatio:3});
+  assert.equal(low.dpr,1);assert.equal(low.shadows,false);assert.equal(low.fps,30);
+  assert.ok(qualityProfile('high',{pixelRatio:3}).dpr<=2);
+  assert.ok(low.particles<qualityProfile('high').particles);
+});
+
+test('enemy block, buff, charge and wait have their own presentation without inventing damage',()=>{
+  for(const enemyAction of ['block','buff','charge','wait']){
+    const hits=[],busy=[];const p=new CombatPlayback({onImpact:i=>hits.push(i),onBusy:value=>busy.push(value)});
+    p.start({id:1,kind:'enemy',enemyAction,amount:0},'watcher');
+    assert.ok(Number.isFinite(p.active.plan.color));
+    p.advance(1000);assert.deepEqual(hits,[]);assert.deepEqual(busy,[true,false]);
+  }
+});
+
+test('melee contact reaches the enemy at every hit, while ranged skills keep the hero at home',()=>{
+  for(const type of ['strike','heavy','twin'])for(const at of ATTACK_HITS[type]){
+    const p=new CombatPlayback();p.start({id:1,kind:'attack',cardType:type},'sentinel');p.advance(at);
+    const pose=combatPose(p.active);assert.ok(pose.enemyX-pose.heroX<=1.8,`${type} reaches weapon range`);
+  }
+  for(const type of ['flare','nova']){
+    const p=new CombatPlayback();p.start({id:1,kind:'attack',cardType:type},'sentinel');p.advance(1000);
+    assert.ok(combatPose(p.active).heroX<-2);
+  }
+});
+
+test('exported hero animation changes the sword joint between anticipation and contact',async()=>{
+  const bytes=readFileSync(new URL('../public/models/hero.glb',import.meta.url));
+  const buffer=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
+  const model=await new GLTFLoader().parseAsync(buffer,'');
+  const arm=model.scene.getObjectByName('arm_right');assert.ok(arm);
+  const clip=model.animations.find(clip=>clip.name==='attack');
+  const mixer=new AnimationMixer(model.scene);mixer.clipAction(clip).play();
+  mixer.setTime(clip.duration*.28);const prepare=arm.quaternion.clone();
+  mixer.setTime(clip.duration*.52);const impact=arm.quaternion.clone();
+  assert.ok(Math.abs(prepare.dot(impact))<.98,'The weapon changes direction into the contact pose');
+  mixer.stopAllAction();mixer.uncacheRoot(model.scene);
+});

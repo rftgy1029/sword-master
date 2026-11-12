@@ -57,10 +57,13 @@ export default function CombatScene({ enemy, effect, motionPreference = 'normal'
 
   useEffect(() => { renderer.current?.setState({ effect, enemy, playerDead, motion: motionPreference }); }, [effect, enemy, playerDead, motionPreference]);
 
+export default function CombatScene(props) {
+  const { enemy,effect,playerDead=false,motionPreference,onBusy,onReady,onImpact }=props;
+  const initialEffectId=useRef(effect.id).current;
   return <div className={`combat-scene effect-${effect.kind}`}>
-    <div ref={host} className="combat-canvas" aria-hidden="true" />
-    {error && <p className="combat-scene-error" role="status">{error}</p>}
-    {effect.amount > 0 && !['attack', 'hurt'].includes(effect.kind) && <span key={effect.id} className="combat-number" aria-hidden="true">+{effect.amount}</span>}
-    <span className="scene-vignette" aria-hidden="true" />
+    <SceneView key={enemy.type} mode="battle" initialEffectId={initialEffectId} state={{enemy,effect,playerDead}} callbacks={{onBusy,onReady,onImpact}}
+      motionPreference={motionPreference} onFailure={()=>onBusy?.(false)} fallback={<LegacyCombatScene {...props}/>} />
+    {effect.amount>0&&!['attack','hurt'].includes(effect.kind)&&<span key={effect.id} className="combat-number" aria-hidden="true">+{effect.amount}</span>}
+    <span className="scene-vignette" aria-hidden="true"/>
   </div>;
 }

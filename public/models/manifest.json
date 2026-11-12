@@ -1,0 +1,182 @@
+{
+  "source": "scripts/create_3d_assets.py",
+  "license": "Original S\u2019word Master artwork; no third-party model assets.",
+  "coordinateSystem": "glTF Y-up, forward +Z, feet at Y=0",
+  "models": {
+    "hero": {
+      "file": "hero.glb",
+      "bytes": 423804,
+      "clips": [
+        "idle",
+        "walk",
+        "attack",
+        "hit",
+        "death",
+        "guard",
+        "victory"
+      ],
+      "meshes": 33,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "crawler": {
+      "file": "crawler.glb",
+      "bytes": 227252,
+      "clips": [
+        "idle",
+        "walk",
+        "attack",
+        "hit",
+        "death"
+      ],
+      "meshes": 16,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "sentinel": {
+      "file": "sentinel.glb",
+      "bytes": 283648,
+      "clips": [
+        "walk",
+        "idle",
+        "attack",
+        "hit",
+        "death",
+        "guard",
+        "victory"
+      ],
+      "meshes": 31,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "ember": {
+      "file": "ember.glb",
+      "bytes": 134296,
+      "clips": [
+        "idle",
+        "attack"
+      ],
+      "meshes": 5,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "bat": {
+      "file": "bat.glb",
+      "bytes": 89800,
+      "clips": [
+        "idle",
+        "attack"
+      ],
+      "meshes": 7,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "slime": {
+      "file": "slime.glb",
+      "bytes": 135076,
+      "clips": [
+        "idle",
+        "attack"
+      ],
+      "meshes": 5,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "mushroom": {
+      "file": "mushroom.glb",
+      "bytes": 157588,
+      "clips": [
+        "idle",
+        "walk",
+        "attack",
+        "hit",
+        "death"
+      ],
+      "meshes": 5,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "scarab": {
+      "file": "scarab.glb",
+      "bytes": 149296,
+      "clips": [
+        "idle",
+        "walk",
+        "attack",
+        "hit",
+        "death"
+      ],
+      "meshes": 14,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "wisp": {
+      "file": "wisp.glb",
+      "bytes": 134312,
+      "clips": [
+        "idle",
+        "attack"
+      ],
+      "meshes": 5,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "hound": {
+      "file": "hound.glb",
+      "bytes": 150112,
+      "clips": [
+        "idle",
+        "walk",
+        "attack",
+        "hit",
+        "death"
+      ],
+      "meshes": 14,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "ravager": {
+      "file": "ravager.glb",
+      "bytes": 305572,
+      "clips": [
+        "walk",
+        "idle",
+        "attack",
+        "hit",
+        "death",
+        "guard",
+        "victory"
+      ],
+      "meshes": 33,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "watcher": {
+      "file": "watcher.glb",
+      "bytes": 151304,
+      "clips": [
+        "idle",
+        "attack"
+      ],
+      "meshes": 5,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "boss": {
+      "file": "boss.glb",
+      "bytes": 374624,
+      "clips": [
+        "idle",
+        "walk",
+        "attack",
+        "hit",
+        "death",
+        "guard",
+        "victory"
+      ],
+      "meshes": 35,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    }
+  }
+}
