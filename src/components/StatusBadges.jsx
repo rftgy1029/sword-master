@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { statusSheet } from '../game/spriteAssets.js';
+import GameIcon from './ui/GameIcon.jsx';
 
-function Badge({ icon, name, value, duration, description, harmful = false }) {
-  const index = { '방어': 0, '힘': 1, '집중': 2, '약화': 3, '연속 정답': 4 }[name] ?? 7;
+function Badge({ name, value, duration, description, harmful = false }) {
+  const symbol = { '방어': 'guard', '힘': 'strike', '집중': 'focus', '약화': 'weaken', '연속 정답': 'spark' }[name] ?? 'spark';
   const [open, setOpen] = useState(false);
   const host = useRef(null);
   const id = useId();
@@ -16,7 +16,7 @@ function Badge({ icon, name, value, duration, description, harmful = false }) {
     <button type="button" aria-expanded={open} aria-describedby={open ? id : undefined}
       onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} onClick={() => setOpen(true)}
       onKeyDown={(event) => { if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); } }}>
-      <span className="status-pixel-icon" aria-hidden="true" style={{ backgroundImage: `url(${statusSheet})`, backgroundPosition: `${-index * 24}px 0` }}>{icon}</span><strong>{name} {value}</strong><small>{duration}</small>
+      <span className="status-symbol" aria-hidden="true"><GameIcon name={symbol}/></span><strong>{name} {value}</strong><small>{duration}</small>
     </button>
     {open && <span className="status-tooltip" id={id} role="tooltip"><strong>{name} {value}</strong><span>{description}</span><small>지속: {duration}</small></span>}
   </span>;

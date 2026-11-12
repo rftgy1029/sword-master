@@ -9,6 +9,8 @@ import { listenForMenuNavigation } from './menuNavigation.js';
 import { useProgress } from './game/useProgress.js';
 import { TIERS } from './vocabulary.js';
 import { SceneTransitionProvider, useSceneTransition } from './components/SceneTransition.jsx';
+import { GraphicsProvider } from './components/GraphicsContext.jsx';
+import { version } from '../package.json';
 
 const MENU = [
   { label: '새 모험', description: '학습 범위를 고르고 새로운 모험을 시작하세요.' },
@@ -74,6 +76,7 @@ function GameApp({ settings, setSettings }) {
       <main className="start-screen">
         <div className="title-layout">
           <section className="menu-column" aria-label="S’word Master 시작">
+            <p className="title-eyebrow"><span/> WORDS BECOME YOUR WEAPON</p>
             <header className="brand">
               <svg className="brand-mark" viewBox="0 0 32 40" aria-hidden="true">
                 <path d="M14 0h4v4h2v18h-2v4h8v4H18v6h2v4h-8v-4h2v-6H6v-4h8v-4h-2V4h2Z" />
@@ -83,6 +86,7 @@ function GameApp({ settings, setSettings }) {
                 <h1><span>S’WORD</span><span>MASTER</span></h1>
               </div>
             </header>
+            <p className="title-intro">한 단어씩,<br/>더 깊은 모험으로.</p>
             <nav ref={menu} className="menu" aria-label="시작 메뉴">
               {MENU.map(({ label }, index) => index === 1 ? null : (
                 <div className={index === 0 ? 'adventure-actions' : 'menu-item'} key={label}>
@@ -95,8 +99,8 @@ function GameApp({ settings, setSettings }) {
             {error && openedMenu === null && <p className="title-save-error" role="alert">{error}</p>}
           </section>
           <figure className="dungeon-scene">
-            <TitleScene motionPreference={settings.backgroundMotion} />
-            <figcaption><span className="location-marker" aria-hidden="true" />던전 입구</figcaption>
+            <TitleScene active={openedMenu === null} motionPreference={settings.backgroundMotion} />
+            <figcaption><span><small>CHAPTER I</small><strong>황혼의 석문</strong></span><span>단어의 힘이 깨어나는 곳 <span aria-hidden="true">↗</span></span></figcaption>
           </figure>
         </div>
         <footer className="screen-footer">
@@ -106,7 +110,7 @@ function GameApp({ settings, setSettings }) {
             <span><kbd>Esc</kbd> 닫기</span>
             <span className="pointer-hint">클릭으로 선택할 수 있어요</span>
           </div>
-          <p className="version">미리보기 <span aria-hidden="true">/</span> v0.6</p>
+          <p className="version">미리보기 <span aria-hidden="true">/</span> v{version}</p>
         </footer>
       </main>
       {openedMenu === '설정' ? (
@@ -123,5 +127,5 @@ function GameApp({ settings, setSettings }) {
 
 export default function App() {
   const [settings, setSettings] = useState(readSettings);
-  return <SceneTransitionProvider motionPreference={settings.backgroundMotion}><GameApp settings={settings} setSettings={setSettings} /></SceneTransitionProvider>;
+  return <GraphicsProvider settings={settings}><SceneTransitionProvider motionPreference={settings.backgroundMotion}><GameApp settings={settings} setSettings={setSettings} /></SceneTransitionProvider></GraphicsProvider>;
 }

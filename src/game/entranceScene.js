@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { dungeonEntrance, hero } from '../scene.js';
 import { drawingContext } from './phaserDrawing.js';
-import { heroImage } from './spriteAssets.js';
-import { createHeroRig, drawHeroRig } from './heroRig.js';
+import { heroPoses } from './spriteAssets.js';
+import { createHeroRig, drawHeroRig, HERO_SURFACE_SCALE } from './illustratedHero.js';
 
 export function startEntranceScene(parent, { motionPreference = 'normal', onComplete }) {
   let disposed = false;
@@ -16,11 +16,12 @@ export function startEntranceScene(parent, { motionPreference = 'normal', onComp
 
   class EntranceScene extends Phaser.Scene {
     constructor() { super('dungeon-entrance'); }
-    preload() { this.load.image('entrance-hero', heroImage); }
+    preload() { this.load.image('entrance-hero', heroPoses); }
 
     create() {
       this.tweens.setLagSmooth();
       if (disposed) return;
+      this.cameras.main.setZoom(3).centerOn(192, 144);
       dungeonEntrance(drawingContext(this.add.graphics()));
       this.shadow = this.add.ellipse(134, 238, 46, 5, 0x101b18, .7);
       this.adventurer = this.add.container(reducedMotion ? 278 : 134, 236);
@@ -29,8 +30,8 @@ export function startEntranceScene(parent, { motionPreference = 'normal', onComp
       this.context = drawingContext(this.figure);
       if (this.textures.exists('entrance-hero')) {
         this.rig = createHeroRig(this.textures.get('entrance-hero').getSourceImage());
-        this.surface = this.textures.createCanvas('entrance-hero-animated', 96, 96);
-        this.sprite = this.add.image(0, 0, 'entrance-hero-animated').setOrigin(.5, 82 / 96).setScale(1.15);
+        this.surface = this.textures.createCanvas('entrance-hero-animated', 96 * HERO_SURFACE_SCALE, 96 * HERO_SURFACE_SCALE);
+        this.sprite = this.add.image(0, 0, 'entrance-hero-animated').setOrigin(.5, 82 / 96).setScale(1.15 / HERO_SURFACE_SCALE);
         this.adventurer.add(this.sprite); this.figure.setVisible(false);
       }
       this.walking = !reducedMotion;
@@ -75,8 +76,8 @@ export function startEntranceScene(parent, { motionPreference = 'normal', onComp
     paintHero(time) {
       if (this.rig) {
         const ctx = this.surface.context;
-        ctx.clearRect(0, 0, 96, 96);
-        drawHeroRig(ctx, this.rig, { time, x: 48, y: 82, walking: this.walking, motion: !reducedMotion });
+        ctx.clearRect(0, 0, this.surface.width, this.surface.height);
+        drawHeroRig(ctx, this.rig, { time, x: 48 * HERO_SURFACE_SCALE, y: 82 * HERO_SURFACE_SCALE, scale: HERO_SURFACE_SCALE, walking: this.walking, motion: !reducedMotion });
         this.surface.refresh();
         return;
       }
@@ -99,9 +100,9 @@ export function startEntranceScene(parent, { motionPreference = 'normal', onComp
   const game = new Phaser.Game({
     type: Phaser.CANVAS,
     parent,
-    width: 384, height: 288,
+    width: 1152, height: 864,
     backgroundColor: '#151919',
-    pixelArt: true,
+    pixelArt: false, antialias: true, roundPixels: false,
     banner: false,
     autoFocus: false,
     audio: { noAudio: true },

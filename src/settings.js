@@ -4,12 +4,16 @@ export const DEFAULT_SETTINGS = Object.freeze({
   textSize: 'normal',
   backgroundMotion: 'normal',
   selectionEffect: 'breathe',
+  renderer: 'auto',
+  graphicsQuality: 'auto',
 });
 
 const OPTIONS = {
   textSize: ['normal', 'large', 'larger'],
   backgroundMotion: ['normal', 'reduced', 'off'],
   selectionEffect: ['breathe', 'static'],
+  renderer: ['auto', '3d', '2d'],
+  graphicsQuality: ['auto', 'low', 'balanced', 'high'],
 };
 
 export function normalizeSettings(value) {

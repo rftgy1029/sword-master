@@ -57,7 +57,7 @@ export default function QuizPanel({ question, feedback, onAnswer, onContinue, ca
     <h3 id="quiz-heading"><span lang="en">{source.word.term}</span>{(!compact || !feedback) && <small>{source.type === 'meaning' ? '이 단어의 뜻은?' : `아래 뜻에서의 ${QUIZ_TYPES[source.type]}는?`}</small>}</h3>
     {source.type !== 'meaning' && (!compact || !feedback) && <p className="quiz-context">뜻: {source.word.meaning}</p>}
     {!feedback ? <div className="quiz-options" data-keyboard-group>
-      {question.options.map((option, i) => <button key={option} data-initial-focus={i === 0 ? '' : undefined}
+      {question.options.map((option, i) => <button key={option} disabled={busy} data-initial-focus={i === 0 ? '' : undefined}
         onClick={() => onAnswer(option)}><span>{i + 1}</span>{option}</button>)}
     </div> : <div className="quiz-feedback" aria-live="polite">
       {(!compact || !feedback.correct) && <p><strong>{feedback.correct ? '정답이에요.' : `선택한 답: ${feedback.answer}`}</strong></p>}

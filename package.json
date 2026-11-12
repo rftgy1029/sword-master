@@ -1,23 +1,31 @@
 {
   "name": "sword-master",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "scripts": {
     "assets:hero": "python3 scripts/export_hero.py",
     "assets:check": "python3 scripts/export_hero.py --check",
+    "assets:illustrations": "node scripts/export_illustrations.mjs",
+    "assets:models": "blender --background --threads 2 --python scripts/create_3d_assets.py",
     "dev": "vite --host 127.0.0.1 --port 8175 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8176 --strictPort",
-    "test": "node --test"
+    "test": "node --test",
+    "test:3d": "node scripts/verify-3d.mjs",
+    "test:journey": "node scripts/verify-journey.mjs",
+    "test:ui": "node scripts/verify-ui.mjs"
   },
   "dependencies": {
+    "@react-three/fiber": "9.8.2",
     "phaser": "^4.2.1",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "three": "0.187.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.2.1",
+    "playwright": "1.65.0",
     "vite": "^8.3.6"
   },
   "allowScripts": {

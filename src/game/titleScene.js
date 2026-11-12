@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { hero } from '../scene.js';
 import { drawingContext } from './phaserDrawing.js';
-import { createHeroRig, drawHeroRig } from './heroRig.js';
-import { heroImage } from './spriteAssets.js';
+import { createHeroRig, drawHeroRig, HERO_SURFACE_SCALE } from './illustratedHero.js';
+import { heroPoses } from './spriteAssets.js';
 import { createMapLayers, preloadMap, titleMap } from './mapAssets.js';
 
 export function startPhaserTitleScene(canvas, { signal, motionPreference = 'normal', onReady, onError } = {}) {
@@ -16,19 +16,20 @@ export function startPhaserTitleScene(canvas, { signal, motionPreference = 'norm
     constructor() { super('title'); }
     preload() {
       preloadMap(this, titleMap);
-      this.load.image('title-hero', heroImage);
+      this.load.image('title-hero', heroPoses);
     }
     create() {
       if (disposed) return;
       try {
+        this.cameras.main.setZoom(3).centerOn(192, 144);
         const background = createMapLayers(this, titleMap, ['Walls and floor', 'Entrance and torches']);
         if (!background) throw new Error('던전 입구 맵을 불러오지 못했습니다.');
         this.shadow = this.add.ellipse(144, 238, 46, 5, 0x101b18, .7);
         this.figure = this.add.graphics();
         if (this.textures.exists('title-hero')) {
           this.rig = createHeroRig(this.textures.get('title-hero').getSourceImage());
-          this.surface = this.textures.createCanvas('title-hero-animated', 96, 96);
-          this.add.image(144, 236, 'title-hero-animated').setOrigin(.5, 82 / 96).setScale(1.15);
+          this.surface = this.textures.createCanvas('title-hero-animated', 96 * HERO_SURFACE_SCALE, 96 * HERO_SURFACE_SCALE);
+          this.add.image(144, 236, 'title-hero-animated').setOrigin(.5, 82 / 96).setScale(1.15 / HERO_SURFACE_SCALE);
         }
         this.paintHero(0);
         this.game.events.once(Phaser.Core.Events.POST_RENDER, () => {
@@ -41,8 +42,8 @@ export function startPhaserTitleScene(canvas, { signal, motionPreference = 'norm
     paintHero(time) {
       if (this.rig) {
         const ctx = this.surface.context;
-        ctx.clearRect(0, 0, 96, 96);
-        drawHeroRig(ctx, this.rig, { time, x: 48, y: 82, motion: !still() });
+        ctx.clearRect(0, 0, this.surface.width, this.surface.height);
+        drawHeroRig(ctx, this.rig, { time, x: 48 * HERO_SURFACE_SCALE, y: 82 * HERO_SURFACE_SCALE, scale: HERO_SURFACE_SCALE, motion: !still() });
         this.surface.refresh();
       } else if (this.figure) {
         this.figure.clear();
@@ -61,8 +62,8 @@ export function startPhaserTitleScene(canvas, { signal, motionPreference = 'norm
   }
 
   game = new Phaser.Game({
-    type: Phaser.CANVAS, canvas, width: 384, height: 288,
-    backgroundColor: '#151919', pixelArt: true, banner: false, autoFocus: false,
+    type: Phaser.CANVAS, canvas, width: 1152, height: 864,
+    backgroundColor: '#151919', pixelArt: false, antialias: true, roundPixels: false, banner: false, autoFocus: false,
     audio: { noAudio: true },
     input: { keyboard: false, mouse: false, touch: false, gamepad: false, windowEvents: false },
     fps: { target: 60, forceSetTimeOut: true, smoothStep: false },

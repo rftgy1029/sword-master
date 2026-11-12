@@ -1,0 +1,10 @@
+S’word Master original 3D model sources
+
+Models in public/models were authored for this project using Blender.
+Reproducible source: scripts/create_3d_assets.py
+Asset manifest: public/models/manifest.json
+No third-party model pack, model-generation service or external texture was used.
+
+Three.js, React Three Fiber and their dependencies retain their own MIT licenses,
+provided alongside this notice. Existing illustration and Pixelorama sources
+remain separate from these original articulated 3D meshes.

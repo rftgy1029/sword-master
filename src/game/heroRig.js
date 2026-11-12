@@ -1,4 +1,5 @@
-import { heroImage } from './spriteAssets.js';
+// Retained for the original Pixelorama source and its lossless export preview.
+const heroImage = new URL('../../assets/sprites/hero-young.png', import.meta.url).href;
 
 export const HERO_ANCHOR = Object.freeze({ x: 32, y: 61 });
 const armOutline = [[27, 27], [31, 27], [34, 31], [36, 30], [51, 19], [55, 19], [55, 23], [38, 35], [37, 39], [33, 38], [30, 35], [28, 33]];

@@ -134,6 +134,12 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
               <SettingOptions name="textSize" title="글자 크기" description="메뉴와 안내 글자의 크기를 조절해요."
                 choices={[[ 'normal', '보통' ], [ 'large', '크게' ], [ 'larger', '아주 크게' ]]}
                 value={settings.textSize} onChange={changeSetting} />
+              <SettingOptions name="renderer" title="게임 화면" description="입체적인 던전 또는 가벼운 일러스트 화면을 선택해요."
+                choices={[[ 'auto','자동' ],[ '3d','입체 화면' ],[ '2d','간편 화면' ]]}
+                value={settings.renderer} onChange={changeSetting}/>
+              <SettingOptions name="graphicsQuality" title="그래픽 품질" description="자동은 화면 크기에 맞춰 조절해요. 느리면 낮음을 선택하세요."
+                choices={[[ 'auto','자동' ],[ 'low','낮음' ],[ 'balanced','보통' ],[ 'high','높음' ]]}
+                value={settings.graphicsQuality} onChange={changeSetting}/>
               <SettingOptions name="backgroundMotion" title="게임 애니메이션" description="화면 전환, 카드 기술과 배경의 움직임을 조절해요."
                 choices={[[ 'normal', '기본' ], [ 'reduced', '줄이기' ], [ 'off', '끄기' ]]}
                 value={settings.backgroundMotion} onChange={changeSetting} />

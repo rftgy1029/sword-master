@@ -18,7 +18,7 @@ export function useCardDeal({ section, canvas, cards, turn, drawCount, suspended
     let cancelled = false;
     generation.current++;
     alive.current = true;
-    loader.current = import('../game/cardDealScene.js').then(({ startCardDealScene }) => {
+    loader.current = import('../game/cardDeal.js').then(({ startCardDealScene }) => {
       if (cancelled) return null;
       controller.current = startCardDealScene(canvas.current);
       return controller.current;

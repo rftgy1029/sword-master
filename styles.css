@@ -106,8 +106,10 @@ h1 span + span { margin-top: 5px; }
 }
 .dungeon-scene { margin: 24px 0 0; min-width: 0; }
 .scene { position: relative; aspect-ratio: 4 / 3; width: 100%; max-width: 640px; margin: 0 auto; background: #202622; }
-.scene-preview, #scene { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none; }
+.scene-preview, #scene { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: auto; pointer-events: none; }
+#scene[hidden] { display: none; }
 .scene-feedback {
+  pointer-events: auto;
   position: absolute; inset-inline: 8px; bottom: 12px; margin: 0 auto; width: fit-content; max-width: calc(100% - 16px);
   display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px;
   padding: 8px 12px; border: 1px solid var(--line); background: var(--background);

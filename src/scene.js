@@ -1,4 +1,4 @@
-import { loadHeroRig, drawHeroRig } from './game/heroRig.js';
+import { loadHeroRig, drawHeroRig } from './game/illustratedHero.js';
 
 // Small, layered pixel scene. Every coordinate belongs to a 384 × 288 grid.
 // Walls are cached once; the cloth and torch pixels are painted independently.
@@ -227,7 +227,7 @@ export async function startTitleScene(canvas, { signal, motionPreference = 'norm
   if (signal?.aborted) return;
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true;
   const background = document.createElement('canvas');
   background.width = WIDTH;
   background.height = HEIGHT;
