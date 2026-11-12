@@ -22,7 +22,7 @@ export function useCardDeal({ section, canvas, cards, turn, drawCount, suspended
       if (cancelled) return null;
       controller.current = startCardDealScene(canvas.current);
       return controller.current;
-    });
+    }).catch(() => null);
     return () => { cancelled = true; alive.current = false; drawing.current = false; previous.current = initial.current; controller.current?.destroy(); };
   }, [canvas]);
 
