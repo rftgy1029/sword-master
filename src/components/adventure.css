@@ -17,6 +17,19 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .game-dialog .game-eyebrow { color: var(--amber); font-size: 9px; letter-spacing: 2px; margin: 0 0 6px; line-height: 1.6; }
 .game-body { flex: 1; min-height: 0; overflow: auto; padding: 26px 30px; overscroll-behavior: contain; scroll-behavior: auto; }
 .game-body:has(.battle-screen) { display: flex; padding: 0; overflow-anchor: none; }
+.game-body:has(> .battle-loading) { position: relative; overflow: clip; }
+.battle-loading {
+  position: absolute; inset: 0; z-index: 30; display: grid; place-content: center; justify-items: center; gap: 14px;
+  padding: 16px; background: radial-gradient(ellipse at center, #22332a, #101815 70%);
+  color: var(--ivory); font-size: calc(15px * var(--text-scale)); text-align: center;
+}
+.battle-loading-ring {
+  width: 34px; height: 34px; border: 2px solid #5e654d; border-top-color: var(--amber); border-radius: 50%;
+  animation: battle-loading-spin 900ms linear infinite;
+}
+@keyframes battle-loading-spin { to { transform: rotate(360deg); } }
+.app:is([data-background-motion="off"], [data-background-motion="reduced"]) .battle-loading-ring { animation: none; }
+@media (prefers-reduced-motion: reduce) { .battle-loading-ring { animation: none; } }
 .game-body:has(.dungeon-entrance) { display: flex; padding: 22px 26px; }
 .dungeon-entrance { display: grid; grid-template-rows: auto minmax(160px, 1fr) auto; flex: 1; justify-items: center; gap: 18px; width: 100%; min-width: 0; min-height: 360px; }
 .entrance-heading { display: flex; align-items: center; justify-content: center; gap: 18px; flex-shrink: 0; }

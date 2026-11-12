@@ -117,7 +117,9 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
   const shortcut = useRef(null);
   useEffect(() => () => cancelShortcut(shortcut), []);
   const [skillBusy, setSkillBusy] = useState(false);
-  const [visualReady, setVisualReady] = useState(false);
+  const [visualStatus, setVisualStatus] = useState('loading');
+  const loading = visualStatus === 'loading';
+  const canAnimate = visualStatus === 'ready';
   const [fatal, setFatal] = useState(false);
   const [shownEnemyHP, setShownEnemyHP] = useState(run.battle.enemy.hp);
   const [shownPlayerHP, setShownPlayerHP] = useState(run.hp);
@@ -133,8 +135,9 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
   const selectedCard = pending && run.deck.find((c) => c.uid === pending.uid);
   const hand = useMemo(() => b.hand.map((uid) => run.deck.find((c) => c.uid === uid)), [b.hand, run.deck]);
   const deal = useCardDeal({ section, canvas: dealCanvas, cards: hand, turn: b.turn, drawCount: b.draw.length,
-    suspended: locked || skillBusy || !visualReady, animateOpening, motionPreference, onOpeningDone });
-  const busy = !visualReady || skillBusy || deal.busy;
+    suspended: locked || skillBusy || loading, animateOpening,
+    motionPreference: visualStatus === 'fallback' ? 'off' : motionPreference, onOpeningDone });
+  const busy = loading || skillBusy || deal.busy;
   useEffect(() => { if (!skillBusy) setShownEnemyHP(b.enemy.hp); }, [skillBusy, b.enemy.hp]);
   useEffect(() => { if (!skillBusy) setShownPlayerHP(fatal ? 0 : run.hp); }, [skillBusy, run.hp, fatal]);
   useEffect(() => { if (!skillBusy) setShownIntent(intentFor(b.enemy)); }, [skillBusy, b.enemy]);
@@ -163,6 +166,7 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
   }, [busy, locked, hand, b.energy, dispatch]);
   const endTurn = () => {
     if (busy) return;
+    if (!canAnimate) { dispatch({ type: 'END_TURN' }); return; }
     if (intent.kind === 'attack' && intent.value * (intent.hits ?? 1) - b.block >= run.hp) { setSkillBusy(true); setFatal(true); }
     else if (dispatch({ type: 'END_TURN' })) setSkillBusy(true);
   };
@@ -184,7 +188,12 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   });
-  return <section ref={section} className={`battle-screen${busy ? ' is-animating' : ''}`} aria-label="턴제 카드 전투" aria-busy={busy}>
+  return <>
+    {loading && <div className="battle-loading" role="status">
+      <span className="battle-loading-ring" aria-hidden="true" />
+      <span>전투를 불러오는 중…</span>
+    </div>}
+    <section ref={section} className={`battle-screen${busy ? ' is-animating' : ''}`} aria-label="턴제 카드 전투" aria-busy={busy} inert={loading}>
       <div className="combat-hud">
         <section className="combatant-hud player-hud" aria-label="모험가 상태">
           <div className="combatant-heading"><h3>모험가</h3><span>HP {shownPlayerHP} / {run.maxHp}</span></div>
@@ -199,7 +208,8 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
         </section>
       </div>
     <div className="battlefield">
-      <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} motionPreference={motionPreference} onReady={() => setVisualReady(true)}
+      <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} motionPreference={motionPreference}
+        onReady={() => setVisualStatus('ready')} onError={() => setVisualStatus('fallback')}
         onImpact={(index, target) => {
           if (target === 'player') setShownPlayerHP((hp) => Math.max(fatal ? 0 : run.hp, hp - (combatEffect.impacts?.[index] ?? combatEffect.amount)));
           else setShownEnemyHP((hp) => Math.max(b.enemy.hp, hp - (b.effect.impacts?.[index] ?? b.effect.amount)));
@@ -216,17 +226,18 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
       <div className="pile-status"><div className="deck-pile draw-pile" aria-label={`뽑을 카드 ${b.draw.length}장`}><span>✦</span><small>뽑기 {b.draw.length}</small></div>
         <span className="draw-status" role="status">{deal.busy ? '덱에서 카드를 뽑고 있습니다…' : skillBusy ? combatEffect.kind === 'hurt' ? '몬스터가 공격하고 있습니다' : combatEffect.kind === 'enemy' ? '몬스터가 행동하고 있습니다' : '단어의 힘이 펼쳐집니다' : '숫자 키 2번으로 카드 선택 · Enter 2번으로 턴 종료'}</span>
         <div className="deck-pile discard-pile" aria-label={`버린 카드 ${b.discard.length}장`}><span>◇</span><small>버림 {b.discard.length} · 소멸 {b.exhaust.length}</small></div></div>
-      {locked ? <QuizPanel compact busy={busy} question={pending?.question ?? feedback.question} feedback={feedback}
+      {locked ? <QuizPanel compact busy={loading || skillBusy} question={pending?.question ?? feedback.question} feedback={feedback}
         cardName={selectedCard ? CARDS[selectedCard.type].name : feedback.cardName}
-        onAnswer={(answer) => { if (!busy && dispatch({ type: 'ANSWER', id: pending.question.id, answer })) setSkillBusy(true); }}
-        onContinue={() => { if (busy) return; if (b.enemy.hp <= 0) transition(() => dispatch({ type: 'ACK' })); else dispatch({ type: 'ACK' }); }} /> : <div className="card-hand" data-keyboard-group aria-label="손에 든 카드">
+        onAnswer={(answer) => { if (!loading && dispatch({ type: 'ANSWER', id: pending.question.id, answer }) && canAnimate) setSkillBusy(true); }}
+        onContinue={() => { if (loading || skillBusy) return; if (b.enemy.hp <= 0) transition(() => dispatch({ type: 'ACK' })); else dispatch({ type: 'ACK' }); }} /> : <div className="card-hand" data-keyboard-group aria-label="손에 든 카드">
         {hand.map((card, index) => <Card key={card.uid} card={card} compact shortcut={index < 4 ? index + 1 : undefined} hidden={deal.hidden.includes(card.uid)} disabled={busy || CARDS[card.type].cost > b.energy}
           onClick={() => { if (!busy) dispatch({ type: 'SELECT_CARD', uid: card.uid }); }} initialFocus={CARDS[card.type].cost <= b.energy} />)}
         {!hand.length && <p className="empty-hand game-muted">손에 든 카드가 없습니다. 턴을 종료해 새 카드를 뽑으세요.</p>}
       </div>}
     </div>
     <div ref={dealCanvas} className="card-deal-canvas" aria-hidden="true" />
-  </section>;
+    </section>
+  </>;
 }
 
 function BattleLog({ battle }) {
@@ -356,7 +367,7 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
   const quizId = run?.battle?.pending?.question.id;
   const feedback = !!run?.battle?.feedback;
   useEffect(() => {
-    const target = dialog.current.querySelector('[data-initial-focus]:not(:disabled)') ?? dialog.current.querySelector('.adventure-title');
+    const target = dialog.current.querySelector('[data-initial-focus]:not(:disabled):not([inert] *)') ?? dialog.current.querySelector('.adventure-title');
     const enteringBattle = phase === 'battle' && previousPhase.current !== 'battle' && !inspect && !quizId && !feedback;
     target?.focus({ preventScroll: enteringBattle || inCombat || ['entry', 'map'].includes(phase) });
     if (phase === 'entry' || (phase === 'map' && !inspect && run.floor < 0) || (inCombat && !quizId && !feedback)) dialog.current.querySelector('.game-body').scrollTop = 0;

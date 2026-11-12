@@ -122,7 +122,9 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       this.events.once(Phaser.Scenes.Events.DESTROY, () => this.scale.off(Phaser.Scale.Events.RESIZE, this.redraw, this));
       this.redraw(this.scale.gameSize);
       this.sync();
-      onReady();
+      this.game.events.once(Phaser.Core.Events.POST_RENDER, () => {
+        if (!disposed) onReady();
+      });
     }
     redraw({ width, height }) {
       if (disposed || !this.background) return;
