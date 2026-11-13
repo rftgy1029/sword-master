@@ -5,7 +5,7 @@ const unit = (value) => Math.max(0, Math.min(1, value));
 const fade = (time, start, duration) => time < start ? 0 : Math.sin(Math.PI * unit((time - start) / duration));
 
 export function paintEnemyAttack(scene, attack, time) {
-  const { plan, type, effect } = attack, { color, style } = plan;
+  const { plan, type, effect, ages } = attack, { color, style } = plan;
   const g = scene.attackInk, pose = enemyAttackPose(plan, time);
   const hx = scene.heroHome.x, ex = scene.enemyHome.x, floor = scene.floor;
   const scale = Math.max(.65, Math.min(1.6, scene.actorScale / 1.8));
@@ -22,14 +22,15 @@ export function paintEnemyAttack(scene, attack, time) {
     g.lineStyle(10 * scale, tint, alpha * .12).strokeCircle(x, y, radius);
     g.lineStyle(2 * scale, tint, alpha).strokeCircle(x, y, radius);
   };
-  const charge = fade(time, 0, 700);
+  const charge = fade(time, 0, plan.hits[0]);
   ring(ex, ey, (55 - unit(time / 700) * 30) * scale, charge);
   for (let i = 0; i < 24; i++) {
     const angle = i * 2.4 + time / 900, radius = (1 - unit(time / 700)) * (50 + i % 5 * 8) * scale;
     g.fillStyle(i % 4 ? color : 0xffffff, charge * .8).fillCircle(ex + Math.cos(angle) * radius, ey + Math.sin(angle) * radius, (1 + i % 3) * scale);
   }
   for (const [index, at] of plan.hits.entries()) {
-    const alpha = fade(time, at - 130, 650), impact = unit((time - at) / 600);
+    const age = ages?.[index] ?? time - at;
+    const alpha = fade(time, at - 130, 650), impact = unit(age / 600);
     if (plan.ranged) {
       const travel = unit((time - at + 400) / 400), projectileAlpha = fade(time, at - 430, 540);
       const x = ex + (hx - ex) * travel, y = ey + (hy - ey) * travel - Math.sin(travel * Math.PI) * (style === 'spore' ? 60 : 20) * scale;
@@ -66,14 +67,14 @@ export function paintEnemyAttack(scene, attack, time) {
         g.lineStyle(3 * scale, color, alpha).beginPath().arc(x, hy, radius, -.9 * reverse, (-.8 + sweep * 2) * reverse, reverse < 0).strokePath();
       }
     }
-    const flash = fade(time, at, 280);
-    ring(hx, hy, (15 + impact * 100) * scale, fade(time, at, 620));
+    const flash = fade(age, 0, 280);
+    ring(hx, hy, (15 + impact * 100) * scale, fade(age, 0, 620));
     g.fillStyle(color, flash * .18).fillRect(hx - 45 * scale, hy - 55 * scale, 90 * scale, 110 * scale);
     const blocked = effect.impacts?.[index] === 0;
-    if (blocked) ring(hx, hy, 42 * scale, fade(time, at, 480), 0xb7f4ef);
+    if (blocked) ring(hx, hy, 42 * scale, fade(age, 0, 480), 0xb7f4ef);
     for (let i = 0; i < 45; i++) {
       const a = i * 2.39996, distance = impact * (40 + i % 7 * 14) * scale;
-      g.fillStyle(i % 4 ? (blocked ? 0xb7f4ef : color) : 0xffffff, fade(time, at, 700));
+      g.fillStyle(i % 4 ? (blocked ? 0xb7f4ef : color) : 0xffffff, fade(age, 0, 700));
       g.fillRect(hx + Math.cos(a) * distance, hy + Math.sin(a) * distance + impact * impact * 30, 3 * scale, (i % 3 ? 3 : 7) * scale);
     }
   }

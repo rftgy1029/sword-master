@@ -1,6 +1,5 @@
 const clamp = (value) => Math.max(0, Math.min(1, value));
 const smooth = (value) => { const t = clamp(value); return t * t * (3 - 2 * t); };
-const easeOut = (value) => 1 - (1 - clamp(value)) ** 3;
 const easeIn = (value) => clamp(value) ** 2;
 
 /** 용사와 적이 서 있는 자리 사이의 거리(장면 단위). 3D 장면의 -2.3 ~ 2.3과 같다. */
@@ -42,7 +41,7 @@ export function enemyAttackPlan(type, effect, cue = {}) {
   const impacts = effect.impacts?.length ? effect.impacts : [effect.amount ?? 0];
   const hits = impacts.map((_, index) => first + index * gap);
   const blocked = impacts.map((amount) => amount === 0);
-  return { style, color, hits, heavy, ranged, windup, lunge: heavy ? 210 : 190,
+  return { style, color, hits, heavy, ranged, windup, lunge: 280,
     duration: hits.at(-1) + (heavy ? 660 : 560),
     reach: ranged ? STAGE_GAP : profile.reach, contact: ranged ? 0 : (STAGE_GAP - profile.reach) / STAGE_GAP,
     blocked, partial: impacts.map((amount) => cue.raw > 0 && amount > 0 && amount < cue.raw),
@@ -64,7 +63,7 @@ export function enemyAttackPose(plan, elapsed) {
   const first = plan.hits[0], last = plan.hits.at(-1);
   const launch = first - plan.lunge;
   const prepare = smooth(time / plan.windup);
-  const drive = easeOut((time - launch) / (plan.lunge - 20));
+  const drive = smooth((time - launch) / (plan.lunge - 15));
   const recover = smooth((time - last - 150) / (plan.duration - last - 190));
   const active = 1 - recover;
   // 연속 공격은 타격 사이에 살짝 물러났다가 다시 들어간다.

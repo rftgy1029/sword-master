@@ -67,7 +67,7 @@ export function presentationPlan(effect, context = {}, mode = 'full') {
   plan.hitInfo = plan.hits.map((at, index) => {
     const amount = effect.impacts?.[index] ?? (count ? Math.round((effect.amount ?? 0) / count) : 0);
     const last = index === count - 1;
-    return { index, at, amount, last, power: plan.powers[index] ?? 1, target: plan.side === 'enemy' ? 'player' : 'enemy',
+    return { effectId: effect.id, index, at, amount, last, power: plan.powers[index] ?? 1, target: plan.side === 'enemy' ? 'player' : 'enemy',
       // 방어가 피해를 모두 막은 타격. 처치 타격은 막힌 것으로 치지 않는다.
       blocked: amount === 0 && !(plan.lethal && last), partial: !!plan.attack?.partial[index],
       lethal: !!(last && (plan.lethal || plan.fatal)), heavy: !!plan.heavy || (plan.powers[index] ?? 1) >= 1.6 };
@@ -76,11 +76,17 @@ export function presentationPlan(effect, context = {}, mode = 'full') {
 }
 
 // 연출 전용: 게임 상태는 reducer가 관리한다. 이 재생기는 타격 시점을 알릴 뿐 피해를 적용하지 않는다.
+export function combatMotionMode(preference, systemReduced = false) {
+  return preference === 'off' ? 'instant' : preference === 'reduced' || systemReduced ? 'calm' : 'full';
+}
+
 export class CombatPlayback {
-  constructor({ initialEffectId = 0, onBusy = () => {}, onImpact = () => {} } = {}) {
+  constructor({ initialEffectId = 0, onBusy = () => {}, onImpact = () => {}, onMoment = () => {}, onStart = () => {} } = {}) {
     this.lastId = initialEffectId;
     this.onBusy = onBusy;
     this.onImpact = onImpact;
+    this.onMoment = onMoment;
+    this.onStart = onStart;
     this.active = null;
     this.disposed = false;
   }
@@ -102,13 +108,14 @@ export class CombatPlayback {
       // elapsed: 연출 시간표의 위치(타격 정지 동안 멈춘다). clock: 실제로 흐른 시간. prev: 직전 프레임의 elapsed.
       elapsed: 0, prev: -1, clock: 0, stop: 0, stopIndex: -1, delivered: 0,
       hits: plan.hits, impactAt: [], duration: plan.duration };
-    this.onBusy(true);
+    this.onBusy(true, effect.id);
+    this.onStart(this.active);
     if (mode === 'instant') this.finish();
     return true;
   }
   advance(delta) {
     const current = this.active;
-    if (!current || this.disposed) return null;
+    if (!current || this.disposed || !Number.isFinite(delta)) return null;
     let left = Math.max(0, delta);
     const startClock = current.clock, total = left;
     current.prev = current.elapsed;
@@ -118,7 +125,9 @@ export class CombatPlayback {
       this.deliver(current);
       if (left <= 0 || current.elapsed >= current.duration) break;
       if (current.stop > 0) { const used = Math.min(current.stop, left); current.stop -= used; left -= used; continue; }
-      const next = current.hits[current.delivered] ?? Infinity;
+      const nextHit = current.hits[current.delivered] ?? Infinity;
+      const nextMoment = current.momentDelivered ? Infinity : (current.plan.moment ?? Infinity);
+      const next = Math.min(nextHit, nextMoment);
       const step = Math.min(left, next - current.elapsed, current.duration - current.elapsed);
       current.elapsed += step; left -= step;
     }
@@ -127,6 +136,10 @@ export class CombatPlayback {
     return current;
   }
   deliver(current) {
+    if (!current.momentDelivered && current.plan.moment !== undefined && current.elapsed >= current.plan.moment) {
+      current.momentDelivered = true;
+      this.onMoment(current);
+    }
     while (current.delivered < current.hits.length && current.hits[current.delivered] <= current.elapsed) {
       const index = current.delivered++;
       current.impactAt[index] = current.clock;
@@ -142,7 +155,7 @@ export class CombatPlayback {
     current.stop = 0;
     this.deliver(current);
     this.active = null;
-    this.onBusy(false);
+    this.onBusy(false, current.effect.id);
   }
   dispose() { this.disposed = true; this.active = null; }
 }
@@ -156,9 +169,12 @@ export function crossed(current, at) {
  * 각 타격 이후 흐른 실제 시간(ms). 아직 맞지 않은 타격은 -1.
  * 타격 정지 동안에도 불꽃·섬광은 계속 움직여야 하므로 연출 시계(clock)를 쓴다.
  */
-export function impactAges(current) {
-  if (!current) return [];
-  return current.hits.map((_, index) => index < current.delivered ? current.clock - (current.impactAt[index] ?? current.clock) : -1);
+export function impactAges(current, out = []) {
+  out.length = current?.hits.length ?? 0;
+  for (let index = 0; index < out.length; index++) {
+    out[index] = index < current.delivered ? current.clock - (current.impactAt[index] ?? current.clock) : -1;
+  }
+  return out;
 }
 
 /** 타격 정지 중이면 그 타격의 번호, 아니면 -1 */

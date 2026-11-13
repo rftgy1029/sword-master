@@ -4,6 +4,8 @@ const artifactRoot=fileURLToPath(new URL('../artifacts/',import.meta.url));
 mkdirSync(artifactRoot,{recursive:true});
 const BASE_URL=process.env.BROWSER_BASE_URL??'http://127.0.0.1:8175/';
 import assert from 'node:assert/strict';
+import { ATTACK_HITS } from '../src/game/attackTimeline.js';
+import { CARD_MOTIONS } from '../src/game/cardMotions.js';
 import {chromium} from 'playwright';
 const browser=await chromium.launch({...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{}),headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader','--disable-background-timer-throttling']});
 const page=await browser.newPage({viewport:{width:1440,height:1000}});
@@ -11,17 +13,19 @@ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console'
 await page.goto(new URL('dev/three-preview.html',BASE_URL).href);
 await page.locator('#scene-status').filter({hasText:'장면 준비 완료'}).waitFor({timeout:30000});
 await page.getByRole('combobox',{name:'품질',exact:true}).selectOption('low');
-const controller=fn=>page.locator('canvas[data-renderer="three"]').evaluate(fn);
+const canvas=page.locator('canvas[data-renderer="three"]');
+const controller=fn=>canvas.evaluate(fn);
+const canvasSample=at=>canvas.evaluate((element, time)=>element.__sword3d.sample(time),at);
 if(process.env.BROWSER_3D_PART!=='upgraded'){
 const beforeArm=await controller(c=>c.__sword3d.scene.getObjectByName('hero').getObjectByName('arm_right').quaternion.toArray());
-await controller(c=>c.__sword3d.sample(440));
+await canvasSample(CARD_MOTIONS.strike.marks.windup);
 await page.locator('[data-card-type="strike"]').click();
 await page.waitForFunction(before=>{
   const arm=document.querySelector('canvas[data-renderer="three"]')?.__sword3d?.scene.getObjectByName('hero')?.getObjectByName('arm_right');
   return arm&&arm.quaternion.toArray().some((value,i)=>Math.abs(value-before[i])>.05);
 },beforeArm);
 const preparedArm=await controller(c=>c.__sword3d.scene.getObjectByName('hero').getObjectByName('arm_right').quaternion.toArray());
-await controller(c=>c.__sword3d.sample(780));
+await canvasSample(ATTACK_HITS.strike[0]);
 await page.waitForFunction(before=>{
   const arm=document.querySelector('canvas[data-renderer="three"]')?.__sword3d?.scene.getObjectByName('hero')?.getObjectByName('arm_right');
   return arm&&arm.quaternion.toArray().some((value,i)=>Math.abs(value-before[i])>.05);
@@ -54,7 +58,7 @@ for(const type of ['strike','guard','heavy','twin','heal','empower','weaken','fo
 await page.getByRole('checkbox',{name:'강화 카드'}).check();
 for(const type of ['strike','guard','heavy','twin','heal','empower','weaken','focus','flow','flare','nova','oath']){
   const expected=await controller(c=>c.__sword3d.inspect().lastEffectId+1);
-  await controller(c=>c.__sword3d.sample(300));
+  await canvasSample(CARD_MOTIONS[type].hits?.[0] ?? CARD_MOTIONS[type].moment);
   await page.locator(`[data-card-type="${type}"]`).click();
   await page.waitForFunction(expected=>{
     const api=document.querySelector('canvas[data-renderer="three"]')?.__sword3d;

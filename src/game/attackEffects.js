@@ -1,14 +1,33 @@
-import { attackPose, ATTACK_HITS } from './attackTimeline.js';
+import { attackPose, ATTACK_HITS, attackDuration } from './attackTimeline.js';
+import { CARD_MOTIONS } from './cardMotions.js';
+
+// Retain the drawing curves while aligning their contact frames to the shared playback.
+const INK_HITS = { strike: [780], heavy: [1000], twin: [700, 1100], flare: [1000], nova: [1100] };
+function inkTime(type, elapsed) {
+  const hits = ATTACK_HITS[type];
+  const ink = INK_HITS[type];
+  const duration = attackDuration(type);
+  let previous = 0, previousInk = 0;
+  for (let index = 0; index <= hits.length; index++) {
+    const next = hits[index] ?? duration;
+    const nextInk = ink[index] ?? 2000;
+    if (elapsed <= next) return previousInk + (nextInk - previousInk) * (elapsed - previous) / (next - previous);
+    previous = next;
+    previousInk = nextInk;
+  }
+  return 2000;
+}
 
 const unit = (t) => Math.max(0, Math.min(1, t));
 const fade = (time, start, duration) => time < start ? 0 : Math.sin(Math.PI * unit((time - start) / duration));
-export function paintAttack(scene, attack, time) {
+export function paintAttack(scene, attack, elapsed) {
   const g = scene.attackInk;
   const { cardType: type, upgraded } = attack.effect;
   const color = attack.color, width = scene.layoutWidth;
   const hx = scene.heroHome.x, ex = scene.enemyHome.x;
   const floor = scene.floor, hy = floor - 48 * scene.actorScale, ey = floor - 46 * scene.actorScale;
-  const pose = attackPose(type, time);
+  const time = inkTime(type, elapsed);
+  const pose = attackPose(type, elapsed);
   g.clear();
   scene.adventurer.setPosition(hx + (ex - hx) * pose.advance, floor + pose.lift).setAngle(pose.lean);
   scene.armAngle = pose.arm;
@@ -71,7 +90,8 @@ export function paintAttack(scene, attack, time) {
     slash(550, false, 0xbfe8ff, 1.1); slash(950, true, 0xd5baff, 1.3);
     ring(ex, ey, 40 + unit((time - 1100) / 650) * 70, fade(time, 1100, 800), 0xf2e7ff);
   } else if (type === 'flare') {
-    const travel = unit((time - 500) / 500), x = hx + (ex - hx) * travel;
+    const launch = CARD_MOTIONS.flare.marks.launch;
+    const travel = unit((elapsed - launch) / (ATTACK_HITS.flare[0] - launch)), x = hx + (ex - hx) * travel;
     const alpha = fade(time, 450, 850);
     for (let i = 0; i < 8; i++) {
       g.lineStyle((i % 3 ? 3 : 7) * scale, i % 2 ? color : 0xffe9ff, alpha * (1 - i / 10));
@@ -100,8 +120,8 @@ export function paintAttack(scene, attack, time) {
     sparks(ex, ey, 750, 1200, 50, 220, 0xffffff);
   }
   let recoil = 0;
-  for (const impact of ATTACK_HITS[type]) {
-    const t = (time - impact) / 300;
+  for (const age of attack.ages ?? ATTACK_HITS[type].map((at) => elapsed - at)) {
+    const t = age / 300;
     if (t >= 0 && t <= 1) recoil += Math.sin(t * Math.PI) * 18 * scale;
   }
   scene.foe.setPosition(ex + recoil, floor).setAngle(recoil * .3);

@@ -144,6 +144,9 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   -webkit-text-stroke: 2px #2a1408; paint-order: stroke fill; text-shadow: 0 0 14px #ffb45bcc, 3px 4px 0 #1b0f0a; translate: var(--hit-x, 0) var(--hit-y, 0); animation: hit-pop .95s cubic-bezier(.2,.9,.3,1.2) both; }
 .combat-hit-number.is-heavy { font-size: 60px; color: #ffe1a3; }
 .combat-hit-number.is-player { left: 24%; color: #ffd0c0; text-shadow: 0 0 14px #ff6b55bb, 3px 4px 0 #1b0f0a; }
+.combat-hit-number.is-blocked { color: #baf4e5; font-size: clamp(18px, 4vw, 34px); text-shadow: 0 0 12px #37bfa5; }
+.combat-scene[data-motion="calm"] .combat-hit-number,
+.combat-scene[data-motion="instant"] .combat-hit-number { animation: none; }
 @keyframes hit-pop { 0% { opacity: 0; transform: scale(2.4) rotate(-6deg); } 12% { opacity: 1; transform: scale(.9) rotate(2deg); } 22% { transform: scale(1.08) rotate(0); } 70% { opacity: 1; transform: translateY(-18px) scale(1); } 100% { opacity: 0; transform: translateY(-46px) scale(.9); } }
 @keyframes damage-rise { 0% { opacity: 0; transform: translateY(10px); } 25% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-24px); } }
 .battle-controls { flex: 0 0 auto; padding: 14px 24px 18px; border-top: 1px solid #697053; background: #1b2420; }

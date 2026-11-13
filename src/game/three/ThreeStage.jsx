@@ -13,7 +13,13 @@ function RenderLoop({ fps, animate, onFailure, directorRef, onController, onSlow
   const sample=(milliseconds)=>{
     const director=directorRef.current,current=director?.active;
     if(!current){sampleTime.current=milliseconds;return;}
-    current.elapsed=Math.max(0,Math.min(current.duration,milliseconds));current.manual=true;director.deliver(current);sampleTime.current=null;
+    const elapsed = Math.max(0, Math.min(current.duration, milliseconds));
+    current.prev = current.elapsed;
+    current.elapsed = elapsed;
+    current.clock = elapsed;
+    current.manual = true;
+    director.deliver(current);
+    sampleTime.current = null;
   };
   useFrame(()=>{if(sampleTime.current!==null&&directorRef.current?.active)sample(sampleTime.current);},-3);
   useEffect(() => {
@@ -58,10 +64,9 @@ function RenderLoop({ fps, animate, onFailure, directorRef, onController, onSlow
   return null;
 }
 
-export default function ThreeStage({ mode='battle', state, initialEffectId, callbacks={}, graphicsQuality='auto', motionPreference='normal', onFailure, onLoaded, onController, ...worldProps }) {
-  const directorRef = useRef(null);
-  const firstEffectId=useRef(initialEffectId??state?.effect.id??0).current;
-  const [busy, setBusy] = useState(false);
+export default function ThreeStage({ mode='battle', state, playback, playbackBusy = false, callbacks={}, graphicsQuality='auto', motionPreference='normal', onFailure, onLoaded, onController, ...worldProps }) {
+  const directorRef = useRef(playback);
+  directorRef.current = playback;
   const [autoLow,setAutoLow]=useState(false);
   const [systemReduced, setSystemReduced] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [compact, setCompact] = useState(() => matchMedia('(max-width: 760px)').matches);
@@ -76,17 +81,15 @@ export default function ThreeStage({ mode='battle', state, initialEffectId, call
   const reduced = systemReduced || motionPreference !== 'normal';
   const latest = useRef({ callbacks, onLoaded }); latest.current = { callbacks,onLoaded };
   const bridge = useMemo(() => ({
-    onBusy: value => { setBusy(value); latest.current.callbacks.onBusy?.(value); },
-    onImpact: (index,target) => latest.current.callbacks.onImpact?.(index,target),
     onReady: () => { latest.current.onLoaded?.(); latest.current.callbacks.onReady?.(); },
   }), []);
   return <Canvas className="three-canvas" shadows={quality.shadows ? THREE.PCFSoftShadowMap : false} dpr={quality.dpr} frameloop="demand"
     camera={{ fov:37, near:.1, far:60, position:[1,4,9] }}
     gl={{ antialias:quality.level!=='low', alpha:false, powerPreference:quality.level==='low'?'low-power':'high-performance', preserveDrawingBuffer:import.meta.env.DEV }}
     onCreated={({gl}) => { gl.toneMapping=THREE.ACESFilmicToneMapping; gl.toneMappingExposure=.95; gl.domElement.dataset.renderer='three'; }}>
-    <RenderLoop fps={quality.fps} animate={!reduced || busy || mode==='entry'} onFailure={onFailure} directorRef={directorRef} onController={onController} onSlow={()=>setAutoLow(true)} />
+    <RenderLoop fps={quality.fps} animate={!reduced || playbackBusy || mode==='entry'} onFailure={onFailure} directorRef={directorRef} onController={onController} onSlow={()=>setAutoLow(true)} />
     <Suspense fallback={null}>
-      <World {...worldProps} mode={mode} state={state} initialEffectId={firstEffectId} callbacks={bridge} quality={quality} reduced={reduced} directorRef={directorRef} onSceneReady={bridge.onReady} />
+      <World {...worldProps} mode={mode} state={state} playback={playback} quality={quality} reduced={reduced} onSceneReady={bridge.onReady} />
     </Suspense>
   </Canvas>;
 }

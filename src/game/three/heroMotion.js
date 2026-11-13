@@ -437,7 +437,7 @@ export function heroPose(current, out = {}, context = {}) {
       out.x -= kick; out.torsoPitch -= kick * 40;
     }
     const edge = Math.min(elapsed, plan.duration - elapsed);
-    if (!still && edge < 140) breathe(out, time, 1 - edge / 140);
+    if (!still && !current.stop && edge < 140) breathe(out, time, 1 - edge / 140);
     return out;
   }
   // 적의 차례: 대기 자세를 바탕으로 막거나 맞는 반응을 더한다.

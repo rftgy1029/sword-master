@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CARD_MOTIONS } from '../cardMotions.js';
-import { IMPACT_POWER, impactAges } from './playback.js';
+import { impactAges } from './playback.js';
 
 // 타격감 연출: 초승달 모양 베기 궤적, 별빛 번쩍임, 충격파 고리, 튀는 불꽃, 바닥 먼지, 카메라 흔들림.
 // 모두 가산 혼합(additive)이라 어두운 던전 위에서 빛처럼 보인다. 게임 상태는 바꾸지 않는다.
@@ -120,7 +120,6 @@ export default function ImpactEffects({ director, pose, quality, reduced }) {
     const enemyHit = !!current?.enemy;
     const type = current?.effect.cardType;
     const playerAttack = current && !enemyHit && current.effect.kind === 'attack';
-    const power = enemyHit ? (current.plan.style === 'slam' ? 1.2 : .7) : (IMPACT_POWER[type] ?? 1) * (current?.effect.upgraded ? 1.2 : 1);
     if (current) color.set(enemyHit ? current.plan.color : CARD_MOTIONS[type]?.color ?? 0xffe5a5);
     let shake = 0;
     slots.forEach((slot, slotIndex) => {
@@ -132,7 +131,8 @@ export default function ImpactEffects({ director, pose, quality, reduced }) {
       const live = !reduced && (playerAttack || enemyHit) && age >= 0 && age < 620;
       group.visible = live;
       if (!live) return;
-      shake = Math.max(shake, (1 - age / 320) ** 2 * power);
+      const power = current.plan.hitInfo[hitIndex].power;
+      shake = Math.max(shake, (1 - clamp01(age / 320)) ** 2 * power);
       const p = pose();
       const targetX = enemyHit ? p.heroX + .25 : p.enemyX - .3;
       const height = type === 'heavy' ? 1.05 : .95;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TIERS } from '../vocabulary.js';
 import { CARDS, MONSTERS, NODE_TYPES, RELICS, cardDetails, describeCard } from '../game/catalog.js';
-import { intentFor, reachableNodes, unlockedTierIds } from '../game/engine.js';
+import { enemyAttackCue, enemyDamageImpacts, intentFor, reachableNodes, unlockedTierIds } from '../game/engine.js';
 import { questionPool } from '../game/quiz.js';
 import { TierCrest } from './VocabularyDialog.jsx';
 import CombatScene from './CombatScene.jsx';
@@ -120,7 +120,10 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
   const [visualStatus, setVisualStatus] = useState('loading');
   const loading = visualStatus === 'loading';
   const canAnimate = visualStatus === 'ready';
-  const [fatal, setFatal] = useState(false);
+  const [fatalEffect, setFatalEffect] = useState(null);
+  const attackCue = useRef(null);
+  const fatalResolved = useRef(false);
+  const fatal = !!fatalEffect;
   const [shownEnemyHP, setShownEnemyHP] = useState(run.battle.enemy.hp);
   const [shownPlayerHP, setShownPlayerHP] = useState(run.hp);
   const [shownIntent, setShownIntent] = useState(() => intentFor(run.battle.enemy));
@@ -130,14 +133,14 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
   const feedback = b.feedback;
   const locked = !!(pending || feedback);
   const intent = intentFor(b.enemy);
-  const combatEffect = fatal ? { id: b.effect.id + 1, kind: 'hurt', amount: run.hp,
-    impacts: Array.from({ length: intent.hits ?? 1 }, (_, i) => Math.max(0, Math.min(intent.value, (i + 1) * intent.value - b.block))) } : b.effect;
+  const combatEffect = fatalEffect ?? b.effect;
+  const cue = attackCue.current?.id === combatEffect.id ? attackCue.current.cue : undefined;
   const selectedCard = pending && run.deck.find((c) => c.uid === pending.uid);
   const hand = useMemo(() => b.hand.map((uid) => run.deck.find((c) => c.uid === uid)), [b.hand, run.deck]);
   const deal = useCardDeal({ section, canvas: dealCanvas, cards: hand, turn: b.turn, drawCount: b.draw.length,
     suspended: locked || skillBusy || loading, animateOpening,
     motionPreference: visualStatus === 'fallback' ? 'off' : motionPreference, onOpeningDone });
-  const busy = loading || skillBusy || deal.busy;
+  const busy = loading || skillBusy || deal.busy || fatal;
   useEffect(() => { if (!skillBusy) setShownEnemyHP(b.enemy.hp); }, [skillBusy, b.enemy.hp]);
   useEffect(() => { if (!skillBusy) setShownPlayerHP(fatal ? 0 : run.hp); }, [skillBusy, run.hp, fatal]);
   useEffect(() => { if (!skillBusy) setShownIntent(intentFor(b.enemy)); }, [skillBusy, b.enemy]);
@@ -167,8 +170,18 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
   const endTurn = () => {
     if (busy) return;
     if (!canAnimate) { dispatch({ type: 'END_TURN' }); return; }
-    if (intent.kind === 'attack' && intent.value * (intent.hits ?? 1) - b.block >= run.hp) { setSkillBusy(true); setFatal(true); }
-    else if (dispatch({ type: 'END_TURN' })) setSkillBusy(true);
+    const id = b.effect.id + 1;
+    if (intent.kind === 'attack') {
+      const impacts = enemyDamageImpacts(intent, b.block);
+      const amount = impacts.reduce((total, hit) => total + hit, 0);
+      attackCue.current = { id, cue: enemyAttackCue(b.enemy, intent) };
+      if (amount >= run.hp) {
+        setSkillBusy(true);
+        setFatalEffect({ id, kind: 'hurt', amount, impacts });
+        return;
+      }
+    }
+    if (dispatch({ type: 'END_TURN' })) setSkillBusy(true);
   };
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -208,13 +221,19 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
         </section>
       </div>
     <div className="battlefield">
-      <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} motionPreference={motionPreference}
+      <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} cue={cue} motionPreference={motionPreference}
         onReady={() => setVisualStatus('ready')} onError={() => setVisualStatus('fallback')}
-        onImpact={(index, target) => {
-          if (target === 'player') setShownPlayerHP((hp) => Math.max(fatal ? 0 : run.hp, hp - (combatEffect.impacts?.[index] ?? combatEffect.amount)));
-          else setShownEnemyHP((hp) => Math.max(b.enemy.hp, hp - (b.effect.impacts?.[index] ?? b.effect.amount)));
+        onImpact={(_, target, hit) => {
+          if (target === 'player') setShownPlayerHP((hp) => Math.max(fatal ? 0 : run.hp, hp - hit.amount));
+          else setShownEnemyHP((hp) => Math.max(b.enemy.hp, hp - hit.amount));
         }}
-        onBusy={(value) => { setSkillBusy(value); if (fatal && !value) transition(() => dispatch({ type: 'END_TURN' })); }} />
+        onBusy={(value, effectId) => {
+          setSkillBusy(value);
+          if (!value && fatalEffect?.id === effectId && !fatalResolved.current) {
+            fatalResolved.current = true;
+            transition(() => dispatch({ type: 'END_TURN' }));
+          }
+        }} />
 
       <span className="battle-turn">TURN <strong>{String(b.turn).padStart(2, '0')}</strong></span>
     </div>

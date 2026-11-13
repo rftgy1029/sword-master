@@ -6,7 +6,10 @@ import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { modelUrl } from './quality.js';
-import { CombatPlayback, combatPose } from './playback.js';
+import { impactAges } from './playback.js';
+import { ENEMY_HOME, heroPose, impulse } from './heroMotion.js';
+import { createKnightRig } from './knightRig.js';
+import { enemyAttackPose } from '../enemyAttackTimeline.js';
 import { CARD_MOTIONS } from '../cardMotions.js';
 import { setHitFlash, setOutlineScale, stylizeActor } from './toon.js';
 import ImpactEffects, { hitFlashAmount } from './ImpactEffects.jsx';
@@ -171,7 +174,7 @@ function Dungeon({ variant = 'hall', mode = 'battle' }) {
   </group>;
 }
 
-export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false }) {
+export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false, procedural = false }) {
   const source = useLoader(GLTFLoader, modelUrl(type));
   const root = useRef(null);
   const actor = useMemo(() => {
@@ -180,15 +183,16 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
     const outline = stylizeActor(object);
     const mixer = new THREE.AnimationMixer(object);
     const actions = Object.fromEntries(source.animations.map(clip => [clip.name, mixer.clipAction(clip)]));
-    return { object, mixer, actions, outline, name: null, action: null };
-  }, [source]);
+    const rig = procedural ? createKnightRig(object) : null;
+    return { object, mixer, actions, outline, rig, name: null, action: null };
+  }, [source, procedural]);
   useEffect(() => () => { actor.mixer.stopAllAction(); actor.outline.dispose(); actor.name=null; actor.action=null; }, [actor]);
   useFrame((_, delta) => {
     if (!root.current) return;
     const state = control?.() ?? {};
     const next = state.action ?? action;
     const key = actor.actions[next] ? next : 'idle';
-    if (actor.name !== key) {
+    if (!actor.rig && actor.name !== key) {
       actor.action?.fadeOut(.12);
       actor.action = actor.actions[key];
       actor.name = key;
@@ -209,8 +213,15 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
       }
       actor.mixer.update(still ? 0 : Math.min(delta, .1));
     }
-    root.current.position.set(...(state.position ?? position));
-    root.current.rotation.set(0, rotation, state.lean ?? 0);
+    if (state.pose && actor.rig) {
+      const pose = state.pose;
+      root.current.position.set(pose.x, pose.y, pose.z);
+      root.current.rotation.set(Math.PI / 180 * pose.pitch, rotation - Math.PI / 180 * pose.yaw, Math.PI / 180 * pose.roll, 'YXZ');
+      actor.rig.apply(pose);
+    } else {
+      root.current.position.set(...(state.position ?? position));
+      root.current.rotation.set(0, rotation, state.lean ?? 0);
+    }
     root.current.scale.setScalar(scale * (state.scale ?? 1));
     setOutlineScale(actor.outline, scale * (state.scale ?? 1));
     setHitFlash(actor.outline, state.flash ?? 0, state.flashColor);
@@ -239,15 +250,17 @@ function SkillEffects({ director, quality }) {
   useFrame(() => {
     const current = director.active;
     if (!root.current) return;
-    root.current.visible = !!current && current.effect.kind !== 'miss';
-    if (!current) return;
+    root.current.visible = !!current && !current.plan.calm && current.effect.kind !== 'miss';
+    if (!root.current.visible) return;
     const { effect, enemy, elapsed, duration, plan } = current;
     const progress = elapsed / duration;
     const enemyAction=effect.kind==='enemy';
     const type = effect.cardType ?? (enemyAction?{block:'guard',buff:'empower',charge:'focus',wait:'flow'}[effect.enemyAction]:undefined);
     const color = new THREE.Color(enemy || enemyAction ? plan.color : CARD_MOTIONS[type]?.color ?? 0xd6ddb1);
     const damage = effect.kind === 'attack' || enemy;
-    const x = enemyAction ? 2.3 : enemy ? -2.3 : type==='flare' ? -2.3+4.6*Math.min(1,elapsed/1000) : damage || type === 'weaken' ? 2.3 : -2.3;
+    const launch = plan.recipe?.marks.launch ?? 0;
+    const flight = Math.max(0, Math.min(1, (elapsed - launch) / Math.max(1, (current.hits[0] ?? duration) - launch)));
+    const x = enemyAction ? 2.3 : enemy ? -2.3 : type === 'flare' ? -2.3 + 4.6 * flight : damage || type === 'weaken' ? 2.3 : -2.3;
     root.current.position.set(x, .025, 0);
     const pulse = Math.sin(Math.PI * progress);
     const phase = current.hits.length ? Math.max(...current.hits.map(at => Math.max(0, 1 - Math.abs(elapsed - at) / 400))) : pulse;
@@ -314,48 +327,54 @@ function SkillEffects({ director, quality }) {
   </group>;
 }
 
-function BattleActors({ state, callbacks, quality, reduced, directorRef, initialEffectId }) {
-  const latest = useRef(state); latest.current = state;
-  const latestCallbacks = useRef(callbacks); latestCallbacks.current = callbacks;
-  const director = useMemo(() => new CombatPlayback({ initialEffectId,
-    onBusy: value => latestCallbacks.current.onBusy?.(value), onImpact: (index,target) => latestCallbacks.current.onImpact?.(index,target) }), []);
-  useLayoutEffect(()=>{directorRef.current=director;return()=>{if(directorRef.current===director)directorRef.current=null;};},[director,directorRef]);
-  const pose = useRef(combatPose(null));
-  useEffect(() => {
-    director.disposed = false;
-    latestCallbacks.current.onReady?.();
-    return () => director.dispose();
-  }, [director]);
-  useEffect(() => { director.start(state.effect, state.enemy.type, reduced); }, [director, state.effect.id, state.enemy.type, reduced]);
-  useEffect(() => { if (reduced) director.finish(); }, [director,reduced]);
-  useFrame((_,delta) => { if (!document.hidden&&!director.active?.manual) director.advance(delta * 1000); pose.current = combatPose(director.active); }, -2);
-  const hero = () => {
+function BattleActors({ state, director, quality, reduced }) {
+  const pose = useRef({});
+  const ages = useRef([]);
+  const foe = useRef({ position: [ENEMY_HOME, 0, 0] });
+  const impact = useRef({ heroX: -2.3, enemyX: ENEMY_HOME });
+  useFrame(({ clock }, delta) => {
+    if (!document.hidden && !director.active?.manual) director.advance(delta * 1000);
     const current = director.active;
-    const dead = latest.current.playerDead && !current;
-    let action = dead ? 'death' : current ? current.enemy ? 'hit' : ['enemy','miss'].includes(current.effect.kind)?'idle':current.effect.kind === 'attack' ? 'attack' : current.effect.kind === 'block' ? 'guard' : 'victory' : 'idle';
-    const animationTime = current && !current.enemy && current.effect.kind === 'attack' ? attackAnimationTime(current) : undefined;
-    return { action, animationTime, position: [pose.current.heroX,pose.current.heroY,0], lean: dead ? -.8 : pose.current.heroLean,
-      flash: reduced ? 0 : hitFlashAmount(current,'hero'), flashColor: '#ffd2c4' };
-  };
-  const foe = () => {
-    const current = director.active;
-    const dead = latest.current.enemy.hp <= 0 && !current;
-    return { action: dead ? 'death' : current ? current.enemy ? 'attack' : current.effect.kind === 'attack' ? 'hit' : current.effect.kind==='enemy'?{block:'guard',buff:'victory',charge:'guard',wait:'idle'}[current.effect.enemyAction]??'idle':'idle' : 'idle',
-      position:[pose.current.enemyX,pose.current.enemyY,0], lean:dead ? -.65 : pose.current.enemyLean, scale:dead ? .8 : 1,
-      flash: reduced ? 0 : hitFlashAmount(current,'enemy') };
-  };
-  return <>
-    <Actor type="hero" rotation={Math.PI / 2} control={hero} still={reduced} />
-    <Actor type={state.enemy.type} rotation={-Math.PI / 2} control={foe} still={reduced} />
-    <SkillEffects director={director} quality={quality} />
-    <ImpactEffects director={director} pose={() => pose.current} quality={quality} reduced={reduced} />
-  </>;
-}
+    const plan = current?.plan;
+    const hitAges = impactAges(current, ages.current);
+    heroPose(current, pose.current, {
+      time: clock.elapsedTime, ages: hitAges, still: reduced, dead: state.playerDead,
+      victory: state.enemy.hp <= 0,
+    });
 
-function attackAnimationTime(current) {
-  const at = current.hits[0] ?? 800;
-  const time = current.elapsed;
-  return time <= at ? time / at * .5 : .5 + (time - at) / Math.max(1,current.duration - at) * .5;
+    let hitAge = -1, knockback = 0;
+    if (plan?.side === 'hero' && !plan.calm) for (let index = 0; index < hitAges.length; index++) {
+      if (hitAges[index] < 0) continue;
+      hitAge = hitAges[index];
+      knockback += impulse(hitAge, 45, 330) * plan.hitInfo[index].power;
+    }
+    const enemy = foe.current;
+    const attack = plan?.attack && !plan.calm ? enemyAttackPose(plan.attack, current.elapsed) : null;
+    const dead = state.enemy.hp <= 0 && (!current || (plan.lethal &&
+      (plan.hits.length ? current.delivered === plan.hits.length : current.momentDelivered)));
+    const fall = dead && !plan?.calm ? Math.min(1, current ? Math.max(0, current.elapsed - plan.killAt) / 640 : 1) : Number(dead);
+    const action = plan?.action;
+    enemy.action = dead ? 'death' : attack ? 'attack' : hitAge >= 0 && hitAge < 330 ? 'hit'
+      : ({ block: 'guard', buff: 'victory', charge: 'guard' })[action] ?? 'idle';
+    enemy.animationTime = dead ? fall : attack?.clip ?? (enemy.action === 'hit' ? hitAge / 330 : undefined);
+    enemy.position[0] = ENEMY_HOME - (attack?.advance ?? 0) * 4.6 + knockback * .18;
+    enemy.position[1] = attack?.height ?? 0;
+    enemy.lean = dead ? -.65 * fall : (attack?.lean ?? 0) * Math.PI / 180 - knockback * .12;
+    enemy.scale = 1 - fall * .22;
+    enemy.visible = fall < 1;
+    enemy.flash = reduced ? 0 : hitFlashAmount(current, 'enemy');
+    impact.current.heroX = pose.current.x;
+    impact.current.enemyX = enemy.position[0];
+  }, -2);
+
+  return <>
+    <Actor type="hero" rotation={Math.PI / 2} procedural still={reduced} control={() => ({
+      pose: pose.current, flash: reduced ? 0 : hitFlashAmount(director.active, 'hero'), flashColor: '#ffd2c4',
+    })} />
+    <Actor type={state.enemy.type} rotation={-Math.PI / 2} still={reduced} control={() => foe.current} />
+    <SkillEffects director={director} quality={quality} />
+    <ImpactEffects director={director} pose={() => impact.current} quality={quality} reduced={reduced} />
+  </>;
 }
 
 function Camp({ forge = false }) {
@@ -426,7 +445,7 @@ function SceneReady({ callback }) {
   return null;
 }
 
-export default function World({ mode='battle', state, initialEffectId, callbacks={}, quality, reduced=false, run, onSelect, inspecting, onComplete, won=true, directorRef, onSceneReady, heroAction='idle' }) {
+export default function World({ mode='battle', state, playback, quality, reduced=false, run, onSelect, inspecting, onComplete, won=true, onSceneReady, heroAction='idle' }) {
   const variant=mode==='forge'||['ember','scarab','ravager','boss'].includes(state?.enemy.type)?'forge':['bat','wisp','watcher','mushroom'].includes(state?.enemy.type)?'library':'hall';
   return <>
     <color attach="background" args={[DUSK.background]} />
@@ -435,11 +454,11 @@ export default function World({ mode='battle', state, initialEffectId, callbacks
     {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} />}
     <Suspense fallback={null}>
       {mode!=='map'&&<Dungeon variant={variant} mode={mode} />}
-      {mode==='battle'?<BattleActors state={state} callbacks={callbacks} quality={quality} reduced={reduced} directorRef={directorRef} initialEffectId={initialEffectId} />
+      {mode==='battle'?<BattleActors state={state} director={playback} quality={quality} reduced={reduced} />
         :mode==='entry'?<EntranceActor reduced={reduced} onComplete={onComplete} />
           :mode==='map'?null:mode==='title'?<Actor position={[.9,0,.9]} rotation={-.38} action={heroAction} still={reduced} />
             :<Actor position={[-1.3,0,0]} rotation={Math.PI/3} action={mode==='result'?won?'victory':'death':'idle'} still={reduced} />}
-      {mode!=='battle'&&<SceneReady callback={onSceneReady}/>}
+      <SceneReady callback={onSceneReady}/>
     </Suspense>
     {['rest','forge'].includes(mode)&&<Camp forge={mode==='forge'} />}
     {mode==='reward'&&<pointLight position={[1.2,1.1,.3]} color="#ffdc8c" intensity={2} distance={3} />}

@@ -25,11 +25,11 @@ export function attackPose(type, elapsed) {
   const recover = smooth((t - back) / Math.max(1, duration - back));
   let arm = -1.35 * prepare + 2.5 * drive;
   if (type === 'twin') {
-    const turn = recipe.marks.turn;
+    const turn = recipe.marks.turn + 15;
     // 첫 타격 뒤 검을 다시 들어 올렸다가 두 번째로 내려 벤다.
-    arm -= 2.4 * smooth((t - first - 30) / Math.max(1, turn - first - 30)) - 2.5 * smooth((t - turn - 40) / Math.max(1, last - turn - 40));
+    arm -= 2.4 * smooth((t - first) / (turn - first)) - 2.5 * smooth((t - turn) / (last - turn));
   }
-  if (type === 'heavy') arm = -1.9 * smooth(t / windup) + 3.6 * smooth((t - recipe.marks.apex) / Math.max(1, first - recipe.marks.apex));
+  if (type === 'heavy') arm = -1.9 * smooth(t / windup) + 3.6 * smooth((t - recipe.marks.apex + 15) / (first - recipe.marks.apex + 15));
   return { progress: t / duration, arm: arm * (1 - recover),
     advance: (ranged ? .025 : type === 'heavy' ? .13 : .19) * drive * (1 - recover),
     lean: (ranged ? -3 * prepare : -8 * prepare + 17 * drive) * (1 - recover),
