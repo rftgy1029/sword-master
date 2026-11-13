@@ -1,6 +1,7 @@
 import { CARDS, MONSTERS, NORMAL_MONSTERS, RELICS, cardDetails } from './catalog.js';
 import { random, shuffle } from './random.js';
-import { isCorrectAnswer, makeQuestion, nextQuestion, questionById } from './quiz.js';
+import { acceptsAnswer, isCorrectAnswer, makeQuestion, nextQuestion, questionById } from './quiz.js';
+import { validWordbooks } from './wordbooks.js';
 import { TIERS } from '../vocabulary.js';
 
 export function emptyProgress() {
@@ -185,10 +186,12 @@ function makeReward(progress, nodeType) {
 
 function finishRun(progress, won) {
   const run = progress.run;
+  const isSchool = TIERS.some((tier) => tier.id === run.tier);
   const previouslyOpen = unlockedTierIds(progress);
-  const unlocked = won && !progress.learning.unlocked.includes('oath');
+  const unlocked = won && isSchool && !progress.learning.unlocked.includes('oath');
   if (won) {
-    progress.learning.clears[run.tier] = (progress.learning.clears[run.tier] ?? 0) + 1;
+    const clears = isSchool ? progress.learning.clears : (progress.learning.bookClears ??= {});
+    clears[run.tier] = (clears[run.tier] ?? 0) + 1;
     if (unlocked) progress.learning.unlocked.push('oath');
   }
   const unlockedTier = won ? unlockedTierIds(progress).find((id) => !previouslyOpen.includes(id)) ?? null : null;
@@ -212,29 +215,59 @@ function finishVictory(progress) {
 // A single pure reducer owns card consumption, quiz resolution, rewards and
 // learning records. UI double-clicks and stale actions cannot grant extra effects.
 export function gameReducer(current, action) {
+  // Imported books are append-only. Keep their question pools reusable between turns.
+  const { wordbooks, ...mutableProgress } = current;
   if (action.type === 'START') {
-    if (!unlockedTierIds(current).includes(action.tier) || !Number.isInteger(action.seed)) return current;
-    const next = structuredClone(current);
+    const custom = wordbooks?.some((book) => book.id === action.tier);
+    if ((!custom && !unlockedTierIds(current).includes(action.tier)) || !Number.isInteger(action.seed)) return current;
+    const next = structuredClone(mutableProgress);
+    if (wordbooks) next.wordbooks = wordbooks;
     next.run = createRun(action.tier, action.seed);
     next.learning.runs++;
     return next;
   }
-  const next = structuredClone(current);
+  const next = structuredClone(mutableProgress);
+  if (wordbooks) next.wordbooks = wordbooks;
   const run = next.run;
+  const books = next.wordbooks ?? [];
   switch (action.type) {
+    case 'ADD_WORDBOOK': {
+      const updated = [...books, action.book];
+      if (!validWordbooks(updated)) return current;
+      next.wordbooks = [...books, structuredClone(action.book)];
+      break;
+    }
     case 'REVIEW_START': {
-      const q = questionById(action.id);
-      if (!q || !next.learning.entries[q.id]?.active || !Number.isInteger(action.seed)) return current;
+      const ids = action.ids ?? [action.id];
+      if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length ||
+          !ids.every((id) => next.learning.entries[id]?.wrong > 0) || !Number.isInteger(action.seed)) return current;
+      const q = questionById(ids[0], books);
+      if (!q) return current;
       const source = { rng: action.seed >>> 0 };
       next.review = { question: makeQuestion(q, rng(source)), feedback: null };
+      if (ids.length > 1) next.review.session = { ids: [...ids], index: 0 };
       break;
     }
     case 'REVIEW_ANSWER': {
       const review = next.review;
-      if (!review || review.feedback || review.question.id !== action.id || !review.question.options.includes(action.answer)) return current;
-      const correct = isCorrectAnswer(review.question, action.answer);
+      if (!review || review.feedback || review.question.id !== action.id || !acceptsAnswer(review.question, action.answer)) return current;
+      const correct = isCorrectAnswer(review.question, action.answer, books);
       recordAnswer(next, review.question, correct);
       review.feedback = { correct, answer: action.answer };
+      break;
+    }
+    case 'REVIEW_NEXT': {
+      const review = next.review;
+      if (!review?.feedback || review.question.id !== action.id || !Number.isInteger(action.seed)) return current;
+      const session = review.session;
+      if (!session || session.index + 1 === session.ids.length) {
+        next.review = null;
+      } else {
+        const q = questionById(session.ids[++session.index], books);
+        if (!q) return current;
+        review.question = makeQuestion(q, rng({ rng: action.seed >>> 0 }));
+        review.feedback = null;
+      }
       break;
     }
     case 'REVIEW_CLOSE': next.review = null; break;
@@ -258,7 +291,7 @@ export function gameReducer(current, action) {
       const b = run.battle;
       const card = run.deck.find((c) => c.uid === action.uid);
       if (!card || !b.hand.includes(card.uid) || CARDS[card.type].cost > b.energy) return current;
-      const question = nextQuestion(run.tier, b.used, rng(run));
+      const question = nextQuestion(run.tier, b.used, rng(run), books);
       if (!question) return current; // No valid item: never consume a card for a broken question.
       b.energy -= CARDS[card.type].cost;
       b.hand = b.hand.filter((uid) => uid !== card.uid);
@@ -269,10 +302,10 @@ export function gameReducer(current, action) {
     }
     case 'ANSWER': {
       const b = run?.battle;
-      if (run?.phase !== 'battle' || !b.pending || b.feedback || b.pending.question.id !== action.id || !b.pending.question.options.includes(action.answer)) return current;
+      if (run?.phase !== 'battle' || !b.pending || b.feedback || b.pending.question.id !== action.id || !acceptsAnswer(b.pending.question, action.answer)) return current;
       const { question, uid } = b.pending;
       const card = run.deck.find((c) => c.uid === uid);
-      const correct = isCorrectAnswer(question, action.answer);
+      const correct = isCorrectAnswer(question, action.answer, books);
       // Resolve before drawing: consumed cards leave the draw cycle on either answer.
       (CARDS[card.type].exhaust ? b.exhaust : b.discard).push(uid);
       b.pending = null;

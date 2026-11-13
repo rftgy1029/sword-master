@@ -12,6 +12,8 @@ export function useProgress() {
 
   function dispatch(action) {
     if (conflict.current) return false;
+    const requiresStorage = action.type === 'ADD_WORDBOOK';
+    if (requiresStorage && initial.blocked) return false;
     const next = gameReducer(current.current, action);
     if (next === current.current) return false;
     // Save synchronously before the next browser event, rather than an effect
@@ -25,6 +27,7 @@ export function useProgress() {
       }
       if (saved.ok) raw.current = saved.raw;
       setError(saved.error);
+      if (!saved.ok && requiresStorage) return false;
     }
     current.current = next;
     setProgress(next);

@@ -108,7 +108,7 @@ function GameApp({ settings, setSettings }) {
       }}>
       <span className="menu-label">{MENU[index].label}</span>
       <span className="menu-word" aria-hidden="true"><b>{word.slice(0, typedHere)}</b>{word.slice(typedHere)}</span>
-      {isContinue && <small>{canContinue ? `${TIERS.find((t) => t.id === progress.run.tier).label} · ${Math.max(1, progress.run.floor + 1)}층` : '아직 아무도 이 문을 지나지 않았다'}</small>}
+      {isContinue && <small>{canContinue ? `${TIERS.find((t) => t.id === progress.run.tier)?.label ?? progress.wordbooks?.find((book) => book.id === progress.run.tier)?.name} · ${Math.max(1, progress.run.floor + 1)}층` : '아직 아무도 이 문을 지나지 않았다'}</small>}
     </button>;
   }
 
@@ -144,7 +144,8 @@ function GameApp({ settings, setSettings }) {
         <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu}
           onChange={(key, value) => setSettings((current) => normalizeSettings({ ...current, [key]: value }))}
           onReset={() => setSettings({ ...DEFAULT_SETTINGS })} />
-      ) : openedMenu === '단어장' ? <VocabularyDialog onClose={closeMenu} />
+      ) : openedMenu === '단어장' ? <VocabularyDialog wordbooks={progress.wordbooks ?? []} error={error}
+        onSaveBook={(book) => dispatch({ type: 'ADD_WORDBOOK', book })} onClose={closeMenu} />
         : openedMenu === '오답 복습' ? <ReviewDialog progress={progress} dispatch={dispatch} error={error} onClose={closeMenu} />
           : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
             newAdventure={openedMenu === '새 모험'} onClose={closeMenu} /> : null}

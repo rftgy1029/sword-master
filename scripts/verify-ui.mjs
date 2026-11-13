@@ -73,6 +73,7 @@ try{
     await page.locator('.quiz-feedback .game-primary').click();
   }
   assert.equal((await read()).learning.entries[q.id].active,false);
+  assert.match(await page.locator('.weakness-list button').first().innerText(), /복습 완료/);
   await shot('review');
   await page.keyboard.press('Escape');
   await page.waitForFunction(()=>document.activeElement?.textContent.includes('오답 복습'));

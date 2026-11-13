@@ -1,5 +1,6 @@
 import { findVocabulary, TIERS } from '../vocabulary.js';
 import { shuffle } from './random.js';
+import { MAX_TERM_LENGTH, normalizeText, validText } from './wordbooks.js';
 
 // Reviewed groups: meanings within a row are distinct for the source sense.
 // Never turn arbitrary words from the unreviewed archive into distractors.
@@ -47,7 +48,7 @@ const RELATION_CHOICES = [
 export const QUIZ_TYPES = { meaning: '뜻', synonym: '유의어', antonym: '반의어' };
 const words = findVocabulary({ tier: 'master' });
 const byTerm = new Map(words.map((word) => [word.term, word]));
-export const normalizeAnswer = (value) => value.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
+export const normalizeAnswer = normalizeText;
 
 function sourceAnswers(text) {
   // Multi-sense and relative-word annotations require separate editorial work.
@@ -76,34 +77,87 @@ for (const [term, synonyms, antonyms] of RELATION_CHOICES) {
 
 export const QUESTION_BANK = reviewed;
 const byId = new Map(reviewed.map((q) => [q.id, q]));
-export function questionById(id) { return byId.get(id); }
+export function questionById(id, wordbooks = []) {
+  const schoolQuestion = byId.get(id);
+  if (schoolQuestion || typeof id !== 'string') return schoolQuestion;
+  const match = /^(book-[a-f0-9-]{36}):(0|[1-9]\d*):meaning$/.exec(id);
+  const book = match && wordbooks.find(({ id: bookId }) => bookId === match[1]);
+  return book ? customQuestions(book)[Number(match[2])] : undefined;
+}
 
-export function questionPool(tier) {
+const customPools = new WeakMap();
+function customQuestions(book) {
+  if (customPools.has(book)) return customPools.get(book);
+  const meanings = new Map();
+  const meaningsByTerm = new Map();
+  const termsByMeaning = new Map();
+  for (const word of book.words) {
+    const term = normalizeAnswer(word.term);
+    const meaning = normalizeAnswer(word.meaning);
+    meanings.set(meaning, word.meaning);
+    if (!meaningsByTerm.has(term)) meaningsByTerm.set(term, new Set());
+    meaningsByTerm.get(term).add(meaning);
+    if (!termsByMeaning.has(meaning)) termsByMeaning.set(meaning, new Set());
+    termsByMeaning.get(meaning).add(term);
+  }
+  const pool = book.words.map((word, index) => {
+    const wordId = `${book.id}:${index}`;
+    const excludedMeanings = meaningsByTerm.get(normalizeAnswer(word.term));
+    const typing = excludedMeanings.size === meanings.size;
+    return {
+      id: `${wordId}:meaning`, wordId, bookId: book.id, type: 'meaning', typing,
+      word: { ...word, id: wordId, sources: [book.name] },
+      answers: [typing ? word.term : word.meaning], meanings, excludedMeanings,
+      typingAnswers: typing ? termsByMeaning.get(normalizeAnswer(word.meaning)) : undefined,
+    };
+  });
+  customPools.set(book, pool);
+  return pool;
+}
+
+export function questionPool(tier, wordbooks = []) {
+  const book = wordbooks.find(({ id }) => id === tier);
+  if (book) return customQuestions(book);
   const tierIndex = TIERS.findIndex((t) => t.id === tier);
   const allowed = new Set(TIERS.slice(0, tierIndex + 1).map((t) => t.id));
   return reviewed.filter((q) => allowed.has(q.word.tier));
 }
 
 export function makeQuestion(template, nextRandom = Math.random) {
-  const wrong = shuffle(template.distractors, nextRandom).slice(0, 3);
+  if (template.typing) return { id: template.id, mode: 'typing', options: [] };
+  const wrong = shuffle(distractorsFor(template), nextRandom).slice(0, 3);
   const answer = template.answers[Math.floor(nextRandom() * template.answers.length)];
   return { id: template.id, options: shuffle([answer, ...wrong], nextRandom) };
 }
 
-export function nextQuestion(tier, used, nextRandom) {
-  const pool = questionPool(tier);
-  let available = pool.filter((q) => !used.includes(q.id));
+export function distractorsFor(template) {
+  if (!template.bookId) return template.distractors;
+  return [...template.meanings].filter(([key]) => !template.excludedMeanings.has(key)).map(([, meaning]) => meaning);
+}
+
+export function nextQuestion(tier, used, nextRandom, wordbooks) {
+  const pool = questionPool(tier, wordbooks);
+  const usedIds = new Set(used);
+  let available = pool.filter((q) => !usedIds.has(q.id));
   const recycled = available.length === 0;
   if (recycled) available = pool;
   if (!available.length) return null;
   // Favor words not yet encountered, then allow other question types for them.
-  const usedWords = new Set(used.map((id) => questionById(id)?.wordId));
+  const usedWords = new Set(pool.filter((q) => usedIds.has(q.id)).map((q) => q.wordId));
   const unseen = available.filter((q) => !usedWords.has(q.wordId));
   if (unseen.length) available = unseen;
   const template = available[Math.floor(nextRandom() * available.length)];
   return { ...makeQuestion(template, nextRandom), recycled };
 }
 
-export function isCorrectAnswer(question, answer) {
-  return questionById(question.id)?.answers.some((s) => normalizeAnswer(s) === normalizeAnswer(answer)) ?? false;
+export function acceptsAnswer(question, answer) {
+  return question.mode === 'typing' ? validText(answer, MAX_TERM_LENGTH) : question.options.includes(answer);
+}
+
+export function isCorrectAnswer(question, answer, wordbooks) {
+  if (typeof answer !== 'string') return false;
+  const source = questionById(question.id, wordbooks);
+  const normalized = normalizeAnswer(answer);
+  return source?.typing ? source.typingAnswers.has(normalized) :
+    (source?.answers.some((s) => normalizeAnswer(s) === normalized) ?? false);
 }
