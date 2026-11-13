@@ -140,6 +140,14 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .effect-hurt .combat-number, .effect-heal .combat-number, .effect-block .combat-number { left: 22%; }
 .effect-hurt .combat-number { color: #edac8d; } .effect-heal .combat-number { color: #c2d7a5; }
 .effect-block { border-color: #9cae85; } .effect-miss { border-color: #976c50; }
+.combat-hit-number { position: absolute; top: 40%; left: 70%; z-index: 2; pointer-events: none; font-family: Galmuri11, Galmuri, monospace; font-size: 46px; font-weight: 700; color: #fff4d6;
+  -webkit-text-stroke: 2px #2a1408; paint-order: stroke fill; text-shadow: 0 0 14px #ffb45bcc, 3px 4px 0 #1b0f0a; translate: var(--hit-x, 0) var(--hit-y, 0); animation: hit-pop .95s cubic-bezier(.2,.9,.3,1.2) both; }
+.combat-hit-number.is-heavy { font-size: 60px; color: #ffe1a3; }
+.combat-hit-number.is-player { left: 24%; color: #ffd0c0; text-shadow: 0 0 14px #ff6b55bb, 3px 4px 0 #1b0f0a; }
+.combat-hit-number.is-blocked { color: #baf4e5; font-size: clamp(18px, 4vw, 34px); text-shadow: 0 0 12px #37bfa5; }
+.combat-scene[data-motion="calm"] .combat-hit-number,
+.combat-scene[data-motion="instant"] .combat-hit-number { animation: none; }
+@keyframes hit-pop { 0% { opacity: 0; transform: scale(2.4) rotate(-6deg); } 12% { opacity: 1; transform: scale(.9) rotate(2deg); } 22% { transform: scale(1.08) rotate(0); } 70% { opacity: 1; transform: translateY(-18px) scale(1); } 100% { opacity: 0; transform: translateY(-46px) scale(.9); } }
 @keyframes damage-rise { 0% { opacity: 0; transform: translateY(10px); } 25% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-24px); } }
 .battle-controls { flex: 0 0 auto; padding: 14px 24px 18px; border-top: 1px solid #697053; background: #1b2420; }
 .hand-toolbar { display: flex; align-items: center; gap: 22px; max-width: 1100px; margin: 0 auto 12px; }
@@ -350,7 +358,7 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .game-dialog .combat-number, .game-dialog .combat-scene canvas { animation: none; }
 }
-.app[data-background-motion="off"] .combat-scene canvas, .app[data-background-motion="off"] .combat-number { animation: none; }
+.app[data-background-motion="off"] .combat-scene canvas, .app[data-background-motion="off"] .combat-number, .app[data-background-motion="off"] .combat-hit-number { animation: none; }
 .app[data-background-motion="reduced"] .combat-scene canvas { animation: none; }
 
 /* Explicit centering keeps Safari's modal and scrolled content on the same axis. */

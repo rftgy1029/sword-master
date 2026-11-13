@@ -67,13 +67,20 @@ function addOutlineNormals(geometry) {
 }
 
 function addRim(material, strength) {
+  // 피격 번쩍임: 맞는 순간 몸 전체를 흰빛으로 덮는다. 값은 setHitFlash로 액터마다 바꾼다.
+  material.userData.hitFlash = { value: 0 };
+  material.userData.hitFlashColor = { value: new THREE.Color('#ffffff') };
   material.onBeforeCompile = shader => {
     shader.uniforms.rimColor = { value: RIM_COLOR.clone().multiplyScalar(strength) };
+    shader.uniforms.hitFlash = material.userData.hitFlash;
+    shader.uniforms.hitFlashColor = material.userData.hitFlashColor;
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 rimColor;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 rimColor;\nuniform float hitFlash;\nuniform vec3 hitFlashColor;')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         float facing = 1.0 - saturate(dot(normal, normalize(vViewPosition)));
-        totalEmissiveRadiance += rimColor * diffuseColor.rgb * smoothstep(.58, .72, facing);`);
+        totalEmissiveRadiance += rimColor * diffuseColor.rgb * smoothstep(.58, .72, facing);`)
+      .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, hitFlashColor, hitFlash);`);
   };
   material.customProgramCacheKey = () => `actor-rim-${strength}`;
 }
@@ -114,11 +121,13 @@ const size = new THREE.Vector3();
 export function stylizeActor(object) {
   object.updateMatrixWorld(true);
   const outlineMaterial = baseOutline.clone();
+  outlineMaterial.userData.flashTargets = new Set();
   const meshes = [];
   object.traverse(node => { if (node.isMesh && !node.userData.outline) meshes.push(node); });
   for (const mesh of meshes) {
     const sources = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     mesh.material = Array.isArray(mesh.material) ? sources.map(toonMaterial) : toonMaterial(mesh.material);
+    for (const material of [mesh.material].flat()) if (material.userData.hitFlash) outlineMaterial.userData.flashTargets.add(material);
     if (sources.some(glowing) || sources.some(facialDetail)) continue;
     if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
     box.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld).getSize(size);
@@ -139,4 +148,12 @@ export function stylizeActor(object) {
 
 export function setOutlineScale(material, scale) {
   material.uniforms.width.value = OUTLINE_WIDTH * scale;
+}
+
+/** 액터의 피격 번쩍임 세기(0~1)와 색. stylizeActor가 돌려준 외곽선 재질을 액터 핸들로 쓴다. */
+export function setHitFlash(outline, amount, color = '#ffffff') {
+  for (const material of outline.userData.flashTargets ?? []) {
+    material.userData.hitFlash.value = amount;
+    if (amount > 0) material.userData.hitFlashColor.value.set(color);
+  }
 }

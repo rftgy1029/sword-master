@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyProgress, gameReducer, unlockedTierIds, reachableNodes } from '../src/game/engine.js';
 import { CARDS } from '../src/game/catalog.js';
-import { CARD_MOTIONS } from '../src/game/cardMotions.js';
+import { CARD_MOTIONS, realDuration } from '../src/game/cardMotions.js';
 import { TIERS } from '../src/vocabulary.js';
 import { persistProgress, loadProgress, validProgress } from '../src/game/storage.js';
 import { questionById } from '../src/game/quiz.js';
@@ -40,8 +40,10 @@ test('every current and future catalog card needs a distinct registered skill wi
   assert.deepEqual(Object.keys(CARD_MOTIONS).sort(), Object.keys(CARDS).sort(), 'Register a distinct motion when adding a card');
   assert.equal(new Set(Object.values(CARD_MOTIONS).map((m) => m.style)).size, Object.keys(CARDS).length);
   for (const [id, recipe] of Object.entries(CARD_MOTIONS)) {
-    if (CARDS[id].damage) assert.equal(recipe.duration, 2000);
-    else assert.ok(recipe.duration >= 400 && recipe.duration <= 800);
+    const [min, max] = ({ strike: [700, 900], heavy: [1100, 1400], twin: [1100, 1400], nova: [1500, 1800] })[id] ?? [400, 1500];
+    assert.ok(realDuration(id) >= min && realDuration(id) <= max, id);
+    if (CARDS[id].damage) assert.ok(recipe.hits.every((time) => time > 0 && time < recipe.duration));
+    else assert.ok(recipe.moment > 0 && recipe.moment < recipe.duration);
   }
 });
 

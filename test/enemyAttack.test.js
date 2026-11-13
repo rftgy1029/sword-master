@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MONSTERS } from '../src/game/catalog.js';
 import { emptyProgress, gameReducer, reachableNodes } from '../src/game/engine.js';
-import { enemyAttackPlan, enemyAttackPose, enemyImpactsCrossed } from '../src/game/enemyAttackTimeline.js';
+import { enemyAttackPlan, enemyAttackPose, enemyImpactsCrossed, STAGE_GAP } from '../src/game/enemyAttackTimeline.js';
 import { paintEnemyAttack } from '../src/game/enemyAttackEffects.js';
 
 test('every monster turn delivers its actual hits once, reaches the hero and returns home', () => {
@@ -21,7 +21,10 @@ test('every monster turn delivers its actual hits once, reaches the hero and ret
       const delivered = [];
       for (let ms = 0; ms < plan.duration; ms += 137) delivered.push(...enemyImpactsCrossed(plan, ms, Math.min(ms + 137, plan.duration)).map((h) => h.index));
       assert.deepEqual(delivered, effect.impacts.map((_, i) => i), type + ' dropped frames');
-      if (!plan.ranged) assert.ok(enemyAttackPose(plan, plan.hits[0]).advance > .8, type + ' must cross the gap to the hero');
+      if (!plan.ranged) {
+        const gap = STAGE_GAP * (1 - enemyAttackPose(plan, plan.hits[0]).advance);
+        assert.ok(Math.abs(gap - plan.reach) < .01, type + ' stops within its own reach');
+      }
       for (const end of [0, plan.duration]) for (const key of ['advance', 'lean', 'lift', 'recoil', 'squash']) {
         assert.ok(Math.abs(enemyAttackPose(plan, end)[key]) < 1e-8, type + ' returns to rest: ' + key);
       }
@@ -40,7 +43,10 @@ test('enemy poses stay continuous during multi-hit attacks and recover only afte
       assert.ok(Math.abs(after.lean - before.lean) < 2);
       before = after;
     }
-    if (!plan.ranged) assert.ok(enemyAttackPose(plan, plan.hits.at(-1)).advance > .8);
+    if (!plan.ranged) {
+      const gap = STAGE_GAP * (1 - enemyAttackPose(plan, plan.hits.at(-1)).advance);
+      assert.ok(Math.abs(gap - plan.reach) < .01, type + ' stays in range until its last hit');
+    }
   }
 });
 

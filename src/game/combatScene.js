@@ -4,11 +4,10 @@ import { drawingContext } from './phaserDrawing.js';
 import { battleMapForMonster, createMapLayers, preloadMap } from './mapAssets.js';
 import { CARD_MOTIONS } from './cardMotions.js';
 import { MONSTERS } from './catalog.js';
-import { ATTACK_HITS, ATTACK_DURATION, impactsCrossed } from './attackTimeline.js';
 import { paintAttack } from './attackEffects.js';
 import { heroPoses, monsterSheet, monsterAtlas, monsterFrame } from './spriteAssets.js';
 import { createHeroRig, drawHeroRig, HERO_SURFACE_SCALE, HERO_ART_SIZE } from './illustratedHero.js';
-import { enemyAttackPlan, enemyImpactsCrossed } from './enemyAttackTimeline.js';
+import { CombatPlayback, combatMotionMode, impactAges } from './three/playback.js';
 import { paintEnemyAttack } from './enemyAttackEffects.js';
 
 function monster(ctx, art) {
@@ -62,12 +61,14 @@ function drawArena(ctx, w, h) {
 }
 
 // The background, actors, shadows and skill effects have independent transforms.
-export function startCombatScene(parent, monsterType, { initialEffectId = 0, onBusy = () => {}, onReady = () => {}, onImpact = () => {} } = {}) {
+export function startCombatScene(parent, monsterType, { playback, initialEffectId = 0, onBusy = () => {}, onReady = () => {}, onImpact = () => {} } = {}) {
   let disposed = false;
   const backgroundAsset = battleMapForMonster(monsterType);
   let state = null;
-  let lastEffectId = initialEffectId;
-  const reduced = () => state?.motion !== 'normal' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const director = playback ?? new CombatPlayback({ initialEffectId, onBusy, onImpact });
+  const media = matchMedia('(prefers-reduced-motion: reduce)');
+  const motionMode = () => combatMotionMode(state?.motion, media.matches);
+  const reduced = () => motionMode() !== 'full';
 
   class BattleScene extends Phaser.Scene {
     constructor() { super('battle'); }
@@ -129,7 +130,7 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
     redraw({ width, height }) {
       if (disposed || !this.background) return;
       this.cameras.main.setViewport(0, 0, width, height);
-      if (this.finishEffect) {
+      if (director.active && this.layoutWidth) {
         this.pendingLayout = { width, height };
         const scale = Math.min(width / this.layoutWidth, height / this.layoutHeight);
         this.stage.setScale(scale).setPosition((width - this.layoutWidth * scale) / 2, (height - this.layoutHeight * scale) / 2);
@@ -189,7 +190,7 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       ctx.save(); ctx.translate(-144, -236); hero(ctx, time, false, this.armAngle ?? 0); ctx.restore();
     }
     update(time, delta) {
-      if (!this.heroFigure || disposed) return;
+      if (!this.heroFigure || disposed || document.hidden) return;
       const still = reduced();
       this.paintHero(still ? 0 : time);
       const breath = still ? 0 : Math.sin(time / 470);
@@ -202,7 +203,7 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       this.enemyFigure.scaleY = enemyScale * (still ? 1 : 1 + Math.sin(time / (crawl ? 270 : 550)) * (crawl ? .025 : .012));
       this.enemyFigure.rotation = still ? 0 : Math.sin(time / 750) * (ghost ? .025 : .005);
       if (this.enemyFigure.setFrame) {
-        const action = this.enemyPose ?? (this.attack && this.attack.elapsed > 700 && this.attack.elapsed < 1450 ? 5 : 0);
+        const action = this.enemyPose ?? 0;
         this.enemyFigure.setFrame(monsterFrame(monsterType, action || (still ? 0 : Math.floor(time / 440) % 2)));
       }
       for (const mote of this.motes ?? []) {
@@ -210,34 +211,64 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
         if (!still) mote.dot.setPosition(mote.x + Math.sin(time / 1900 + mote.phase) * 18, mote.y + Math.sin(time / 2300 + mote.phase) * 24)
           .setAlpha(.12 + (Math.sin(time / 800 + mote.phase) + 1) * .13);
       }
-      if (this.attack) {
-        const attack = this.attack;
-        const before = attack.elapsed;
-        attack.elapsed = Math.min(ATTACK_DURATION, before + (delta ?? 16));
-        paintAttack(this, attack, attack.elapsed);
-        for (const impact of impactsCrossed(attack.effect.cardType, before, attack.elapsed)) {
-          onImpact(impact.index);
-          const amount = attack.effect.impacts?.[impact.index] ?? Math.round(attack.effect.amount / ATTACK_HITS[attack.effect.cardType].length);
-          const number = this.add.text(this.enemyHome.x, this.floor - 75 * this.actorScale, '−' + amount,
-            { fontFamily: 'Cormorant, serif', fontSize: '38px', color: '#fff1ac', stroke: '#17251d', strokeThickness: 4 }).setOrigin(.5);
-          this.transient(number, 700, { y: number.y - 45 });
-          if (attack.effect.cardType === 'heavy' || attack.effect.cardType === 'nova') this.cameras.main.shake(100, .003);
-        }
-        if (attack.elapsed >= ATTACK_DURATION) this.finishEffect?.();
+      const previous = director.active;
+      director.advance(delta ?? 16);
+      this.paintEffect(director.active);
+      if (previous && !director.active && this.pendingLayout) {
+        const layout = this.pendingLayout;
+        this.pendingLayout = null;
+        this.redraw(layout);
       }
-      if (this.enemyAttack) {
-        const attack = this.enemyAttack, before = attack.elapsed;
-        attack.elapsed = Math.min(attack.plan.duration, before + (delta ?? 16));
-        paintEnemyAttack(this, attack, attack.elapsed);
-        for (const { index } of enemyImpactsCrossed(attack.plan, before, attack.elapsed)) {
-          onImpact(index, 'player');
-          const amount = attack.effect.impacts?.[index] ?? attack.effect.amount;
-          const number = this.add.text(this.heroHome.x, this.floor - 75 * this.actorScale, amount ? '−' + amount : '방어',
-            { fontFamily: 'Cormorant, serif', fontSize: '38px', color: amount ? '#ffc1a7' : '#b7f4ef', stroke: '#17251d', strokeThickness: 4 }).setOrigin(.5);
-          this.transient(number, 680, { y: number.y - 45 });
-          this.cameras.main.shake(100, ['boss', 'ravager'].includes(monsterType) ? .004 : .002);
+    }
+
+    paintEffect(current) {
+      if (this.paintedEffect && this.paintedEffect !== current) {
+        this.attackInk.clear();
+        this.armAngle = 0;
+        this.enemyPose = null;
+        this.heroSprite?.setAlpha(1);
+        this.enemyFigure.setAlpha(1);
+        this.adventurer.setPosition(this.heroHome.x, this.floor).setAngle(0).setAlpha(1);
+        this.foe.setPosition(this.enemyHome.x, this.floor).setAngle(0).setScale(this.actorScale);
+        this.heroShadow.setAlpha(.7);
+        this.paintedEffect = null;
+      }
+      const lethal = state?.enemy.hp <= 0;
+      if (!current || current.plan.calm) {
+        const hide = lethal && (!current || (current.plan.hits.length ? current.delivered > current.plan.killIndex : current.momentDelivered));
+        this.foe.setAlpha(hide ? 0 : 1);
+        this.enemyShadow.setAlpha(hide ? 0 : .7);
+        if (!current && state?.playerDead) this.adventurer.setPosition(this.heroHome.x, this.floor + 12).setAngle(-65);
+        return;
+      }
+
+      this.paintedEffect = current;
+      const { effect, plan, elapsed } = current;
+      const ages = impactAges(current, this.ages ??= []);
+      if (plan.attack) {
+        this.playerFalling = plan.fatal;
+        paintEnemyAttack(this, { type: monsterType, effect, plan: plan.attack, ages }, elapsed);
+      } else if (plan.hits.length) {
+        const recoil = ages.some((age) => age >= 0 && age < 300);
+        this.enemyPose = recoil ? 5 : 0;
+        if (this.enemyFigure.setFrame) this.enemyFigure.setFrame(monsterFrame(monsterType, this.enemyPose));
+        paintAttack(this, { effect, color: plan.color, ages }, elapsed);
+      } else if (current.momentDelivered && this.lastMoment !== effect.id) {
+        this.lastMoment = effect.id;
+        this.skill(effect);
+        if (plan.side === 'enemy') {
+          this.enemyPose = { block: 3, charge: 4, buff: 4 }[plan.action] ?? 0;
+          this.halo(this.enemyHome.x, this.floor - 65, plan.color, 48);
         }
-        if (attack.elapsed >= attack.plan.duration) this.finishEffect?.();
+      } else if (plan.kind === 'miss' && this.lastMoment !== effect.id) {
+        this.lastMoment = effect.id;
+        this.skill(effect);
+      }
+
+      if (lethal && plan.lethal && elapsed >= plan.killAt) {
+        const fall = Math.min(1, (elapsed - plan.killAt) / 620);
+        this.foe.setAngle(60 * fall).setAlpha(1 - fall);
+        this.enemyShadow.setAlpha(.7 * (1 - fall));
       }
     }
 
@@ -362,91 +393,9 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       }
     }
     sync() {
-      if (disposed || !this.adventurer || !state) return;
-      if (state.effect.id === lastEffectId) {
-        if (state.enemy.hp <= 0 && !this.finishEffect) { this.foe.setAlpha(0); this.enemyShadow.setAlpha(0); }
-        return;
-      }
-      lastEffectId = state.effect.id;
-      if (this.finishEffect) this.finishEffect();
-      if (reduced()) { this.foe.setAlpha(state.enemy.hp <= 0 ? 0 : 1); onBusy(false); return; }
-      const effect = state.effect;
-      const duration = effect.kind === 'miss' ? 600 : CARD_MOTIONS[effect.cardType]?.duration ?? 650;
-      onBusy(true);
-      if (effect.kind === 'hurt') {
-        this.enemyAttack = { effect, type: monsterType, elapsed: 0, plan: enemyAttackPlan(monsterType, effect) };
-        this.playerFalling = state.playerDead;
-        this.finishEffect = () => {
-          this.enemyAttack = null; this.enemyPose = null; this.attackInk.clear();
-          this.heroSprite?.setAlpha(1);
-          if (!this.playerFalling) this.adventurer.setPosition(this.heroHome.x, this.floor).setAngle(0);
-          this.foe.setPosition(this.enemyHome.x, this.floor).setAngle(0).setScale(this.actorScale);
-          this.finishEffect = null;
-          if (this.pendingLayout) { const layout = this.pendingLayout; this.pendingLayout = null; this.redraw(layout); }
-          if (this.playerFalling) this.adventurer.setPosition(this.heroHome.x, this.floor + 12).setAngle(-65);
-          onBusy(false);
-        };
-        paintEnemyAttack(this, this.enemyAttack, 0);
-        return;
-      }
-      if (effect.kind === 'attack' && ATTACK_HITS[effect.cardType]) {
-        this.attack = { effect, color: CARD_MOTIONS[effect.cardType].color, elapsed: 0 };
-        this.finishEffect = () => {
-          this.attack = null; this.attackInk.clear(); this.armAngle = 0; this.paintHero(0);
-          this.enemyFigure.setAlpha(1);
-          this.adventurer.setPosition(this.heroHome.x, this.floor).setAngle(0);
-          this.foe.setPosition(this.enemyHome.x, this.floor).setAngle(0);
-          this.finishEffect = null;
-          if (this.pendingLayout) { const layout = this.pendingLayout; this.pendingLayout = null; this.redraw(layout); }
-          if (state.enemy.hp <= 0) {
-            this.burst(this.enemyHome.x, this.floor - 75, 0xe5c78c, 100, 150);
-            this.tweens.add({ targets: [this.foe, this.enemyShadow], alpha: 0, duration: 240 });
-          }
-          onBusy(false);
-        };
-        paintAttack(this, this.attack, 0);
-        return;
-      }
-      this.skill(effect);
-      if (effect.kind === 'enemy') {
-        const ex = this.enemyHome.x, ey = this.floor - 80;
-        if (effect.enemyAction === 'block') {
-          this.enemyPose = 3;
-          for (let i = 0; i < 3; i++) this.halo(ex, ey, 0xabc5ab, 50 + i * 12, i * 50);
-        } else if (effect.enemyAction === 'wait') {
-          this.enemyPose = 0;
-          for (let i = 0; i < 5; i++) {
-            const breath = this.add.circle(ex - 20 + i * 10, ey - i * 5, 3, 0xa9d6ce, .6);
-            this.transient(breath, 650, { y: ey - 50, scale: 2, delay: i * 45 });
-          }
-        } else {
-          this.enemyPose = 4;
-          this.burst(ex, ey, effect.enemyAction === 'charge' ? 0xff654d : 0xffb16e, 65, 100);
-          if (effect.enemyAction === 'charge') this.tweens.add({ targets: this.foe, angle: -7, duration: 90, yoyo: true, repeat: 2 });
-          else this.halo(ex, ey, 0xffd19c, 65);
-          this.tweens.add({ targets: this.foe, y: this.floor - 9, duration: 220, yoyo: true, ease: 'Sine.easeInOut' });
-        }
-      }
-      const completion = this.time.delayedCall(duration, () => {
-        if (disposed) return;
-        this.finishEffect?.();
-        if (state.enemy.hp <= 0) {
-          this.burst(this.enemyHome.x, this.floor - 80, 0xd4b47a, 80, 150);
-          this.tweens.add({ targets: this.foe, alpha: 0, y: this.floor - 20, duration: 240 });
-          this.tweens.add({ targets: this.enemyShadow, alpha: 0, duration: 240 });
-          this.tweens.add({ targets: this.adventurer, angle: -6, y: this.floor - 5, duration: 220, yoyo: true });
-        }
-      });
-      this.finishEffect = () => {
-        this.enemyPose = null;
-        completion.remove(false);
-        this.tweens.killTweensOf([this.adventurer, this.foe]);
-        if (!state.playerDead) this.adventurer.setPosition(this.heroHome.x, this.floor).setAngle(0);
-        this.foe.setPosition(this.enemyHome.x, this.floor).setAngle(0);
-        this.finishEffect = null;
-        if (this.pendingLayout) { const layout = this.pendingLayout; this.pendingLayout = null; this.redraw(layout); }
-        onBusy(false);
-      };
+      if (disposed || !this.adventurer || !state || playback || !state.effect) return;
+      const { effect, enemy, playerDead, cue } = state;
+      director.start(effect, { monsterType, lethal: enemy.hp <= 0, playerDead, cue }, motionMode());
     }
   }
   const scene = new BattleScene();
@@ -470,15 +419,18 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       return { running: game.isRunning, paused: game.isPaused, frame: game.loop.frame,
         loop: game.loop.running, scene: scene.sys.settings.status, clock: scene.time?.now,
         tweens: scene.tweens?.getTweens().length, canvas: [game.canvas?.width, game.canvas?.height],
-        enemyAttack: scene.enemyAttack ? { type: monsterType, elapsed: scene.enemyAttack.elapsed, duration: scene.enemyAttack.plan.duration } : null,
+        enemyAttack: director.active?.enemy ? { type: monsterType, elapsed: director.active.elapsed, duration: director.active.duration } : null,
+        active: !!director.active,
         time: Date.now(), hidden: document.hidden };
     },
     // Development preview can scrub a real frame even when Safari suspends a hidden tab.
     sampleFrame(milliseconds) {
       if (!scene.fx || disposed) return 0;
-      if (scene.attack) paintAttack(scene, scene.attack, milliseconds);
-      else if (scene.enemyAttack) paintEnemyAttack(scene, scene.enemyAttack, milliseconds);
-      else scene.tweens.getTweens().forEach((tween) => tween.seek(milliseconds, 16.6, true));
+      if (director.active) {
+        const current = director.active;
+        scene.paintEffect({ ...current, elapsed: Math.min(milliseconds, current.duration) });
+        scene.paintedEffect = current;
+      } else scene.tweens.getTweens().forEach((tween) => tween.seek(milliseconds, 16.6, true));
       game.renderer.preRender(); game.scene.render(game.renderer); game.renderer.postRender();
       return scene.fx.length + scene.attackInk.commandBuffer.length;
     },
@@ -486,16 +438,16 @@ export function startCombatScene(parent, monsterType, { initialEffectId = 0, onB
       if (resize) scene.redraw(resize);
       for (let elapsed = 0; elapsed < milliseconds; elapsed += 16) scene.update(elapsed, Math.min(16, milliseconds - elapsed));
       game.renderer.preRender(); game.scene.render(game.renderer); game.renderer.postRender();
-      return { active: !!(scene.attack || scene.enemyAttack), pendingResize: !!scene.pendingLayout, width: scene.layoutWidth, height: scene.layoutHeight,
+      return { active: !!director.active, pendingResize: !!scene.pendingLayout, width: scene.layoutWidth, height: scene.layoutHeight,
         enemyX: scene.foe?.x, heroX: scene.adventurer?.x, home: scene.enemyHome?.x, heroAlpha: scene.adventurer?.alpha };
     },
     settlePreview() {
-      scene.finishEffect?.(); scene.tweens?.killAll(); scene.fx?.removeAll(true); scene.attackInk?.clear();
+      director.finish(); scene.paintEffect(null); scene.tweens?.killAll(); scene.fx?.removeAll(true); scene.attackInk?.clear();
       scene.playerFalling = false;
       scene.adventurer?.setAlpha(1).setPosition(scene.heroHome.x, scene.floor).setAngle(0);
       scene.heroShadow?.setAlpha(.7);
     },
     setState(next) { state = next; scene.sync(); },
-    destroy() { if (disposed) return; disposed = true; observer.disconnect(); game.destroy(true); },
+    destroy() { if (disposed) return; disposed = true; if (!playback) director.dispose(); observer.disconnect(); game.destroy(true); },
   };
 }

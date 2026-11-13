@@ -52,6 +52,20 @@ export function intentFor(enemy) {
   return { ...base, value, label: labels[base.kind] };
 }
 
+export function enemyDamageImpacts(intent, block) {
+  return Array.from({ length: intent.hits ?? 1 }, () => {
+    const absorbed = Math.min(block, intent.value);
+    block -= absorbed;
+    return intent.value - absorbed;
+  });
+}
+
+export function enemyAttackCue(enemy, intent = intentFor(enemy)) {
+  const { pattern } = MONSTERS[enemy.type];
+  const previous = pattern[(enemy.step + pattern.length - 1) % pattern.length];
+  return { heavy: enemy.step > 0 && previous.kind === 'charge', raw: intent.value };
+}
+
 function drawCards(run, count) {
   const b = run.battle;
   for (let i = 0; i < count && b.hand.length < 10; i++) {
@@ -293,15 +307,11 @@ export function gameReducer(current, action) {
       b.hand = [];
       b.enemy.block = 0;
       if (intent.kind === 'attack') {
-        let remainingBlock = b.block;
-        const impacts = Array.from({ length: intent.hits ?? 1 }, () => {
-          const blocked = Math.min(remainingBlock, intent.value);
-          remainingBlock -= blocked;
-          return intent.value - blocked;
-        });
+        const impacts = enemyDamageImpacts(intent, b.block);
         const amount = impacts.reduce((total, hit) => total + hit, 0);
+        const absorbed = intent.value * impacts.length - amount;
         run.hp = Math.max(0, run.hp - amount);
-        b.log = [`${intent.label} · 방어 ${b.block - remainingBlock} · HP −${amount}`, ...b.log];
+        b.log = [`${intent.label} · 방어 ${absorbed} · HP −${amount}`, ...b.log];
         b.effect = { id: b.effect.id + 1, kind: 'hurt', amount, impacts };
       } else if (intent.kind === 'block') b.enemy.block = intent.value;
       else if (intent.kind === 'buff') b.enemy.strength += intent.value;

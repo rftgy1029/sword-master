@@ -5,7 +5,7 @@
   "models": {
     "hero": {
       "file": "hero.glb",
-      "bytes": 143108,
+      "bytes": 152036,
       "clips": [
         "guard",
         "death",
@@ -18,6 +18,12 @@
       "meshes": 2,
       "rig": "skinned armature",
       "ground": 0,
+      "weapon": {
+        "bone": "weapon",
+        "tip": "weapon_tip",
+        "length": 0.398,
+        "scale": 2.4582
+      },
       "source": "Kenney Mini Characters 2.0 (character-knight, weapon-sword), CC0 — scripts/import_kenney_hero.py"
     },
     "crawler": {

@@ -11,7 +11,7 @@ test('missing or corrupt storage recovers to defaults', () => {
 test('saved preferences round-trip under a dedicated versioned key', () => {
   const data = new Map([['sword-master.progress', 'keep this learning record']]);
   const storage = { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
-  const settings = { ...DEFAULT_SETTINGS, textSize: 'larger', backgroundMotion: 'off', selectionEffect: 'static', renderer:'3d', graphicsQuality:'high' };
+  const settings = { ...DEFAULT_SETTINGS, textSize: 'larger', backgroundMotion: 'off', selectionEffect: 'static', renderer:'3d', graphicsQuality:'high', combatSound:'off', combatVolume:23 };
   assert.equal(saveSettings(settings, storage), true);
   assert.equal(JSON.parse(data.get(SETTINGS_KEY)).version, 1);
   assert.deepEqual(readSettings(storage), settings);
@@ -47,4 +47,14 @@ test('restoring defaults preserves unrelated saved data', () => {
   saveSettings(DEFAULT_SETTINGS, storage);
   assert.deepEqual(readSettings(storage), DEFAULT_SETTINGS);
   assert.equal(data.get('other-app'), 'untouched');
+});
+
+
+test('audio settings default for older saves and normalize the volume range', () => {
+  const old = normalizeSettings({ graphicsQuality: 'high' });
+  assert.equal(old.combatSound, 'on');
+  assert.equal(old.combatVolume, 60);
+  assert.equal(normalizeSettings({ combatVolume: 137 }).combatVolume, 100);
+  assert.equal(normalizeSettings({ combatVolume: -3 }).combatVolume, 0);
+  assert.equal(normalizeSettings({ combatVolume: '25' }).combatVolume, 60);
 });

@@ -143,6 +143,15 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
               <SettingOptions name="backgroundMotion" title="게임 애니메이션" description="화면 전환, 카드 기술과 배경의 움직임을 조절해요."
                 choices={[[ 'normal', '기본' ], [ 'reduced', '줄이기' ], [ 'off', '끄기' ]]}
                 value={settings.backgroundMotion} onChange={changeSetting} />
+              <SettingOptions name="combatSound" title="전투 효과음" description="스킬과 타격 효과음을 재생해요."
+                choices={[[ 'on', '켜기' ], [ 'off', '끄기' ]]}
+                value={settings.combatSound} onChange={changeSetting} />
+              <label className="setting-field combat-volume">
+                <span>효과음 음량 <output>{settings.combatVolume}%</output></span>
+                <input type="range" min="0" max="100" value={settings.combatVolume}
+                  disabled={settings.combatSound === 'off'} aria-label="효과음 음량"
+                  onChange={(event) => changeSetting('combatVolume', Number(event.target.value))} />
+              </label>
               <SettingOptions name="selectionEffect" title="메뉴 선택 효과" description="선택한 항목의 밝기 변화를 조절해요."
                 choices={[[ 'breathe', '천천히 밝아짐' ], [ 'static', '고정' ]]}
                 value={settings.selectionEffect} onChange={changeSetting} />
@@ -156,7 +165,7 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
                 <span className="preview-label">미리보기</span>
                 <span className="selection-sample"><span aria-hidden="true">▸</span> 새로운 모험을 시작하세요.</span>
               </div>
-              <p className="motion-note">기기의 ‘움직임 줄이기’가 켜져 있으면 움직이는 효과를 자동으로 멈춰요.</p>
+              <p className="motion-note">기기의 ‘움직임 줄이기’가 켜져 있으면 짧은 결과 연출을 사용해요.</p>
             </>
           ) : (
             <>

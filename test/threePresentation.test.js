@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {CombatPlayback,combatPose} from '../src/game/three/playback.js';
+import {CombatPlayback,combatMotionMode,impactAges} from '../src/game/three/playback.js';
 import {MODEL_TYPES,qualityProfile} from '../src/game/three/quality.js';
 import {MONSTERS,CARDS} from '../src/game/catalog.js';
+import { heroPose, ENEMY_HOME } from '../src/game/three/heroMotion.js';
+import { createKnightRig } from '../src/game/three/knightRig.js';
+import { enemyAttackPose } from '../src/game/enemyAttackTimeline.js';
 import {ATTACK_HITS} from '../src/game/attackTimeline.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {AnimationMixer} from 'three';
+import {AnimationMixer, Group, Vector3} from 'three';
 
 test('all 13 GLBs have complete meshes, materials, matching manifests and usable animation clips',()=>{
   const manifest=JSON.parse(readFileSync(new URL('../public/models/manifest.json',import.meta.url)));
@@ -60,9 +63,9 @@ test('every enemy animation supports blocked multi-hits and releases the UI afte
     const hits=[],busy=[];
     const p=new CombatPlayback({onBusy:x=>busy.push(x),onImpact:(i,target)=>hits.push([i,target])});
     p.start({id:1,kind:'hurt',amount:0,impacts:[0,0,0]},type);
-    const duration=p.active.duration;
+    const duration=p.active.duration + p.active.plan.stops.reduce((sum, stop) => sum + stop, 0);
     for(let elapsed=0;elapsed<duration;elapsed+=73){
-      const pose=combatPose(p.active);
+      const pose=enemyAttackPose(p.active.plan.attack, p.active.elapsed);
       assert.ok(Object.values(pose).every(Number.isFinite));
       p.advance(73);
     }
@@ -101,14 +104,32 @@ test('enemy block, buff, charge and wait have their own presentation without inv
   }
 });
 
-test('melee contact reaches the enemy at every hit, while ranged skills keep the hero at home',()=>{
-  for(const type of ['strike','heavy','twin'])for(const at of ATTACK_HITS[type]){
-    const p=new CombatPlayback();p.start({id:1,kind:'attack',cardType:type},'sentinel');p.advance(at);
-    const pose=combatPose(p.active);assert.ok(pose.enemyX-pose.heroX<=1.8,`${type} reaches weapon range`);
+test('the actual sword tip reaches the body or ground at each melee contact', async () => {
+  const bytes = withoutTextures(readFileSync(new URL('../public/models/hero.glb', import.meta.url)));
+  const { scene } = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
+  const root = new Group();
+  root.add(scene);
+  const rig = createKnightRig(scene);
+  const tip = scene.getObjectByName('weapon_tip');
+  const radians = Math.PI / 180;
+  for (const type of ['strike', 'heavy', 'twin']) for (const at of ATTACK_HITS[type]) {
+    const playback = new CombatPlayback();
+    playback.start({ id: 1, kind: 'attack', cardType: type }, 'sentinel');
+    playback.advance(at + (at === ATTACK_HITS.twin[1] && type === 'twin' ? playback.active.plan.stops[0] : 0));
+    const pose = heroPose(playback.active);
+    root.position.set(pose.x, pose.y, pose.z);
+    root.rotation.set(radians * pose.pitch, Math.PI / 2 - radians * pose.yaw, radians * pose.roll, 'YXZ');
+    rig.apply(pose);
+    const contact = tip.getWorldPosition(new Vector3());
+    assert.ok(Math.abs(ENEMY_HOME - contact.x) < .38 && Math.abs(contact.z) < .55, `${type} reaches the target volume`);
+    if (type === 'heavy') assert.ok(Math.abs(contact.y) < .13, 'heavy strikes the floor beside the target');
+    else assert.ok(contact.y > .5 && contact.y < 1.35, 'blade reaches the torso');
   }
-  for(const type of ['flare','nova']){
-    const p=new CombatPlayback();p.start({id:1,kind:'attack',cardType:type},'sentinel');p.advance(1000);
-    assert.ok(combatPose(p.active).heroX<-2);
+  for (const type of ['flare', 'nova']) {
+    const playback = new CombatPlayback();
+    playback.start({ id: 1, kind: 'attack', cardType: type });
+    playback.advance(ATTACK_HITS[type][0]);
+    assert.ok(heroPose(playback.active).x < -2, 'ranged cards keep the hero at home');
   }
 });
 
@@ -157,4 +178,61 @@ test('Kenney dungeon kit contains every piece the scenes place, and the manifest
     }
   }
   assert.deepEqual(dungeonLayout('hall','battle'),dungeonLayout('hall','battle'),'The same scene always gets the same layout');
+});
+
+test('player hits pause the timeline briefly (hit-stop) while impact ages keep running on the real clock',()=>{
+  const p=new CombatPlayback();p.start({id:1,kind:'attack',cardType:'strike'},'sentinel');
+  p.advance(ATTACK_HITS.strike[0]);
+  assert.equal(p.active.elapsed,ATTACK_HITS.strike[0]);
+  const halfStop = p.active.plan.stops[0] / 2;
+  p.advance(halfStop);
+  assert.equal(p.active.elapsed,ATTACK_HITS.strike[0],'the swing is frozen on contact');
+  assert.equal(impactAges(p.active)[0],halfStop,'effects keep animating during the freeze');
+  p.advance(halfStop+100);
+  assert.equal(p.active.elapsed,ATTACK_HITS.strike[0]+100);
+  const enemy=new CombatPlayback();enemy.start({id:1,kind:'hurt',impacts:[3]},'boss');
+  const [enemyHit] = enemy.active.hits;
+  const [enemyStop] = enemy.active.plan.stops;
+  enemy.advance(enemyHit + enemyStop / 2);
+  assert.equal(enemy.active.elapsed, enemyHit, 'enemy contact also pauses the timeline');
+  assert.equal(impactAges(enemy.active)[0], enemyStop / 2);
+});
+
+
+test('playback preserves the exact results across a renderer handoff and emits completion once', () => {
+  const hits = [], busy = [], moments = [];
+  const playback = new CombatPlayback({
+    onImpact: (_, target, hit) => hits.push([hit.effectId, hit.index, target, hit.amount, hit.blocked]),
+    onBusy: (value, id) => busy.push([value, id]),
+    onMoment: ({ effect }) => moments.push(effect.id),
+  });
+  const effect = { id: 12, kind: 'hurt', amount: 5, impacts: [0, 2, 3] };
+  playback.start(effect, { monsterType: 'hound', cue: { raw: 3 } });
+  playback.advance(playback.active.hits[0]);
+  assert.deepEqual(hits, [[12, 0, 'player', 0, true]]);
+  assert.equal(playback.start(effect), false);
+  playback.advance(5000);
+  playback.finish();
+  assert.deepEqual(hits, [[12, 0, 'player', 0, true], [12, 1, 'player', 2, false], [12, 2, 'player', 3, false]]);
+  playback.start({ id: 13, kind: 'heal', cardType: 'heal', amount: 3 }, {}, combatMotionMode('normal', true));
+  playback.advance(playback.active.plan.moment - 1);
+  assert.deepEqual(moments, []);
+  playback.advance(1);
+  playback.finish();
+  assert.deepEqual(moments, [13]);
+  assert.deepEqual(busy, [[true, 12], [false, 12], [true, 13], [false, 13]]);
+});
+
+test('the first hit can finish an enemy before a second animation beat with zero damage', () => {
+  const hits = [];
+  const playback = new CombatPlayback({ onImpact: (_, __, hit) => hits.push(hit) });
+  playback.start({ id: 1, kind: 'attack', cardType: 'twin', amount: 2, impacts: [2, 0] }, { lethal: true });
+  const plan = playback.active.plan;
+  assert.equal(plan.killAt, ATTACK_HITS.twin[0]);
+  playback.advance(ATTACK_HITS.twin[0]);
+  assert.equal(hits[0].lethal, true);
+  playback.advance(3000);
+  assert.equal(hits.length, 2);
+  assert.equal(hits[1].blocked, false);
+  assert.equal(hits[1].lethal, false);
 });
