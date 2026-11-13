@@ -41,6 +41,10 @@ function RenderLoop({ fps, animate, onFailure, directorRef, onController, onSlow
       sample: milliseconds=>{sample(milliseconds);invalidate();},
       rotate: angle => { camera.position.set(Math.sin(angle) * 8, 4, Math.cos(angle) * 8); camera.lookAt(0,1,0); invalidate(); },
       project: point => { const p=new THREE.Vector3(...point).project(camera),rect=gl.domElement.getBoundingClientRect();return {x:rect.left+(p.x+1)*rect.width/2,y:rect.top+(1-p.y)*rect.height/2}; },
+      // 머리 위 표시용: 이름 붙은 액터의 경계 상자 맨 위 가운데를 화면 좌표로 돌려준다.
+      top: name => { const object=scene.getObjectByName(name);if(!object?.visible)return null;const box=new THREE.Box3().setFromObject(object);if(box.isEmpty())return null;
+        const p=new THREE.Vector3((box.min.x+box.max.x)/2,box.max.y,(box.min.z+box.max.z)/2).project(camera),rect=gl.domElement.getBoundingClientRect();
+        return {x:rect.left+(p.x+1)*rect.width/2,y:rect.top+(1-p.y)*rect.height/2}; },
       settle: () => { sampleTime.current=null;directorRef.current?.finish(); invalidate(); },
       scene,
     };
