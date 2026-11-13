@@ -8,7 +8,7 @@ import {ATTACK_HITS} from '../src/game/attackTimeline.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {AnimationMixer} from 'three';
 
-test('all 13 original GLBs have complete meshes, materials, matching manifests and usable animation clips',()=>{
+test('all 13 GLBs have complete meshes, materials, matching manifests and usable animation clips',()=>{
   const manifest=JSON.parse(readFileSync(new URL('../public/models/manifest.json',import.meta.url)));
   assert.deepEqual(new Set(MODEL_TYPES),new Set(['hero',...Object.keys(MONSTERS)]));
   let total=0;
@@ -19,8 +19,16 @@ test('all 13 original GLBs have complete meshes, materials, matching manifests a
     assert.equal(bytes.readUInt32LE(8),bytes.length);
     assert.equal(bytes.length,manifest.models[name].bytes);
     const gltf=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
-    assert.ok(gltf.meshes.length>=4);
-    assert.ok(gltf.materials.length>=3);
+    if(manifest.models[name].rig==='skinned armature'){
+      // Kenney 팩의 스킨 모델: 몸·머리 메시가 한 뼈대와 색상표 텍스처 하나를 공유한다.
+      assert.ok(gltf.skins?.length>=1,'A skinned model carries its skeleton');
+      assert.ok(gltf.meshes.length>=2);
+      assert.ok(gltf.materials.length>=1);
+      assert.ok(gltf.images?.length>=1,'The palette texture is embedded in the GLB');
+    }else{
+      assert.ok(gltf.meshes.length>=4);
+      assert.ok(gltf.materials.length>=3);
+    }
     const clips=gltf.animations.map(a=>a.name);
     assert.deepEqual(clips,manifest.models[name].clips);
     assert.ok(clips.includes('idle')&&clips.includes('attack'));
@@ -104,8 +112,20 @@ test('melee contact reaches the enemy at every hit, while ranged skills keep the
   }
 });
 
+// Node에는 이미지 디코더가 없어 GLTFLoader가 내장 텍스처에서 멈춘다. 관절과 동작만 검사하므로 텍스처 참조를 떼어 낸다.
+function withoutTextures(glb){
+  const length=glb.readUInt32LE(12),gltf=JSON.parse(glb.subarray(20,20+length).toString());
+  delete gltf.images;delete gltf.textures;delete gltf.samplers;
+  for(const material of gltf.materials??[])delete material.pbrMetallicRoughness?.baseColorTexture;
+  let json=Buffer.from(JSON.stringify(gltf));
+  json=Buffer.concat([json,Buffer.alloc((4-json.length%4)%4,0x20)]);
+  const rest=glb.subarray(20+length),head=Buffer.alloc(20);
+  head.write('glTF',0);head.writeUInt32LE(2,4);head.writeUInt32LE(20+json.length+rest.length,8);head.writeUInt32LE(json.length,12);head.writeUInt32LE(0x4E4F534A,16);
+  return Buffer.concat([head,json,rest]);
+}
+
 test('exported hero animation changes the sword joint between anticipation and contact',async()=>{
-  const bytes=readFileSync(new URL('../public/models/hero.glb',import.meta.url));
+  const bytes=withoutTextures(readFileSync(new URL('../public/models/hero.glb',import.meta.url)));
   const buffer=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
   const model=await new GLTFLoader().parseAsync(buffer,'');
   const arm=model.scene.getObjectByName('arm_right');assert.ok(arm);
@@ -115,4 +135,26 @@ test('exported hero animation changes the sword joint between anticipation and c
   mixer.setTime(clip.duration*.52);const impact=arm.quaternion.clone();
   assert.ok(Math.abs(prepare.dot(impact))<.98,'The weapon changes direction into the contact pose');
   mixer.stopAllAction();mixer.uncacheRoot(model.scene);
+});
+
+test('Kenney dungeon kit contains every piece the scenes place, and the manifest matches the GLB',async()=>{
+  const {dungeonLayout,groupByPiece,COMPOSITE_PIECES}=await import('../src/game/three/kenneyDungeon.js');
+  const manifest=JSON.parse(readFileSync(new URL('../public/models/manifest.json',import.meta.url)));
+  const bytes=readFileSync(new URL('../public/models/dungeon-kit.glb',import.meta.url));
+  assert.equal(bytes.length,manifest.dungeon.bytes);
+  const gltf=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
+  const nodes=new Map(gltf.nodes.map(node=>[node.name,node]));
+  assert.equal(gltf.materials.length,1,'All pieces share one palette material');
+  assert.equal(gltf.images?.length,1,'The palette texture is embedded once');
+  for(const variant of ['hall','library','forge'])for(const mode of ['battle','title','entry','reward','rest','forge','result']){
+    const layout=dungeonLayout(variant,mode);
+    assert.ok(layout.some(item=>item.piece==='wall-opening'),'The back wall keeps its doorway');
+    for(const [piece,items] of groupByPiece(layout)){
+      const node=nodes.get(piece);
+      assert.ok(node,`${piece} exists in dungeon-kit.glb`);
+      assert.ok(COMPOSITE_PIECES.includes(piece)||node.mesh!==undefined,`${piece} can be drawn as one instanced mesh`);
+      for(const item of items)assert.ok(item.position.every(Number.isFinite)&&item.scale>0);
+    }
+  }
+  assert.deepEqual(dungeonLayout('hall','battle'),dungeonLayout('hall','battle'),'The same scene always gets the same layout');
 });

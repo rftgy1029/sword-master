@@ -11,14 +11,18 @@ import { TIERS } from './vocabulary.js';
 import { SceneTransitionProvider, useSceneTransition } from './components/SceneTransition.jsx';
 import { GraphicsProvider } from './components/GraphicsContext.jsx';
 import { version } from '../package.json';
+import SwordLogo from './components/ui/SwordLogo.jsx';
+import { MENU_REACTIONS, MENU_WORDS, matchTyped, typeKey } from './titleWords.js';
 
+// 메뉴 이름은 그대로 두고, 설명은 게임 세계의 말투로 쓴다.
 const MENU = [
-  { label: '새 모험', description: '학습 범위를 고르고 새로운 모험을 시작하세요.' },
-  { label: '이어하기', description: '저장된 던전에서 카드와 학습을 이어가세요.' },
-  { label: '단어장', description: '티어별 단어와 뜻, 유의어·반의어를 살펴보세요.' },
-  { label: '오답 복습', description: '헷갈렸던 단어를 다시 만나 보세요.' },
-  { label: '설정', description: '나에게 편한 학습 환경을 준비하세요.' },
+  { label: '새 모험', description: '석문 너머로 첫발을 내딛는다.' },
+  { label: '이어하기', description: '멈췄던 층에서 다시 칼을 든다.' },
+  { label: '단어장', description: '모아 둔 단어를 펼쳐 본다.' },
+  { label: '오답 복습', description: '놓쳤던 단어가 다시 길을 막는다.' },
+  { label: '설정', description: '모험의 채비를 고친다.' },
 ];
+const TYPED_SWING = 650; // 단어를 끝까지 치면 기사가 칼을 휘두른 뒤 메뉴가 열린다
 
 function GameApp({ settings, setSettings }) {
   const transition = useSceneTransition();
@@ -30,6 +34,12 @@ function GameApp({ settings, setSettings }) {
   const buttons = useRef([]);
   const menu = useRef(null);
   const opener = useRef(null);
+  const [typed, setTyped] = useState('');
+  const typedRef = useRef('');
+  const [swinging, setSwinging] = useState(false);
+  const [typeMiss, setTypeMiss] = useState(false);
+  const swing = useRef(null);
+  const reducedMotion = settings.backgroundMotion !== 'normal';
 
   useEffect(() => { buttons.current[0]?.focus({ preventScroll: true }); }, []);
   useEffect(() => { setSettingsSaved(saveSettings(settings)); }, [settings]);
@@ -41,6 +51,34 @@ function GameApp({ settings, setSettings }) {
       onSelect: (i) => setSelected(indices[i]),
     });
   }, [openedMenu, selected, canContinue]);
+
+  useEffect(() => () => clearTimeout(swing.current), []);
+  useEffect(() => {
+    if (openedMenu !== null) { typedRef.current = ''; setTyped(''); return; }
+    const enabled = MENU.map((_, i) => i !== 1 || canContinue);
+    function onKey(event) {
+      if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || swing.current) return;
+      const background = event.target === document.body || event.target === document.documentElement || menu.current?.contains(event.target);
+      if (!background || !/^([a-z]|Backspace|Escape)$/i.test(event.key)) return;
+      event.preventDefault();
+      const next = typeKey(typedRef.current, event.key);
+      const match = matchTyped(next, enabled);
+      typedRef.current = next;
+      setTyped(next);
+      setTypeMiss(/^[a-z]$/i.test(event.key) && match.index < 0);
+      if (match.index >= 0) focusMenu(match.index);
+      if (match.complete) {
+        const index = match.index;
+        setSwinging(true);
+        swing.current = setTimeout(() => {
+          swing.current = null; typedRef.current = ''; setSwinging(false); setTyped('');
+          buttons.current[index]?.click();
+        }, reducedMotion ? 0 : TYPED_SWING);
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [openedMenu, canContinue, reducedMotion]);
 
   function focusMenu(index) {
     setSelected(index);
@@ -55,8 +93,11 @@ function GameApp({ settings, setSettings }) {
 
   function menuButton(index) {
     const isContinue = index === 1;
+    const word = MENU_WORDS[index];
+    const match = matchTyped(typed, MENU.map((_, i) => i !== 1 || canContinue));
+    const typedHere = typed && word.startsWith(typed) ? typed.length : 0;
     return <button ref={(element) => { buttons.current[index] = element; }}
-      className={`menu-button${isContinue ? ' continue-button' : ''}${selected === index ? ' is-selected' : ''}`}
+      className={`menu-button${isContinue ? ' continue-button' : ''}${selected === index ? ' is-selected' : ''}${match.index === index ? ' is-typed' : ''}`}
       disabled={isContinue && !canContinue} onFocus={() => setSelected(index)}
       onPointerEnter={(event) => { if (event.pointerType === 'mouse' && openedMenu === null && (!isContinue || canContinue)) focusMenu(index); }}
       onClick={(event) => {
@@ -65,53 +106,39 @@ function GameApp({ settings, setSettings }) {
         opener.current = event.currentTarget;
         transition(() => setOpenedMenu(MENU[index].label));
       }}>
-      <span className="marker" aria-hidden="true">▸</span><span>{MENU[index].label}</span>
-      {isContinue ? <small>{canContinue ? `${TIERS.find((t) => t.id === progress.run.tier).label} · ${Math.max(1, progress.run.floor + 1)}층` : '저장된 기록 없음'}</small>
-        : <span className="enter" aria-hidden="true">↵</span>}
+      <span className="menu-label">{MENU[index].label}</span>
+      <span className="menu-word" aria-hidden="true"><b>{word.slice(0, typedHere)}</b>{word.slice(typedHere)}</span>
+      {isContinue && <small>{canContinue ? `${TIERS.find((t) => t.id === progress.run.tier).label} · ${Math.max(1, progress.run.floor + 1)}층` : '아직 아무도 이 문을 지나지 않았다'}</small>}
     </button>;
   }
+
+  const heroAction = swinging ? 'attack' : MENU_REACTIONS[selected] ?? 'idle';
 
   return (
     <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect} data-background-motion={settings.backgroundMotion}>
       <main className="start-screen">
-        <div className="title-layout">
-          <section className="menu-column" aria-label="S’word Master 시작">
-            <p className="title-eyebrow"><span/> WORDS BECOME YOUR WEAPON</p>
-            <header className="brand">
-              <svg className="brand-mark" viewBox="0 0 32 40" aria-hidden="true">
-                <path d="M14 0h4v4h2v18h-2v4h8v4H18v6h2v4h-8v-4h2v-6H6v-4h8v-4h-2V4h2Z" />
-                <path className="blade-highlight" d="M16 4h2v18h-2Z" />
-              </svg>
-              <div>
-                <h1><span>S’WORD</span><span>MASTER</span></h1>
-              </div>
-            </header>
-            <p className="title-intro">한 단어씩,<br/>더 깊은 모험으로.</p>
-            <nav ref={menu} className="menu" aria-label="시작 메뉴">
-              {MENU.map(({ label }, index) => index === 1 ? null : (
-                <div className={index === 0 ? 'adventure-actions' : 'menu-item'} key={label}>
-                  {menuButton(index)}
-                  {index === 0 && menuButton(1)}
-                </div>
-              ))}
-            </nav>
-            <p className="menu-description">{MENU[selected].description}</p>
-            {error && openedMenu === null && <p className="title-save-error" role="alert">{error}</p>}
-          </section>
-          <figure className="dungeon-scene">
-            <TitleScene active={openedMenu === null} motionPreference={settings.backgroundMotion} />
-            <figcaption><span><small>CHAPTER I</small><strong>황혼의 석문</strong></span><span>단어의 힘이 깨어나는 곳 <span aria-hidden="true">↗</span></span></figcaption>
-          </figure>
+        <div className="title-backdrop">
+          <TitleScene active={openedMenu === null} motionPreference={settings.backgroundMotion} heroAction={heroAction} />
         </div>
-        <footer className="screen-footer">
-          <div className="hints">
-            <span><kbd>↑ ↓</kbd> 이동</span>
-            <span><kbd>Enter</kbd> 선택</span>
-            <span><kbd>Esc</kbd> 닫기</span>
-            <span className="pointer-hint">클릭으로 선택할 수 있어요</span>
-          </div>
-          <p className="version">미리보기 <span aria-hidden="true">/</span> v{version}</p>
-        </footer>
+        <section className="title-panel" aria-label="S’word Master 시작">
+          <SwordLogo />
+          <nav ref={menu} className="menu" aria-label="시작 메뉴" aria-describedby="title-typing-help">
+            {MENU.map(({ label }, index) => index === 1 ? null : (
+              <div className={index === 0 ? 'adventure-actions' : 'menu-item'} key={label}>
+                {menuButton(index)}
+                {index === 0 && menuButton(1)}
+              </div>
+            ))}
+          </nav>
+          <p className="menu-description" aria-live="polite">{MENU[selected].description}</p>
+          <p className={`title-typing${typeMiss ? ' is-miss' : ''}${typed ? ' has-text' : ''}`} id="title-typing-help">
+            <span aria-hidden="true">›</span>
+            {typed ? <strong aria-live="polite">{typed}</strong> : <span>메뉴의 영어 단어를 치면 칼이 응답한다</span>}
+          </p>
+          {error && openedMenu === null && <p className="title-save-error" role="alert">{error}</p>}
+        </section>
+        <p className="title-place" aria-hidden="true">황혼의 석문</p>
+        <p className="version">v{version}</p>
       </main>
       {openedMenu === '설정' ? (
         <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu}

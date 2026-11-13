@@ -100,7 +100,7 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
       }}>
       <header className="settings-header">
         <div>
-          <p className="settings-eyebrow"><span aria-hidden="true">✦</span> S’WORD MASTER</p>
+          <p className="settings-eyebrow">모험 채비</p>
           <h2 id="settings-title">설정</h2>
           <p className="settings-intro">나에게 편한 화면으로 모험을 준비하세요.</p>
         </div>
@@ -182,7 +182,7 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
         </p>
         <div className="settings-footer-actions">
           <button className="settings-reset" disabled={defaultsActive} onClick={resetSettings}>기본값 복원</button>
-          <button className="return-button" onClick={requestClose}>돌아가기 <span aria-hidden="true">↵</span></button>
+          <button className="return-button" onClick={requestClose}>돌아가기</button>
         </div>
       </footer>
     <TransitionVeil /></dialog>

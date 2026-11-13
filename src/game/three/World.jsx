@@ -8,6 +8,8 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { modelUrl } from './quality.js';
 import { CombatPlayback, combatPose } from './playback.js';
 import { CARD_MOTIONS } from '../cardMotions.js';
+import { setOutlineScale, stylizeActor } from './toon.js';
+import { COMPOSITE_PIECES, KIT_SCALE, KIT_TINT, TILE, WALL_FRONT, dungeonKitUrl, dungeonLayout, groupByPiece } from './kenneyDungeon.js';
 
 const stoneGeometry = new RoundedBoxGeometry(1, 1, 1, 1, .028);
 const plainGeometry = new THREE.BoxGeometry(1,1,1);
@@ -19,6 +21,8 @@ const stoneMaterial = new THREE.MeshStandardMaterial({ roughness: .93, metalness
 const dummy = new THREE.Object3D();
 const tint = new THREE.Color();
 const stoneColors = ['#33443e', '#3a4941', '#3f4e45', '#35443c', '#495248'];
+// 모든 장면의 조명과 배경색. UI 색(src/styles/dusk.css)도 같은 노을빛에서 뽑았다.
+const DUSK = { background: '#1a1322', sky: '#c3a6e3', ground: '#4b2f2b', sun: '#ffb26b', rim: '#8f7fe0' };
 
 function Stones({ blocks, geometry=stoneGeometry }) {
   const ref = useRef(null);
@@ -45,11 +49,12 @@ function EnvironmentLight({ quality }) {
     return () => { scene.environment = null; environment.dispose(); };
   }, [gl, scene]);
   return <>
-    <hemisphereLight args={['#b5d5c8', '#3f342b', 1.1]} />
-    <directionalLight position={[-3, 7, 5]} color="#ffe2b5" intensity={2.5} castShadow={quality.shadows}
+    {/* 황혼: 왼쪽에서 낮게 드는 주황 노을빛과 뒤쪽의 보랏빛 하늘 */}
+    <hemisphereLight args={[DUSK.sky, DUSK.ground, 1.05]} />
+    <directionalLight position={[-6, 5, 5]} color={DUSK.sun} intensity={2.7} castShadow={quality.shadows}
       shadow-mapSize={[quality.shadowSize, quality.shadowSize]} shadow-bias={-.001} shadow-normalBias={.025}
       shadow-camera-left={-7} shadow-camera-right={7} shadow-camera-top={6} shadow-camera-bottom={-4} />
-    <directionalLight position={[4, 4, -3]} color="#90c7cc" intensity={1.6} />
+    <directionalLight position={[4, 4, -3]} color={DUSK.rim} intensity={1.7} />
   </>;
 }
 
@@ -74,6 +79,15 @@ function CameraFit({ mode }) {
       }
       camera.position.copy(target).addScaledVector(direction,fitted);
       camera.lookAt(target);
+    } else if (mode === 'title') {
+      // 타이틀은 화면 전체를 채우는 배경이다. 넓은 화면은 왼쪽 메뉴를 피해 장면을 오른쪽으로,
+      // 세로 화면은 아래쪽 메뉴를 피해 장면을 위로 보낸다.
+      const wide = aspect >= 1.1;
+      const span = wide ? 5.9 : 9.6;
+      const reach = span / (2 * Math.tan(THREE.MathUtils.degToRad(37 / 2)));
+      const target = wide ? new THREE.Vector3(-1.2, 1.15, 0) : new THREE.Vector3(.75, -1.75, 0);
+      camera.position.set(target.x + reach * .1, target.y + reach * .3 + .3, reach * .95);
+      camera.lookAt(target);
     } else {
       camera.position.set(distance * .12, distance * .32 + 1.3, distance * .95);
       camera.lookAt(0,1.1,0);
@@ -94,7 +108,35 @@ function Torch({ position }) {
   </group>;
 }
 
+function KitInstances({ source, items }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    items.forEach((item, i) => {
+      dummy.position.set(...item.position); dummy.rotation.set(0, item.rotate, 0); dummy.scale.setScalar(KIT_SCALE * item.scale); dummy.updateMatrix();
+      ref.current.setMatrixAt(i, dummy.matrix);
+    });
+    ref.current.instanceMatrix.needsUpdate = true;
+    ref.current.computeBoundingSphere();
+  }, [items]);
+  return <instancedMesh ref={ref} name={`kit-${source.name}`} args={[source.geometry, source.material, items.length]} castShadow receiveShadow />;
+}
+
+function KitClone({ source, item }) {
+  const object = useMemo(() => {
+    const copy = source.clone(true);
+    copy.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
+    const door = copy.getObjectByName('door');
+    if (door) door.position.y = 0; // 창살 문은 내려서 닫힌 모습으로 둔다
+    return copy;
+  }, [source]);
+  return <primitive object={object} position={item.position} rotation={[0, item.rotate, 0]} scale={KIT_SCALE * item.scale} />;
+}
+
+// 바닥·벽·기둥·소품은 Kenney Mini Dungeon(CC0) 부품이고, 횃불·책장·화로·바닥 문양은 이 게임의 장식이다.
 function Dungeon({ variant = 'hall', mode = 'battle' }) {
+  const kit = useLoader(GLTFLoader, dungeonKitUrl());
+  useLayoutEffect(() => { kit.scene.traverse(node => { if (node.isMesh) node.material.color.set(KIT_TINT); }); }, [kit]);
+  const groups = useMemo(() => [...groupByPiece(dungeonLayout(variant, mode))], [variant, mode]);
   const books=useMemo(()=>[-5,5].flatMap(x=>[
     {position:[x,1.25,-2.15],scale:[1.4,2.5,.35],color:'#342d24'},
     ...[.45,1.05,1.65,2.25].flatMap((y,row)=>[
@@ -102,34 +144,21 @@ function Dungeon({ variant = 'hall', mode = 'battle' }) {
       ...Array.from({length:8},(_,i)=>({position:[x-.56+i*.16,y,-1.92],scale:[.12,.35+i%3*.05,.23],color:['#6f6545','#495f51','#805549','#627679'][(i+row)%4]})),
     ]),
   ]),[]);
-  const blocks = useMemo(() => {
-    const values = [];
-    for (let row = 0; row < 10; row++) for (let col = 0; col < 26; col++) {
-      values.push({ position: [(col - 12.5) * .88, -.15+Math.sin(col*12.3+row*4.8)*.009, (row - 4.5) * .85], scale: [.85, .25, .82], color: stoneColors[(row*3+col)%stoneColors.length] });
-    }
-    for (let row = 0; row < 7; row++) for (let col = 0; col < 28; col++) {
-      const x = (col - 13.5) * .82 + row % 2 * .4;
-      if (Math.abs(x) < 1.2 && row < 5) continue;
-      values.push({ position: [x, row * .48 + .2, -2.7], scale: [.79, .45, .45], color: variant === 'forge' ? ['#53433c','#493e36','#594c41'][col % 3] : stoneColors[(row + col) % 5] });
-    }
-    for (const x of [-6.25, -3.6, 3.6, 6.25]) for (let i = 0; i < 6; i++) {
-      values.push({ position: [x, .26 + i * .55, -2.31], scale: [i % 5 ? .37 : .52, .52, .62], color: '#58604d' });
-    }
-    return values;
-  }, [variant]);
-  return <group>
-    <Stones blocks={blocks} />
-    <mesh position={[0, -.3, 0]} receiveShadow><boxGeometry args={[23.4, .3, 9.3]} /><meshStandardMaterial color="#111e19" roughness={1} /></mesh>
-    <mesh position={[0, 1.2, -3.2]}><planeGeometry args={[2.3, 3.6]} /><meshBasicMaterial color="#070f0d" /></mesh>
-    <mesh position={[0, 2.35, -2.57]}><torusGeometry args={[1.15, .19, 8, 24, Math.PI]} /><meshStandardMaterial color="#70755b" roughness={.84} /></mesh>
-    {[-1, 1].map(sign => <mesh key={sign} position={[sign * 1.15, 1.17, -2.57]} castShadow><boxGeometry args={[.35, 2.35, .4]} /><meshStandardMaterial color="#646b55" roughness={.85} /></mesh>)}
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .002, 0]}><ringGeometry args={[1.55, 1.57, 64]} /><meshStandardMaterial color="#a78e53" metalness={.5} roughness={.5} /></mesh>
-    <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, .006, 0]}><ringGeometry args={[1.03, 1.045, 4]} /><meshStandardMaterial color="#8e8152" metalness={.5} roughness={.5} /></mesh>
-    <Torch position={[-2.6, 1.8, -2.05]} /><Torch position={[2.6, 1.8, -2.05]} />
+  return <group name="dungeon">
+    {groups.map(([piece, items]) => {
+      const source = kit.scene.getObjectByName(piece);
+      if (!source) return null;
+      return COMPOSITE_PIECES.includes(piece)
+        ? items.map((item, i) => <KitClone key={`${piece}-${i}`} source={source} item={item} />)
+        : <KitInstances key={piece} source={source} items={items} />;
+    })}
+    <mesh position={[0, -.3, 2]} receiveShadow><boxGeometry args={[30, .3, 14]} /><meshStandardMaterial color="#111e19" roughness={1} /></mesh>
+    <mesh position={[0, 1.15, WALL_FRONT - TILE - .02]}><planeGeometry args={[2.6, 2.3]} /><meshBasicMaterial color="#070f0d" /></mesh>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .012, 0]}><ringGeometry args={[1.55, 1.57, 64]} /><meshStandardMaterial color="#a78e53" metalness={.5} roughness={.5} /></mesh>
+    <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, .016, 0]}><ringGeometry args={[1.03, 1.045, 4]} /><meshStandardMaterial color="#8e8152" metalness={.5} roughness={.5} /></mesh>
+    <Torch position={[-2.6, 1.8, WALL_FRONT + .45]} /><Torch position={[2.6, 1.8, WALL_FRONT + .45]} />
     {variant==='library'&&<Stones blocks={books} geometry={plainGeometry}/>}
-    {mode === 'title' && <mesh position={[0, 1.2, -2.72]}><boxGeometry args={[1.9, 2.4, .14]} /><meshStandardMaterial color="#26382c" metalness={.2} roughness={.6} /></mesh>}
-    {mode === 'title' && <mesh position={[0, 1.4, -2.62]} rotation={[0, 0, Math.PI / 4]}><torusGeometry args={[.18, .025, 6, 4]} /><meshStandardMaterial color="#c1a15b" metalness={.8} roughness={.3} emissive="#755624" emissiveIntensity={.4} /></mesh>}
-    {variant === 'forge' && <group position={[0, 0, -2.4]}>
+    {variant === 'forge' && <group position={[0, 0, WALL_FRONT + .1]}>
       <mesh position={[0, .9, 0]}><boxGeometry args={[1.65, 1.8, .3]} /><meshStandardMaterial color="#211d19" /></mesh>
       {[-.6,-.3,0,.3,.6].map(x => <mesh key={x} position={[x, .9, .19]}><boxGeometry args={[.055, 1.7, .08]} /><meshStandardMaterial color="#625542" metalness={.8} roughness={.45} /></mesh>)}
       <pointLight position={[0, .6, .5]} color="#ff8436" intensity={4} distance={6} />
@@ -144,11 +173,12 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
   const actor = useMemo(() => {
     const object = clone(source.scene);
     object.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
+    const outline = stylizeActor(object);
     const mixer = new THREE.AnimationMixer(object);
     const actions = Object.fromEntries(source.animations.map(clip => [clip.name, mixer.clipAction(clip)]));
-    return { object, mixer, actions, name: null, action: null };
+    return { object, mixer, actions, outline, name: null, action: null };
   }, [source]);
-  useEffect(() => () => { actor.mixer.stopAllAction(); actor.name=null; actor.action=null; }, [actor]);
+  useEffect(() => () => { actor.mixer.stopAllAction(); actor.outline.dispose(); actor.name=null; actor.action=null; }, [actor]);
   useFrame((_, delta) => {
     if (!root.current) return;
     const state = control?.() ?? {};
@@ -178,6 +208,7 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
     root.current.position.set(...(state.position ?? position));
     root.current.rotation.set(0, rotation, state.lean ?? 0);
     root.current.scale.setScalar(scale * (state.scale ?? 1));
+    setOutlineScale(actor.outline, scale * (state.scale ?? 1));
     root.current.visible = state.visible !== false;
     if(import.meta.env.DEV)Object.assign(root.current.userData,{action:key,actionTime:actor.action?.time,mixerTime:actor.mixer.time,weight:actor.action?.getEffectiveWeight(),requestedTime:state.animationTime});
   }, -1);
@@ -334,15 +365,15 @@ function MapRooms({ run, onSelect, inspecting }) {
   const possible = run.map.flat().filter(node => node.floor === run.floor + 1 && Math.abs(node.lane - run.lane) <= 1);
   const blocks = useMemo(() => run.map.flat().flatMap(node => {
     const x=(node.lane-1)*3,z=-(node.floor-3.5)*1.55;
-    const color=run.visited.includes(node.id)?'#8b8057':node.type==='boss'?'#74503a':'#40564a';
+    const color=run.visited.includes(node.id)?'#9b7a52':node.type==='boss'?'#7a4636':'#4a3f5c';
     return [
       {position:[x,-.2,z],scale:[1.85,.4,1.2],color},
-      {position:[x,.27,z-.53],scale:[1.8,.5,.14],color:'#647258'},
-      {position:[x-.82,.20,z],scale:[.14,.4,1.1],color:'#647258'},
-      {position:[x+.82,.20,z],scale:[.14,.4,1.1],color:'#647258'},
-      {position:[x-.43,.35,z+.5],scale:[.12,.7,.16],color:'#7f865e'},
-      {position:[x+.43,.35,z+.5],scale:[.12,.7,.16],color:'#7f865e'},
-      {position:[x,.72,z+.5],scale:[.98,.12,.18],color:'#7f865e'},
+      {position:[x,.27,z-.53],scale:[1.8,.5,.14],color:'#6c6180'},
+      {position:[x-.82,.20,z],scale:[.14,.4,1.1],color:'#6c6180'},
+      {position:[x+.82,.20,z],scale:[.14,.4,1.1],color:'#6c6180'},
+      {position:[x-.43,.35,z+.5],scale:[.12,.7,.16],color:'#8a5a36'},
+      {position:[x+.43,.35,z+.5],scale:[.12,.7,.16],color:'#8a5a36'},
+      {position:[x,.72,z+.5],scale:[.98,.12,.18],color:'#8a5a36'},
     ];
   }), [run.map,run.visited]);
   return <group name="route-map" rotation={[0,horizontal?Math.PI/2:0,0]}>
@@ -351,16 +382,16 @@ function MapRooms({ run, onSelect, inspecting }) {
       const a=new THREE.Vector3((node.lane-1)*3,-.15,-(node.floor-3.5)*1.55);
       const b=new THREE.Vector3((next.lane-1)*3,-.15,-(next.floor-3.5)*1.55);
       const quaternion=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),b.clone().sub(a).normalize());
-      return <mesh key={node.id+next.id} position={a.clone().add(b).multiplyScalar(.5)} quaternion={quaternion}><cylinderGeometry args={[.045,.045,a.distanceTo(b),5]} /><meshStandardMaterial color={run.visited.includes(next.id)?'#c8aa6a':'#4b6250'} /></mesh>;
+      return <mesh key={node.id+next.id} position={a.clone().add(b).multiplyScalar(.5)} quaternion={quaternion}><cylinderGeometry args={[.045,.045,a.distanceTo(b),5]} /><meshStandardMaterial color={run.visited.includes(next.id)?'#ffb25e':'#6f5f86'} /></mesh>;
     })))}
     {run.map.flat().map(node => {
       const reachable=possible.some(n=>n.id===node.id) && !inspecting;
       return <group key={node.id} position={[(node.lane-1)*3,0,-(node.floor-3.5)*1.55]}>
         <mesh position={[0,.35,0]} onClick={event=>{event.stopPropagation();if(reachable)onSelect?.(node.id);}} onPointerOver={event=>{if(reachable)event.object.scale.setScalar(1.13);}} onPointerOut={event=>event.object.scale.setScalar(1)}>
           {node.type==='boss'||node.type==='elite'?<octahedronGeometry args={[.32,0]} />:node.type==='treasure'?<boxGeometry args={[.6,.35,.4]}/>:node.type==='rest'?<coneGeometry args={[.22,.6,7]}/>:<cylinderGeometry args={[.15,.23,.5,6]} />}
-          <meshStandardMaterial color={node.type==='rest'?'#d89657':node.type==='treasure'?'#dbb975':reachable?'#c8dab6':'#637969'} metalness={.45} roughness={.38} emissive={reachable?'#94844d':'#000000'} emissiveIntensity={.35} />
+          <meshStandardMaterial color={node.type==='rest'?'#e98567':node.type==='treasure'?'#ffc477':reachable?'#f3dcc0':'#7d7090'} metalness={.45} roughness={.38} emissive={reachable?'#a05a2a':'#000000'} emissiveIntensity={.35} />
         </mesh>
-        {reachable && <mesh rotation={[-Math.PI/2,0,0]} position={[0,.012,0]}><ringGeometry args={[.5,.54,32]} /><meshBasicMaterial color="#dfc785" /></mesh>}
+        {reachable && <mesh rotation={[-Math.PI/2,0,0]} position={[0,.012,0]}><ringGeometry args={[.5,.54,32]} /><meshBasicMaterial color="#ffb25e" /></mesh>}
       </group>;
     })}
     <Actor position={[(run.lane-1)*3,.02,-(Math.max(0,run.floor)-3.5)*1.55]} scale={.32} rotation={Math.PI} />
@@ -383,21 +414,23 @@ function SceneReady({ callback }) {
   return null;
 }
 
-export default function World({ mode='battle', state, initialEffectId, callbacks={}, quality, reduced=false, run, onSelect, inspecting, onComplete, won=true, directorRef, onSceneReady }) {
+export default function World({ mode='battle', state, initialEffectId, callbacks={}, quality, reduced=false, run, onSelect, inspecting, onComplete, won=true, directorRef, onSceneReady, heroAction='idle' }) {
   const variant=mode==='forge'||['ember','scarab','ravager','boss'].includes(state?.enemy.type)?'forge':['bat','wisp','watcher','mushroom'].includes(state?.enemy.type)?'library':'hall';
   return <>
-    <color attach="background" args={['#101b16']} />
-    <fog attach="fog" args={['#101b16',12,30]} />
+    <color attach="background" args={[DUSK.background]} />
+    <fog attach="fog" args={[DUSK.background,12,30]} />
     <CameraFit mode={mode} /><EnvironmentLight quality={quality} />
-    {mode==='map'?<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} />:<Dungeon variant={variant} mode={mode} />}
+    {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} />}
     <Suspense fallback={null}>
+      {mode!=='map'&&<Dungeon variant={variant} mode={mode} />}
       {mode==='battle'?<BattleActors state={state} callbacks={callbacks} quality={quality} reduced={reduced} directorRef={directorRef} initialEffectId={initialEffectId} />
         :mode==='entry'?<EntranceActor reduced={reduced} onComplete={onComplete} />
-          :mode==='map'?null:<Actor position={mode==='title'?[-1.6,0,.7]:[-1.3,0,0]} rotation={mode==='title' ? .65 : Math.PI/3} action={mode==='result'?won?'victory':'death':'idle'} still={reduced} />}
+          :mode==='map'?null:mode==='title'?<Actor position={[.9,0,.9]} rotation={-.38} action={heroAction} still={reduced} />
+            :<Actor position={[-1.3,0,0]} rotation={Math.PI/3} action={mode==='result'?won?'victory':'death':'idle'} still={reduced} />}
       {mode!=='battle'&&<SceneReady callback={onSceneReady}/>}
     </Suspense>
     {['rest','forge'].includes(mode)&&<Camp forge={mode==='forge'} />}
-    {mode==='reward'&&<group position={[1.2,.3,0]}><mesh castShadow><boxGeometry args={[.95,.55,.6]} /><meshStandardMaterial color="#704b2e" roughness={.6} /></mesh><mesh position={[0,.35,0]}><boxGeometry args={[1,.16,.65]} /><meshStandardMaterial color="#b69753" metalness={.7} roughness={.35} /></mesh><pointLight position={[0,.8,0]} color="#ffdc8c" intensity={2} distance={3} /></group>}
+    {mode==='reward'&&<pointLight position={[1.2,1.1,.3]} color="#ffdc8c" intensity={2} distance={3} />}
     <Motes count={quality.particles} still={reduced} />
   </>;
 }

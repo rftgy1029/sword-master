@@ -1,23 +1,24 @@
 {
-  "source": "scripts/create_3d_assets.py",
-  "license": "Original S\u2019word Master artwork; no third-party model assets.",
+  "source": "scripts/create_3d_assets.py, scripts/import_kenney_hero.py",
+  "license": "Monsters: original S’word Master artwork (scripts/create_3d_assets.py). Hero: Kenney Mini Characters, CC0 (scripts/import_kenney_hero.py).",
   "coordinateSystem": "glTF Y-up, forward +Z, feet at Y=0",
   "models": {
     "hero": {
       "file": "hero.glb",
-      "bytes": 423804,
+      "bytes": 143108,
       "clips": [
-        "idle",
-        "walk",
-        "attack",
-        "hit",
-        "death",
         "guard",
+        "death",
+        "hit",
+        "walk",
+        "idle",
+        "attack",
         "victory"
       ],
-      "meshes": 33,
-      "rig": "articulated transform hierarchy",
-      "ground": 0
+      "meshes": 2,
+      "rig": "skinned armature",
+      "ground": 0,
+      "source": "Kenney Mini Characters 2.0 (character-knight, weapon-sword), CC0 — scripts/import_kenney_hero.py"
     },
     "crawler": {
       "file": "crawler.glb",
@@ -178,5 +179,38 @@
       "rig": "articulated transform hierarchy",
       "ground": 0
     }
+  },
+  "dungeon": {
+    "file": "dungeon-kit.glb",
+    "bytes": 306112,
+    "pieces": [
+      "banner",
+      "barrel",
+      "chair",
+      "chest",
+      "coin",
+      "column",
+      "dirt",
+      "floor",
+      "floor-detail",
+      "gate",
+      "key",
+      "pot",
+      "potion",
+      "rocks",
+      "shield-round",
+      "stairs",
+      "stones",
+      "table",
+      "trap",
+      "wall",
+      "wall-half",
+      "wall-narrow",
+      "wall-opening",
+      "weapon-spear",
+      "wood-structure",
+      "wood-support"
+    ],
+    "source": "Kenney Mini Dungeon 2.0, CC0 — scripts/build_kenney_dungeon.py"
   }
 }

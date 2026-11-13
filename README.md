@@ -4,7 +4,7 @@
 
 기본 장면은 **Three.js + React Three Fiber의 실제 3D**입니다. 용사와 몬스터 12종, 던전·입장·경로·보상·휴식·대장간·결과 장면을 입체로 구성하고 전체 UI를 같은 녹색·아이보리·금색 규칙으로 개편했습니다. 모바일 퀴즈는 큰 세로 선택지를 사용합니다. [구현과 검증 기록](docs/UI_3D_IMPLEMENTATION.md) · [실행한 계획](docs/UI_3D_UPGRADE_PLAN.md)
 
-설정에서 입체·간편 화면과 그래픽 품질을 고릅니다. 그래픽 오류 시 기존 저장을 유지하며 2D 일러스트 화면으로 복구합니다. Blender 모델 생성 코드는 `scripts/create_3d_assets.py`, GLB 13개와 자산 목록은 `public/models/`에 있습니다. [전투 화면](docs/screenshots/3d-battle-production.png)
+설정에서 입체·간편 화면과 그래픽 품질을 고릅니다. 그래픽 오류 시 기존 저장을 유지하며 2D 일러스트 화면으로 복구합니다. 몬스터 모델 생성 코드는 `scripts/create_3d_assets.py`, 용사(Kenney Mini Characters, CC0) 변환 코드는 `scripts/import_kenney_hero.py`, 던전 부품(Kenney Mini Dungeon, CC0) 묶음 코드는 `scripts/build_kenney_dungeon.py`, GLB와 자산 목록은 `public/models/`에 있습니다. [전투 화면](docs/screenshots/3d-battle-production.png)
 
 ## 실행
 
@@ -65,10 +65,13 @@ npm run preview
 | `src/components/AdventureDialog.jsx`, `src/components/QuizPanel.jsx` | 티어 선택, 경로, 전투·퀴즈, 보상과 결과 UI |
 | `src/game/engine.js`, `catalog.js`, `quiz.js`, `storage.js` | 전투 규칙, 카드·유물 데이터, 출제 및 진행 상태 저장 |
 | `src/components/SceneView.jsx`, `src/game/three/` | 3D 장면·관절 애니메이션·기술·품질 설정과 간편 화면 연결 |
+| `src/styles/dusk.css`, `src/titleWords.js`, `src/components/ui/SwordLogo.jsx` | 황혼 색·Galmuri 글꼴의 화면 디자인, 단어로 고르는 타이틀 메뉴, 칼 모양 로고 |
 | `src/game/titleScene.js`, `entranceScene.js`, `combatScene.js` | 간편 화면용 Phaser 타이틀·입장·전투 렌더링 |
 | `src/vocabulary.js`, `src/data/vocabulary.json` | 티어별 단어 자료와 검색 |
 | `assets/maps/`, `assets/source/`, `assets/illustrations/` | Tiled 맵·Pixelorama 보관 원본과 2D 일러스트 |
-| `public/models/`, `scripts/create_3d_assets.py` | 실제 3D GLB·자산 목록과 Blender 생성 코드 |
+| `public/models/`, `scripts/create_3d_assets.py`, `scripts/import_kenney_hero.py` | 실제 3D GLB·자산 목록, 몬스터 생성 코드와 Kenney 용사 변환 코드 |
+| `assets/kenney/`, `assets/models/` | Kenney CC0 원본(용사·검·던전 부품)과 Blender에서 열어 볼 수 있는 `.blend` 장면 |
+| `src/game/three/kenneyDungeon.js`, `scripts/build_kenney_dungeon.py` | Kenney 던전 부품 배치와 `dungeon-kit.glb` 생성 |
 | `src/styles/premium.css`, `src/components/ui/` | 공통 UI 규칙과 벡터 아이콘 |
 
 React와 JavaScript가 게임 상태와 UI를 관리하고, Three.js가 입체 장면과 기술 효과를 그립니다. Phaser는 간편 화면에 사용합니다. Vite로 개발 서버와 배포 빌드를 실행합니다. 용사 Pixelorama 원본을 수정한 뒤 `npm run assets:hero`로 PNG를 갱신하고 `npm run assets:check`로 일치 여부를 확인할 수 있습니다. [용사 에셋 안내](assets/source/README.md)
@@ -86,4 +89,4 @@ npm run test:ui
 npm run test:journey
 ```
 
-저장 없이 확인하는 3D 미리보기는 `/dev/three-preview.html`입니다. 2D 일러스트는 `npm run assets:illustrations`, 모델은 Blender 4.3 이상에서 `npm run assets:models`로 다시 생성할 수 있습니다. [보관 원본과 자산 안내](assets/source/README.md)
+저장 없이 확인하는 3D 미리보기는 `/dev/three-preview.html`입니다. 2D 일러스트는 `npm run assets:illustrations`, 모델은 Blender 4.3 이상에서 `npm run assets:models`(몬스터), `npm run assets:hero3d`(용사), `npm run assets:dungeon`(던전 부품)으로 다시 생성할 수 있습니다. [보관 원본과 자산 안내](assets/source/README.md)

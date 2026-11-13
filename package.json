@@ -8,6 +8,8 @@
     "assets:check": "python3 scripts/export_hero.py --check",
     "assets:illustrations": "node scripts/export_illustrations.mjs",
     "assets:models": "blender --background --threads 2 --python scripts/create_3d_assets.py",
+    "assets:hero3d": "blender --background --factory-startup --threads 2 --python scripts/import_kenney_hero.py",
+    "assets:dungeon": "blender --background --factory-startup --threads 2 --python scripts/build_kenney_dungeon.py",
     "dev": "vite --host 127.0.0.1 --port 8175 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8176 --strictPort",

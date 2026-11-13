@@ -1,10 +1,23 @@
-S’word Master original 3D model sources
+S’word Master 3D model sources
 
-Models in public/models were authored for this project using Blender.
+Monsters (12 models in public/models) were authored for this project using Blender.
 Reproducible source: scripts/create_3d_assets.py
+
+Hero (public/models/hero.glb) is converted from Kenney "Mini Characters" 2.0
+(character-knight and weapon-sword), released under Creative Commons Zero (CC0).
+Source files: assets/kenney/mini-characters
+Conversion: scripts/import_kenney_hero.py
+License text: Kenney-Mini-Characters-CC0.txt (www.kenney.nl)
+
+Dungeon pieces (public/models/dungeon-kit.glb: floor, walls, columns, banners,
+barrels, chest and other props) come from Kenney "Mini Dungeon" 2.0, CC0.
+Source files: assets/kenney/mini-dungeon
+Build script: scripts/build_kenney_dungeon.py
+License text: Kenney-Mini-Dungeon-CC0.txt (www.kenney.nl)
+
 Asset manifest: public/models/manifest.json
-No third-party model pack, model-generation service or external texture was used.
+No model-generation service was used.
 
 Three.js, React Three Fiber and their dependencies retain their own MIT licenses,
 provided alongside this notice. Existing illustration and Pixelorama sources
-remain separate from these original articulated 3D meshes.
+remain separate from these 3D meshes.
