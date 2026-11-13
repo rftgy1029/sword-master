@@ -17,6 +17,7 @@
     "test": "node --test",
     "test:3d": "node scripts/verify-3d.mjs",
     "test:journey": "node scripts/verify-journey.mjs",
+    "test:survey": "node scripts/verify-survey.mjs",
     "test:ui": "node scripts/verify-ui.mjs"
   },
   "dependencies": {

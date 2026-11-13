@@ -3,6 +3,12 @@ import { cardShortcutIndex, confirmShortcut, cancelShortcut } from '../game/comb
 import { QUIZ_TYPES, questionById } from '../game/quiz.js';
 import { MAX_TERM_LENGTH } from '../game/wordbooks.js';
 
+const INSTRUCTIONS = {
+  meaning: '이 단어의 뜻을 고르세요.',
+  synonym: '비슷한 뜻의 단어를 고르세요.',
+  antonym: '반대 뜻의 단어를 고르세요.',
+};
+
 function AnswerVerdict({ correct, review }) {
   return <div className={`answer-verdict ${correct ? 'is-correct' : 'is-wrong'}`} role="status">
     <span aria-hidden="true">{correct ? '✓' : '✕'}</span><strong>{correct ? '정답!' : '오답'}</strong>
@@ -64,15 +70,14 @@ export default function QuizPanel({ question, feedback, onAnswer, onContinue, ca
   if (compact && feedback && busy) return <section ref={panel} className="quiz-panel is-resolving" aria-label="카드 효과 연출 중">
     <AnswerVerdict correct={feedback.correct} /><p>{cardName} · {feedback.correct ? '기술 연출 중' : '효과 없음'}</p>
   </section>;
-  return <section ref={panel} className={`quiz-panel${feedback ? feedback.correct ? ' quiz-correct' : ' quiz-wrong' : ''}`} aria-labelledby="quiz-heading">
+  return <section ref={panel} className={`quiz-panel${feedback ? feedback.correct ? ' quiz-correct' : ' quiz-wrong' : ''}`} aria-labelledby="quiz-type quiz-heading">
     {feedback && <AnswerVerdict correct={feedback.correct} review={!compact} />}
-    <div className="quiz-heading-row">
-      <p className="game-eyebrow">{feedback && compact ? feedback.correct ? '정답 · 효과 발동' : '오답 · 효과 없음' : `${QUIZ_TYPES[source.type]} 문제`}</p>
-      <span>{cardName}{compact && !feedback && ' · 카드와 에너지 소비 완료'}{compact && !feedback && !typing && ' · 숫자 키 두 번으로 확정'}</span>
+    <div className="quiz-content"><div className="quiz-question">
+      <p id="quiz-type" className="quiz-type">{typing ? '영단어 입력' : `${QUIZ_TYPES[source.type]} ${source.type === 'meaning' ? '맞히기' : '찾기'}`}</p>
+      <h3 id="quiz-heading"><span lang={typing && !feedback ? undefined : 'en'}>{typing && !feedback ? source.word.meaning : source.word.term}</span></h3>
+      {(!compact || !feedback) && <p className="quiz-instruction">{typing ? '이 뜻에 해당하는 영단어를 입력하세요.' : INSTRUCTIONS[source.type]}</p>}
+      {source.type !== 'meaning' && (!compact || !feedback) && <p className="quiz-context">뜻: {source.word.meaning}</p>}
     </div>
-    <h3 id="quiz-heading"><span lang={typing && !feedback ? undefined : 'en'}>{typing && !feedback ? source.word.meaning : source.word.term}</span>
-      {!feedback && <small>{typing ? '이 뜻에 해당하는 영단어는?' : source.type === 'meaning' ? '이 단어의 뜻은?' : `아래 뜻에서의 ${QUIZ_TYPES[source.type]}는?`}</small>}</h3>
-    {source.type !== 'meaning' && (!compact || !feedback) && <p className="quiz-context">뜻: {source.word.meaning}</p>}
     {!feedback ? typing ? <TypedAnswer key={question.id} busy={busy} onAnswer={onAnswer} /> : <div className="quiz-options" data-keyboard-group>
       {question.options.map((option, i) => <button key={option} disabled={busy} data-initial-focus={i === 0 ? '' : undefined}
         onClick={() => onAnswer(option)}><span>{i + 1}</span>{option}</button>)}
@@ -88,5 +93,10 @@ export default function QuizPanel({ question, feedback, onAnswer, onContinue, ca
         <p className="game-muted">출처: {source.word.sources.join(', ')}</p></>}
       <button className="game-primary" data-initial-focus disabled={busy} onClick={onContinue}>{continueLabel} <span aria-hidden="true">↵</span></button>
     </div>}
+    </div>
+    {(cardName || compact) && <footer className="quiz-meta">
+      {cardName && <p className="quiz-card-info"><span>사용 카드</span> <strong>{cardName}</strong>{!feedback && <span> · 카드와 에너지 소비 완료</span>}</p>}
+      {compact && !feedback && !typing && <p className="quiz-shortcut"><kbd>1</kbd>–<kbd>4</kbd> 같은 숫자 키를 두 번 눌러 확정</p>}
+    </footer>}
   </section>;
 }

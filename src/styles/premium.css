@@ -103,8 +103,8 @@ dialog::backdrop,.game-dialog::backdrop,.settings-dialog::backdrop,.vocabulary-d
 .battle-menu summary { border-radius:8px; background:#26392b; border-color:#67734a88; color:#dfe8ce; font-size:12px; }
 .battle-menu-content { border-radius:12px; background:#192c1f; border-color:#879165; box-shadow:0 14px 35px #0007; }
 .battle-menu-content button { font-size:14px; padding:12px; }
-.battle-screen>.combat-hud { padding:14px 22px; gap:20px; background:linear-gradient(180deg,#1e3325,#192c20); border-bottom:1px solid #576d414a; }
-.battle-screen>.combat-hud .combatant-hud { border:0; background:transparent; padding:0 10px; width:calc(50% - 10px); }
+.battle-stage>.combat-hud { padding:14px 22px; gap:20px; background:linear-gradient(180deg,#1e3325,#192c20); border-bottom:1px solid #576d414a; }
+.battle-stage>.combat-hud .combatant-hud { border:0; background:transparent; padding:0 10px; width:calc(50% - 10px); }
 .combatant-heading { margin-bottom:8px; }
 .game-dialog .combatant-heading h3 { font-size:calc(16px * var(--text-scale)); font-weight:500; color:#f1ebd3; }
 .combatant-heading>span { font-size:calc(12px * var(--text-scale)); color:#d0dbbf; }
@@ -162,15 +162,8 @@ dialog::backdrop,.game-dialog::backdrop,.settings-dialog::backdrop,.vocabulary-d
 .card-action { color:var(--card-accent); border-color:#bbc38a20; font-size:11px; }
 .game-card.is-upgraded>strong { color:#d1e4b5; }
 .quiz-panel { border-radius:14px; border:1px solid #b29b635c; background:linear-gradient(140deg,#213728,#172b20); box-shadow:0 6px 22px #0002; padding:22px; }
-.battle-controls .quiz-panel { display:grid; grid-template-columns:minmax(160px,.7fr) minmax(0,1.3fr); grid-template-rows:auto auto; column-gap:28px; row-gap:10px; padding:18px 22px; margin:6px auto 0; max-width:1200px; }
-.battle-controls .quiz-heading-row { grid-column:1/-1; grid-row:1; margin-bottom:0; }
-.battle-controls .quiz-panel h3 { grid-column:1; grid-row:2; display:block; align-self:center; margin:0; }
-.battle-controls .quiz-panel h3 small { display:block; margin-top:6px; }
-.battle-controls .quiz-options { grid-column:2; grid-row:2 / span 2; }
-.battle-controls .quiz-context { grid-column:1; grid-row:3; }
 .game-dialog .quiz-panel h3>span { color:#fff1d0; font-size:calc(34px * var(--text-scale)); line-height:1.1; font-weight:500; }
 .game-dialog .quiz-panel h3 small { color:#c4d2b7; font-size:calc(13px * var(--text-scale)); line-height:1.6; }
-.quiz-heading-row>span { color:#b7c7aa; font-size:11px; }
 .quiz-options { gap:9px; }
 .quiz-options button { border-radius:8px; border-color:#8291627a; background:#314932; color:#f2efdc; min-height:52px; padding:12px 14px; font-size:calc(16px * var(--text-scale)); line-height:1.65; }
 .quiz-options button>span { font-size:11px; color:#e3cd96; width:19px; height:23px; display:grid; place-items:center; border-right:1px solid #a6ac7755; padding-right:9px; }
@@ -178,7 +171,6 @@ dialog::backdrop,.game-dialog::backdrop,.settings-dialog::backdrop,.vocabulary-d
 .game-dialog .quiz-feedback p { font-size:calc(13px * var(--text-scale)); color:#d2dec6; }
 .quiz-feedback .game-primary { margin-top:10px; }
 .quiz-word-details { font-size:12px; color:#b8c9a8; }
-.battle-controls .quiz-panel:has(.answer-verdict) { display:block; }
 .answer-verdict { border-radius:9px; border-width:1px; justify-content:flex-start; padding:11px 17px; }
 .answer-verdict.is-correct { background:#254a34; border-color:#88be8f; box-shadow:none; color:#e0ffe1; }
 .answer-verdict.is-wrong { background:#63383a; border-color:#d19b8f; box-shadow:none; color:#ffebe5; }
@@ -251,7 +243,7 @@ dialog::backdrop,.game-dialog::backdrop,.settings-dialog::backdrop,.vocabulary-d
   .card-hand .game-card { min-height:173px; flex-basis:158px; gap:6px; }
   .card-hand .card-art { height:39px; }
   .card-art>.game-icon { width:32px; height:32px; }
-  .battle-screen>.combat-hud { padding-block:10px; }
+  .battle-stage>.combat-hud { padding-block:10px; }
   .battle-controls { padding-top:8px; padding-bottom:10px; }
 }
 @media (max-width:900px) {
@@ -296,8 +288,8 @@ dialog::backdrop,.game-dialog::backdrop,.settings-dialog::backdrop,.vocabulary-d
   .battle-save-status { display:none; }
   .battle-menu summary { min-height:40px; padding:8px 10px; font-size:11px; }
   .settings-close { width:40px; height:40px; }
-  .battle-screen>.combat-hud { padding:11px 12px; gap:13px; }
-  .battle-screen>.combat-hud .combatant-hud { width:calc(50% - 6px); padding:0; }
+  .battle-stage>.combat-hud { padding:11px 12px; gap:13px; }
+  .battle-stage>.combat-hud .combatant-hud { width:calc(50% - 6px); padding:0; }
   .game-dialog .combatant-heading h3 { font-size:calc(12px * var(--text-scale)); }
   .combatant-heading>span { font-size:10px; }
   .combatant-heading { gap:5px; }
@@ -331,8 +323,6 @@ dialog::backdrop,.game-dialog::backdrop,.settings-dialog::backdrop,.vocabulary-d
   .card-cost { width:25px; height:25px; font-size:18px; }
   .card-top small { font-size:9px; }
   .card-shortcut { width:17px; min-width:17px; height:17px; font-size:8px; }
-  .battle-controls .quiz-panel { display:flex; flex-direction:column; gap:11px; padding:15px; }
-  .quiz-heading-row>span { font-size:9px; }
   .game-dialog .quiz-panel h3>span { font-size:calc(30px * var(--text-scale)); }
   .game-dialog .quiz-panel h3 small { display:inline; margin-left:12px; font-size:11px; }
   .game-dialog .quiz-options { grid-template-columns:1fr; gap:7px; align-self:stretch; }
