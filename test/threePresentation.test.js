@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {CombatPlayback,combatPose} from '../src/game/three/playback.js';
+import {CombatPlayback,combatPose,HIT_STOP,impactAges} from '../src/game/three/playback.js';
 import {MODEL_TYPES,qualityProfile} from '../src/game/three/quality.js';
 import {MONSTERS,CARDS} from '../src/game/catalog.js';
 import {ATTACK_HITS} from '../src/game/attackTimeline.js';
@@ -157,4 +157,18 @@ test('Kenney dungeon kit contains every piece the scenes place, and the manifest
     }
   }
   assert.deepEqual(dungeonLayout('hall','battle'),dungeonLayout('hall','battle'),'The same scene always gets the same layout');
+});
+
+test('player hits pause the timeline briefly (hit-stop) while impact ages keep running on the real clock',()=>{
+  const p=new CombatPlayback();p.start({id:1,kind:'attack',cardType:'strike'},'sentinel');
+  p.advance(ATTACK_HITS.strike[0]);
+  assert.equal(p.active.elapsed,ATTACK_HITS.strike[0]);
+  p.advance(HIT_STOP.strike/2);
+  assert.equal(p.active.elapsed,ATTACK_HITS.strike[0],'the swing is frozen on contact');
+  assert.equal(impactAges(p.active)[0],HIT_STOP.strike/2,'effects keep animating during the freeze');
+  p.advance(HIT_STOP.strike/2+100);
+  assert.equal(p.active.elapsed,ATTACK_HITS.strike[0]+100);
+  const enemy=new CombatPlayback();enemy.start({id:1,kind:'hurt',impacts:[3]},'boss');
+  enemy.advance(enemy.active.hits[0]+50);
+  assert.equal(enemy.active.elapsed,enemy.active.hits[0]+50,'monster hits do not freeze the timeline');
 });

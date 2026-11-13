@@ -8,7 +8,8 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { modelUrl } from './quality.js';
 import { CombatPlayback, combatPose } from './playback.js';
 import { CARD_MOTIONS } from '../cardMotions.js';
-import { setOutlineScale, stylizeActor } from './toon.js';
+import { setHitFlash, setOutlineScale, stylizeActor } from './toon.js';
+import ImpactEffects, { hitFlashAmount } from './ImpactEffects.jsx';
 import { COMPOSITE_PIECES, KIT_SCALE, KIT_TINT, TILE, WALL_FRONT, dungeonKitUrl, dungeonLayout, groupByPiece } from './kenneyDungeon.js';
 
 const stoneGeometry = new RoundedBoxGeometry(1, 1, 1, 1, .028);
@@ -93,6 +94,9 @@ function CameraFit({ mode }) {
       camera.lookAt(0,1.1,0);
     }
     camera.updateProjectionMatrix();
+    // 타격 연출의 카메라 흔들림은 이 위치를 기준으로 잠깐 움직였다가 돌아온다.
+    camera.userData.base = camera.position.clone();
+    camera.userData.baseFov = camera.fov;
   }, [camera, size.width, size.height, mode]);
   return null;
 }
@@ -209,6 +213,7 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
     root.current.rotation.set(0, rotation, state.lean ?? 0);
     root.current.scale.setScalar(scale * (state.scale ?? 1));
     setOutlineScale(actor.outline, scale * (state.scale ?? 1));
+    setHitFlash(actor.outline, state.flash ?? 0, state.flashColor);
     root.current.visible = state.visible !== false;
     if(import.meta.env.DEV)Object.assign(root.current.userData,{action:key,actionTime:actor.action?.time,mixerTime:actor.mixer.time,weight:actor.action?.getEffectiveWeight(),requestedTime:state.animationTime});
   }, -1);
@@ -249,7 +254,11 @@ function SkillEffects({ director, quality }) {
     ring.current.material.color.copy(color); ring.current.material.opacity = pulse * .7;
     ring.current.scale.setScalar(.45 + progress * (type === 'nova' ? 2.1 : 1.2));
     ring.current.rotation.z = progress * Math.PI;
-    slash.current.visible = damage && phase > .02;
+    const melee = damage && (enemy || ['strike','heavy','twin'].includes(type));
+    // 근접 타격은 ImpactEffects가 맡는다. 예전의 얇은 고리 베기는 쓰지 않는다.
+    slash.current.visible = false;
+    ring.current.visible = !melee;
+    particles.current.visible = !melee;
     slash.current.material.color.copy(color); slash.current.material.opacity = phase;
     slash.current.rotation.z = type === 'heavy' ? progress * 2 : progress * 5 - 1.7;
     slash.current.scale.setScalar((effect.upgraded ? 1.4 : 1.1) + phase * .3);
@@ -325,18 +334,21 @@ function BattleActors({ state, callbacks, quality, reduced, directorRef, initial
     const dead = latest.current.playerDead && !current;
     let action = dead ? 'death' : current ? current.enemy ? 'hit' : ['enemy','miss'].includes(current.effect.kind)?'idle':current.effect.kind === 'attack' ? 'attack' : current.effect.kind === 'block' ? 'guard' : 'victory' : 'idle';
     const animationTime = current && !current.enemy && current.effect.kind === 'attack' ? attackAnimationTime(current) : undefined;
-    return { action, animationTime, position: [pose.current.heroX,pose.current.heroY,0], lean: dead ? -.8 : pose.current.heroLean };
+    return { action, animationTime, position: [pose.current.heroX,pose.current.heroY,0], lean: dead ? -.8 : pose.current.heroLean,
+      flash: reduced ? 0 : hitFlashAmount(current,'hero'), flashColor: '#ffd2c4' };
   };
   const foe = () => {
     const current = director.active;
     const dead = latest.current.enemy.hp <= 0 && !current;
     return { action: dead ? 'death' : current ? current.enemy ? 'attack' : current.effect.kind === 'attack' ? 'hit' : current.effect.kind==='enemy'?{block:'guard',buff:'victory',charge:'guard',wait:'idle'}[current.effect.enemyAction]??'idle':'idle' : 'idle',
-      position:[pose.current.enemyX,pose.current.enemyY,0], lean:dead ? -.65 : pose.current.enemyLean, scale:dead ? .8 : 1 };
+      position:[pose.current.enemyX,pose.current.enemyY,0], lean:dead ? -.65 : pose.current.enemyLean, scale:dead ? .8 : 1,
+      flash: reduced ? 0 : hitFlashAmount(current,'enemy') };
   };
   return <>
     <Actor type="hero" rotation={Math.PI / 2} control={hero} still={reduced} />
     <Actor type={state.enemy.type} rotation={-Math.PI / 2} control={foe} still={reduced} />
     <SkillEffects director={director} quality={quality} />
+    <ImpactEffects director={director} pose={() => pose.current} quality={quality} reduced={reduced} />
   </>;
 }
 
