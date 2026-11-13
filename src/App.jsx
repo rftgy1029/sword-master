@@ -4,6 +4,8 @@ import AdventureDialog from './components/AdventureDialog.jsx';
 import ReviewDialog from './components/ReviewDialog.jsx';
 import SettingsDialog from './components/SettingsDialog.jsx';
 import VocabularyDialog from './components/VocabularyDialog.jsx';
+import SurveyDialog from './components/SurveyDialog.jsx';
+import { SURVEY_FORM_URL, surveyUnlocked } from './survey.js';
 import { DEFAULT_SETTINGS, normalizeSettings, readSettings, saveSettings } from './settings.js';
 import { listenForMenuNavigation } from './menuNavigation.js';
 import { useProgress } from './game/useProgress.js';
@@ -21,7 +23,10 @@ const MENU = [
   { label: '단어장', description: '모아 둔 단어를 펼쳐 본다.' },
   { label: '오답 복습', description: '놓쳤던 단어가 다시 길을 막는다.' },
   { label: '설정', description: '모험의 채비를 고친다.' },
+  { label: '설문 참여', description: '석문을 돌파한 이야기를 선생님께 들려준다.' },
 ];
+const CONTINUE = 1;
+const SURVEY = 5; // 학교 티어를 클리어한 기록이 있을 때만 보인다
 const TYPED_SWING = 650; // 단어를 끝까지 치면 기사가 칼을 휘두른 뒤 메뉴가 열린다
 
 function GameApp({ settings, setSettings }) {
@@ -31,6 +36,9 @@ function GameApp({ settings, setSettings }) {
   const [settingsSaved, setSettingsSaved] = useState(null);
   const { progress, dispatch, error } = useProgress();
   const canContinue = !!progress.run && progress.run.phase !== 'result';
+  const canSurvey = surveyUnlocked(progress);
+  // 이어하기는 잠긴 채 보이고, 설문은 열리기 전까지 숨긴다. 둘 다 키보드·단어 입력 대상에서 빠진다.
+  const isEnabled = (i) => i === CONTINUE ? canContinue : i === SURVEY ? canSurvey : true;
   const buttons = useRef([]);
   const menu = useRef(null);
   const opener = useRef(null);
@@ -45,17 +53,17 @@ function GameApp({ settings, setSettings }) {
   useEffect(() => { setSettingsSaved(saveSettings(settings)); }, [settings]);
   useEffect(() => {
     if (openedMenu !== null) return;
-    const indices = MENU.map((_, i) => i).filter((i) => i !== 1 || canContinue);
+    const indices = MENU.map((_, i) => i).filter(isEnabled);
     return listenForMenuNavigation(document, {
       menu: menu.current, buttons: indices.map((i) => buttons.current[i]), selected: Math.max(0, indices.indexOf(selected)),
       onSelect: (i) => setSelected(indices[i]),
     });
-  }, [openedMenu, selected, canContinue]);
+  }, [openedMenu, selected, canContinue, canSurvey]);
 
   useEffect(() => () => clearTimeout(swing.current), []);
   useEffect(() => {
     if (openedMenu !== null) { typedRef.current = ''; setTyped(''); return; }
-    const enabled = MENU.map((_, i) => i !== 1 || canContinue);
+    const enabled = MENU.map((_, i) => isEnabled(i));
     function onKey(event) {
       if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || swing.current) return;
       const background = event.target === document.body || event.target === document.documentElement || menu.current?.contains(event.target);
@@ -78,7 +86,7 @@ function GameApp({ settings, setSettings }) {
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [openedMenu, canContinue, reducedMotion]);
+  }, [openedMenu, canContinue, canSurvey, reducedMotion]);
 
   function focusMenu(index) {
     setSelected(index);
@@ -92,14 +100,15 @@ function GameApp({ settings, setSettings }) {
   }
 
   function menuButton(index) {
-    const isContinue = index === 1;
+    const isContinue = index === CONTINUE;
+    const isSurvey = index === SURVEY;
     const word = MENU_WORDS[index];
-    const match = matchTyped(typed, MENU.map((_, i) => i !== 1 || canContinue));
+    const match = matchTyped(typed, MENU.map((_, i) => isEnabled(i)));
     const typedHere = typed && word.startsWith(typed) ? typed.length : 0;
     return <button ref={(element) => { buttons.current[index] = element; }}
-      className={`menu-button${isContinue ? ' continue-button' : ''}${selected === index ? ' is-selected' : ''}${match.index === index ? ' is-typed' : ''}`}
-      disabled={isContinue && !canContinue} onFocus={() => setSelected(index)}
-      onPointerEnter={(event) => { if (event.pointerType === 'mouse' && openedMenu === null && (!isContinue || canContinue)) focusMenu(index); }}
+      className={`menu-button${isContinue ? ' continue-button' : ''}${isSurvey ? ' survey-button' : ''}${selected === index ? ' is-selected' : ''}${match.index === index ? ' is-typed' : ''}`}
+      disabled={!isEnabled(index)} onFocus={() => setSelected(index)}
+      onPointerEnter={(event) => { if (event.pointerType === 'mouse' && openedMenu === null && isEnabled(index)) focusMenu(index); }}
       onClick={(event) => {
         if (openedMenu !== null) return;
         setSelected(index);
@@ -109,6 +118,7 @@ function GameApp({ settings, setSettings }) {
       <span className="menu-label">{MENU[index].label}</span>
       <span className="menu-word" aria-hidden="true"><b>{word.slice(0, typedHere)}</b>{word.slice(typedHere)}</span>
       {isContinue && <small>{canContinue ? `${TIERS.find((t) => t.id === progress.run.tier)?.label ?? progress.wordbooks?.find((book) => book.id === progress.run.tier)?.name} · ${Math.max(1, progress.run.floor + 1)}층` : '아직 아무도 이 문을 지나지 않았다'}</small>}
+      {isSurvey && <small>브론즈 돌파 · 사용자 경험 조사</small>}
     </button>;
   }
 
@@ -123,10 +133,10 @@ function GameApp({ settings, setSettings }) {
         <section className="title-panel" aria-label="S’word Master 시작">
           <SwordLogo />
           <nav ref={menu} className="menu" aria-label="시작 메뉴" aria-describedby="title-typing-help">
-            {MENU.map(({ label }, index) => index === 1 ? null : (
-              <div className={index === 0 ? 'adventure-actions' : 'menu-item'} key={label}>
+            {MENU.map(({ label }, index) => index === CONTINUE || (index === SURVEY && !canSurvey) ? null : (
+              <div className={index === 0 ? 'adventure-actions' : index === SURVEY ? 'menu-item survey-item' : 'menu-item'} key={label}>
                 {menuButton(index)}
-                {index === 0 && menuButton(1)}
+                {index === 0 && menuButton(CONTINUE)}
               </div>
             ))}
           </nav>
@@ -147,6 +157,7 @@ function GameApp({ settings, setSettings }) {
       ) : openedMenu === '단어장' ? <VocabularyDialog wordbooks={progress.wordbooks ?? []} error={error}
         onSaveBook={(book) => dispatch({ type: 'ADD_WORDBOOK', book })} onClose={closeMenu} />
         : openedMenu === '오답 복습' ? <ReviewDialog progress={progress} dispatch={dispatch} error={error} onClose={closeMenu} />
+        : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
           : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
             newAdventure={openedMenu === '새 모험'} onClose={closeMenu} /> : null}
     </div>

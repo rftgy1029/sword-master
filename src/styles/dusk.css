@@ -79,6 +79,12 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .title-panel .continue-button { flex-wrap: wrap; row-gap: 2px; min-height: 46px; font-size: calc(14px * var(--text-scale)); }
 .title-panel .continue-button small { flex-basis: 100%; margin: 0; padding: 0; font-size: 11px; color: var(--faint); }
 .title-panel .continue-button.is-selected small { color: #6b3712; }
+/* 설문 참여: 학교 티어 클리어 뒤에만 나타나는 보상 메뉴. 금빛 테두리로 다른 메뉴와 구분한다. */
+.title-panel .survey-item { margin-top: 4px; padding-top: 12px; border-top: 2px dashed #4d3b5b; }
+.title-panel .survey-button { flex-wrap: wrap; row-gap: 2px; border-color: #6b4a1f; color: #ffe1b8; box-shadow: 0 4px 0 #6b4a1f, inset 0 0 0 1px #ffb25e33; }
+.title-panel .survey-button small { flex-basis: 100%; margin: 0; padding: 0; font-size: 11px; color: var(--sun); }
+.title-panel .survey-button.is-selected { border-color: #5a2f15; box-shadow: 0 4px 0 #5a2f15, 0 0 24px #ffb25e45; }
+.title-panel .survey-button.is-selected small { color: #6b3712; }
 .title-panel .menu-description { margin: 14px 2px 0; min-height: 21px; color: var(--muted); font-size: calc(13px * var(--text-scale)); line-height: 1.6; }
 .title-typing { display: flex; align-items: center; gap: 8px; min-height: 42px; margin: 12px 0 0; padding: 9px 12px; border: 3px solid var(--edge); border-radius: 11px;
   background: var(--plum-deep); color: var(--faint); font-size: 12px; line-height: 1.5; }

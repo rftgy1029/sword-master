@@ -3,6 +3,7 @@ import { TIERS } from '../vocabulary.js';
 import { CARDS, MONSTERS, NODE_TYPES, RELICS, cardDetails, describeCard } from '../game/catalog.js';
 import { enemyAttackCue, enemyDamageImpacts, intentFor, reachableNodes, unlockedTierIds } from '../game/engine.js';
 import { questionPool } from '../game/quiz.js';
+import { schoolClearCount } from '../survey.js';
 import { TierCrest } from './VocabularyDialog.jsx';
 import CombatScene from './CombatScene.jsx';
 import DungeonEntrance from './DungeonEntrance.jsx';
@@ -359,9 +360,9 @@ function TierSelection({ progress, dispatch, onStarted }) {
         </button>)}
       </div> : <p className="game-muted">단어장 메뉴에서 CSV나 엑셀 파일을 추가할 수 있어요.</p>}
     </div>
-    <div className="adventure-brief"><p><span>시작 덱</span><strong>12장 · 에너지 3 · HP 72</strong></p><p><span>던전</span><strong>8층 · 갈림길 · 보스 1체</strong></p><p><span>출제 범위</span><strong>검수 단어 {new Set(pool.map((q) => q.wordId)).size}개 · 문제 {pool.length}개</strong></p></div>
+    <div className="adventure-brief"><p><span>시작 덱</span><strong>12장 · 에너지 3 · HP 72</strong></p><p><span>던전</span><strong>8층 · 갈림길 · 보스 1체</strong></p><p><span>출제 범위</span><strong>단어 {new Set(pool.map((q) => q.wordId)).size}개 · 문제 {pool.length}개</strong></p></div>
     <p className="game-help">{personal ? '선택한 단어장에서 뜻 문제가 나옵니다. 클리어 기록은 내 단어장에 쌓입니다.' :
-      '뜻·유의어·반의어 문제는 선택지까지 확인한 항목에서 출제합니다. 전투 난도는 티어와 무관합니다.'}</p>
+      '티어 범위의 모든 단어가 뜻 문제로 나오고, 일부 단어는 유의어·반의어 문제도 나옵니다. 전투 난도는 티어와 무관합니다.'}</p>
     {ongoing && <p className="game-notice">진행 중인 {tierLabel(progress.run.tier) ?? wordbooks.find((book) => book.id === progress.run.tier)?.name} 모험이 있습니다. 아래 버튼을 누르면 임시 덱과 유물을 새로 시작합니다. 학습·오답·클리어 기록은 유지됩니다.</p>}
     <button ref={startButton} className="game-primary tier-start" onClick={() => transition(() => { if (dispatch({ type: 'START', tier, seed: seed() })) onStarted(); })}>{ongoing ? '기존 모험을 교체하고 시작' : '던전 입장'} <span aria-hidden="true">▸</span></button>
   </section>;
@@ -376,6 +377,8 @@ function Result({ run, scopeLabel, progress, onClose }) {
     <p>이번 덱 {run.result.cards}장 · 유물 {run.result.relics}개</p>
     {run.result.won && nextTier && <div className="unlock-notice tier-unlock">{nextTier.label} 던전의 문이 열렸습니다.<br /><small>다음 새 모험에서 선택할 수 있어요.</small></div>}
     {run.result.unlocked && <div className="unlock-notice">전설 카드 ‘불멸의 서약’ 해금<br /><small>다음 모험부터 카드 보상과 상점에 등장합니다.</small></div>}
+    {run.result.won && TIERS.some(({ id }) => id === run.tier) && schoolClearCount(progress) === 1 &&
+      <div className="unlock-notice survey-unlock">타이틀 메뉴에 ‘설문 참여’가 열렸습니다.<br /><small>직접 플레이해 본 느낌을 사용자 경험 조사로 들려주세요.</small></div>}
     <p>누적 학습 {progress.learning.attempts}문제 · 약점 {Object.values(progress.learning.entries).filter((e) => e.active).length}문제<br /><span className="game-muted">학습·오답·클리어 기록은 보존됩니다. 임시 카드와 유물은 다음 모험에 이월되지 않습니다.</span></p>
     <button className="game-primary" data-initial-focus onClick={onClose}>타이틀로 돌아가기</button>
   </section>;

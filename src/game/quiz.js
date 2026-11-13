@@ -2,8 +2,8 @@ import { findVocabulary, TIERS } from '../vocabulary.js';
 import { shuffle } from './random.js';
 import { MAX_TERM_LENGTH, normalizeText, validText } from './wordbooks.js';
 
-// Reviewed groups: meanings within a row are distinct for the source sense.
-// Never turn arbitrary words from the unreviewed archive into distractors.
+// Hand-made groups: meanings within a row are distinct for the source sense.
+// Words outside these groups get automatic meaning choices further below.
 const MEANING_GROUPS = [
   ['additional', 'complex', 'central', 'financial', 'physical', 'annual', 'effective', 'particular'],
   ['protect', 'link', 'challenge', 'contact', 'judge', 'realize', 'wonder', 'spread'],
@@ -60,7 +60,7 @@ const reviewed = [];
 for (const terms of MEANING_GROUPS) {
   for (const term of terms) {
     const word = byTerm.get(term);
-    if (!word) throw new Error(`검수 단어 누락: ${term}`);
+    if (!word) throw new Error(`선택지 묶음의 단어 누락: ${term}`);
     reviewed.push({ id: `${word.id}:meaning`, wordId: word.id, type: 'meaning', word,
       answers: [word.meaning], distractors: terms.filter((t) => t !== term).map((t) => byTerm.get(t).meaning) });
   }
@@ -73,6 +73,88 @@ for (const [term, synonyms, antonyms] of RELATION_CHOICES) {
       reviewed.push({ id: `${word.id}:${type}`, wordId: word.id, type, word, answers, distractors: wrong.split('|') });
     }
   }
+}
+
+// Every other word in the teacher's list gets a meaning question too. Its wrong
+// choices are the meanings of other words of the same kind (multi-sense or not,
+// verb/adjective/adverb/noun), same tier first, so the format never gives the
+// answer away. A candidate is skipped when its meaning shares a stem with the
+// answer or when either word lists the other as a synonym or antonym.
+const AUTO_DISTRACTORS = 7;
+const termKey = (term) => normalizeAnswer(term.replace(/\([^)]*\)/g, ''));
+const senses = (meaning) => meaning.replace(/\([^)]*\)/g, ' ').split(/[①-⑨]/).map((s) => s.trim()).filter(Boolean);
+function wordKind(word) {
+  if (/ly$/i.test(word.term.trim())) return 'adverb';
+  const first = (senses(word.meaning)[0] ?? '').split(',')[0].trim();
+  if (/다$/.test(first)) return 'verb';
+  if (/(한|인|의|운|된|은|는|른|난|진|던|할|될)$/.test(first)) return 'adjective';
+  return 'noun';
+}
+const SUFFIXES = ['하게', '하는', '하다', '되다', '이다', '적인', '적으로', '으로', '하여', '한', '히', '의', '다', '게', '된', '인', '적'];
+function stems(meaning) {
+  const out = new Set();
+  for (const token of meaning.replace(/\([^)]*\)/g, ' ').split(/[,·/;①-⑨\s~]+/)) {
+    let stem = token.replace(/[^가-힣]/g, '');
+    for (const suffix of SUFFIXES) if (stem.length > suffix.length + 1 && stem.endsWith(suffix)) { stem = stem.slice(0, -suffix.length); break; }
+    if (stem) out.add(stem);
+  }
+  return out;
+}
+const relatedTerms = (word) => new Set([word.synonyms, word.antonyms].join(',').replace(/\([^)]*\)/g, '')
+  .split(/[,①-⑨]/).map((s) => normalizeAnswer(s)).filter(Boolean));
+const info = new Map(words.map((word) => [word.id, {
+  kind: wordKind(word), multi: /[①-⑨]/.test(word.meaning), stems: stems(word.meaning),
+  meaning: normalizeAnswer(word.meaning), term: termKey(word.term), related: relatedTerms(word),
+}]));
+function overlaps(a, b) {
+  for (const x of a) for (const y of b) if (x === y || (Math.min(x.length, y.length) >= 2 && (x.includes(y) || y.includes(x)))) return true;
+  return false;
+}
+// Different spellings of one idea; meanings that hit the same row never face each other.
+const NEAR_MEANINGS = [
+  ['중요', '주요', '주된', '핵심', '중대', '상당', '의미있'], ['분명', '명백', '확실', '뚜렷', '명확', '틀림없'],
+  ['이익', '이득', '혜택', '이점', '유익', '수익'], ['결국', '마침내', '최종', '끝내'], ['즉시', '즉각', '곧바로', '당장'],
+  ['이전', '예전', '과거', '사전', '앞선', '먼저'], ['증가', '늘리', '늘어', '증대', '확대'], ['감소', '줄이', '줄어', '축소'],
+  ['부족', '결핍', '모자'], ['주목', '주의', '알아차', '인지', '인식', '눈치'], ['언급', '논평', '말하', '진술', '주장'],
+  ['공식', '공무', '관리', '당국', '권위'], ['연습', '훈련', '실천', '관행'], ['가능', '잠재'], ['처리', '다루', '취급'],
+  ['남은', '잔해', '나머지', '여분', '추가', '남다'], ['이론', '가설', '학설'], ['가치', '값', '수치'], ['정의', '공정', '재판'],
+  ['이끌', '촉진', '추진', '몰다', '운전'], ['일치', '맞추', '어울', '조화'], ['다가', '접근'], ['최고', '수석', '으뜸', '주된'],
+];
+const nearRows = (meaning) => new Set(NEAR_MEANINGS.flatMap((row, i) => row.some((w) => meaning.includes(w)) ? [i] : []));
+for (const word of words) info.get(word.id).near = nearRows(word.meaning);
+function safeDistractor(word, other) {
+  const a = info.get(word.id), b = info.get(other.id);
+  return other.id !== word.id && a.meaning !== b.meaning && a.term !== b.term &&
+    !a.related.has(b.term) && !b.related.has(a.term) && ![...a.related].some((t) => b.related.has(t)) &&
+    !overlaps(a.stems, b.stems) && ![...a.near].some((i) => b.near.has(i));
+}
+function hash(text) { // FNV-1a: a fixed, data-only order keeps saved choices valid across reloads
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+function autoDistractors(word) {
+  const me = info.get(word.id);
+  const passes = [(o) => o.tier === word.tier && info.get(o.id).multi === me.multi && info.get(o.id).kind === me.kind,
+    (o) => info.get(o.id).multi === me.multi && info.get(o.id).kind === me.kind,
+    (o) => info.get(o.id).multi === me.multi, () => true];
+  const chosen = [];
+  const seen = new Set([me.meaning]);
+  for (const pass of passes) {
+    const pool = words.filter((o) => pass(o) && safeDistractor(word, o)).sort((x, y) => hash(word.id + x.id) - hash(word.id + y.id));
+    for (const other of pool) {
+      const key = info.get(other.id).meaning;
+      if (seen.has(key) || chosen.some((c) => overlaps(info.get(c.id).stems, info.get(other.id).stems))) continue;
+      seen.add(key); chosen.push(other);
+      if (chosen.length === AUTO_DISTRACTORS) return chosen.map((o) => o.meaning);
+    }
+  }
+  return chosen.map((o) => o.meaning);
+}
+const handMade = new Set(reviewed.filter((q) => q.type === 'meaning').map((q) => q.wordId));
+for (const word of words) {
+  if (handMade.has(word.id)) continue;
+  reviewed.push({ id: `${word.id}:meaning`, wordId: word.id, type: 'meaning', word, answers: [word.meaning], distractors: autoDistractors(word) });
 }
 
 export const QUESTION_BANK = reviewed;

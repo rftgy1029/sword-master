@@ -172,8 +172,29 @@ try{
   await loss.screenshot({path:artifactRoot+'3d-defeat.png'});
   await loss.getByRole('button',{name:'타이틀로 돌아가기',exact:true}).click();
   await loss.getByRole('button',{name:/^새 모험/}).waitFor();
+  assert.equal(await loss.locator('.survey-button').count(),0,'A defeat does not open the survey menu');
   await last.close();
   console.log('fatal enemy animation completes once -> defeat result -> title');
+  const cleared=structuredClone(emptyProgress());cleared.learning.clears.bronze=1;
+  const surveyContext=await browser.newContext({viewport:{width:360,height:740},hasTouch:true,isMobile:true});
+  await surveyContext.addInitScript(p=>{localStorage.setItem('sword-master.adventure.v1',JSON.stringify({version:1,progress:p}));},cleared);
+  const survey=await surveyContext.newPage();survey.on('pageerror',e=>errors.push(e.message));
+  await survey.goto(BASE_URL);
+  const surveyButton=survey.getByRole('button',{name:/^설문 참여/});
+  await surveyButton.waitFor();
+  assert.equal(await survey.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await surveyButton.click();
+  await survey.locator('.survey-dialog[open]').waitFor();
+  assert.match(await survey.locator('.survey-record').innerText(),/브론즈/);
+  const link=survey.locator('a.survey-open');
+  if(await link.count()){assert.equal(await link.getAttribute('target'),'_blank');assert.match(await link.getAttribute('rel'),/noopener/);assert.match(await link.getAttribute('href'),/^https:\/\/(forms\.gle|docs\.google\.com\/forms)\//);}
+  else assert.equal(await survey.locator('button.survey-open').isDisabled(),true,'An unset form address never opens a link');
+  await survey.waitForFunction(()=>!document.querySelector('.scene-transition'));
+  await survey.screenshot({path:artifactRoot+'survey-mobile.png'});
+  await survey.keyboard.press('Escape');
+  await survey.waitForFunction(()=>!document.querySelector('.survey-dialog')&&document.activeElement?.textContent.includes('설문 참여'));
+  await surveyContext.close();
+  console.log('survey: hidden until a school tier clear, opens a safe Google Form link, Escape restores menu focus');
   console.log('ERRORS',errors);assert.deepEqual(errors,[]);
 }catch(error){console.log('ERRORS',errors);console.log('PAGE',await page.locator('body').innerText());await page.screenshot({path:artifactRoot+'sword3d-ui-error.png'});throw error;}
 finally{await browser.close();}
