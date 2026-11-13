@@ -2,6 +2,8 @@
 
 학교 영어 클래스룸의 티어별 단어 목록으로 공부하는 영단어 덱빌딩 웹게임입니다. 2026년 2학기 기말고사부터 2027년 수능까지 활용할 수 있는 학습 도구를 목표로 합니다. 현재 타이틀과 패키지 버전은 **0.7.0**입니다.
 
+**바로 플레이:** Cloudflare Workers에 배포한 사이트 [sword-master.jcy0164.workers.dev](https://sword-master.jcy0164.workers.dev)에서 설치 없이 플레이할 수 있습니다. 배포 설정은 `wrangler.jsonc`(빌드 결과 `dist/`를 그대로 올림)에 있습니다.
+
 기본 장면은 **Three.js + React Three Fiber의 실제 3D**입니다. 용사와 몬스터 12종, 던전·입장·경로·보상·휴식·대장간·결과 장면을 입체로 구성하고 전체 UI를 같은 녹색·아이보리·금색 규칙으로 개편했습니다. 모바일 퀴즈는 큰 세로 선택지를 사용합니다. [구현과 검증 기록](docs/UI_3D_IMPLEMENTATION.md) · [실행한 계획](docs/UI_3D_UPGRADE_PLAN.md)
 
 설정에서 입체·간편 화면과 그래픽 품질을 고릅니다. 그래픽 오류 시 기존 저장을 유지하며 2D 일러스트 화면으로 복구합니다. 몬스터 모델 생성 코드는 `scripts/create_3d_assets.py`, 용사(Kenney Mini Characters, CC0) 변환 코드는 `scripts/import_kenney_hero.py`, 던전 부품(Kenney Mini Dungeon, CC0) 묶음 코드는 `scripts/build_kenney_dungeon.py`, GLB와 자산 목록은 `public/models/`에 있습니다. [전투 화면](docs/screenshots/3d-battle-production.png)
