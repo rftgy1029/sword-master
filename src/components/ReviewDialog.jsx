@@ -15,7 +15,7 @@ export default function ReviewDialog({ progress, dispatch, error, onClose }) {
   useEffect(() => { if (!dialog.current.open) dialog.current.showModal(); }, []);
   useEffect(() => { dialog.current.querySelector('[data-initial-focus]:not(:disabled)')?.focus(); }, [review?.question.id, !!review?.feedback]);
   return <dialog ref={dialog} className="game-dialog review-dialog" onClose={onClose} onCancel={(event) => { event.preventDefault(); requestClose(); }} onKeyDown={navigateGameButtons} aria-labelledby="review-title">
-    <header className="game-header"><div><p className="game-eyebrow">✦ S’WORD MASTER / WORD PRACTICE</p><h2 id="review-title">오답 복습</h2></div>
+    <header className="game-header"><div><p className="game-eyebrow">단어 수련</p><h2 id="review-title">오답 복습</h2></div>
       <button className="settings-close" aria-label="오답 복습 닫기" onClick={requestClose}>×</button></header>
     {error && <p className="game-save-error" role="alert">{error}</p>}
     <div className="game-body">

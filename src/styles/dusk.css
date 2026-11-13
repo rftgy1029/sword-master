@@ -1,0 +1,219 @@
+/*
+ * 황혼(dusk) UI. 기준은 Kenney 기사다: 두툼하고 둥근 패널, 나무 테두리, 한글 픽셀 글꼴(Galmuri).
+ * 색은 3D 장면의 노을빛(주황)과 보랏빛 하늘에서 뽑았다(src/game/three/World.jsx의 DUSK).
+ * premium.css 뒤에 불러와 색·글꼴·테두리를 덮어쓴다. 배치(크기·간격)는 대부분 그대로 둔다.
+ */
+@font-face { font-family: Galmuri; src: url('../../assets/fonts/Galmuri11.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: Galmuri; src: url('../../assets/fonts/Galmuri11-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+
+:root {
+  --font-ui: Galmuri, GothicA1, sans-serif;
+  --night: #140f1b;
+  --plum: #221a2b;
+  --plum-raised: #2e2338;
+  --plum-hover: #3b2d47;
+  --plum-deep: #18121f;
+  --edge: #0e0913;
+  --wood: #8a5a36;
+  --wood-dark: #5c3a22;
+  --wood-edge: #2a180f;
+  --wood-grain: repeating-linear-gradient(100deg, #8a5a36 0 14px, #7b4e2e 14px 22px, #93613b 22px 31px, #845532 31px 40px);
+  --sun: #ffb25e;
+  --sun-deep: #ea8240;
+  --rose: #e98567;
+  --violet: #a995e3;
+  --ivory: #f8eedd;
+  --muted: #c9bfd2;
+  --faint: #978ca6;
+  --background: var(--night);
+  --panel: var(--plum);
+  --amber: var(--sun);
+  --line: #3d3049;
+  --surface: var(--plum);
+  --surface-raised: var(--plum-raised);
+  --radius: 16px;
+  --shadow: 0 8px 0 #0b0710, 0 24px 60px #0009;
+  font-family: var(--font-ui);
+}
+body { background: radial-gradient(ellipse at 75% 20%, #4a2c4a55, transparent 60%), var(--night); }
+.card-cost, .combat-number, .energy-orb > span, .quiz-panel h3 > span, .learning-summary strong, .vocabulary-entry summary strong,
+.flying-card-back > span, .game-recovery-brand, .relic-icon, .card-icon, .word-entry .word-term, .game-dialog h2, .game-dialog h3 { font-family: var(--font-ui); }
+button, input, select, textarea { font-family: var(--font-ui); }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+
+/* ---------- 타이틀: 장면을 화면 전체에, 메뉴는 그 위의 나무 테두리 패널 ---------- */
+.start-screen { position: relative; width: 100%; max-width: none; min-height: 100svh; margin: 0; padding: clamp(20px, 6vh, 64px) clamp(16px, 5vw, 72px); display: block; }
+.title-backdrop { position: fixed; inset: 0; z-index: 0; }
+.title-backdrop .scene { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; aspect-ratio: auto; margin: 0; background: var(--night); }
+.title-backdrop::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, #140f1bcc 0, #140f1b66 32%, transparent 58%), linear-gradient(0deg, #140f1b80, transparent 28%); }
+.title-panel { position: relative; z-index: 1; width: min(380px, 100%); padding: 24px 20px 18px;
+  border: 9px solid transparent; border-radius: 22px;
+  background: linear-gradient(180deg, #2e2338f5, #1f1828f5) padding-box, var(--wood-grain) border-box;
+  box-shadow: 0 0 0 3px var(--wood-edge), inset 0 0 0 3px var(--wood-edge), 0 9px 0 #0b0710, 0 28px 70px #000a; }
+
+.sword-logo { margin: 0 0 20px; font-family: var(--font-ui); font-weight: 700; line-height: 1; color: var(--ivory); letter-spacing: 0;
+  text-shadow: 0 4px 0 var(--wood-edge), 0 0 26px #ffb25e30; }
+.logo-line { display: flex; align-items: flex-end; font-size: clamp(44px, 4.4vw, 56px); letter-spacing: 3px; }
+.logo-master { margin-top: 8px; font-size: clamp(27px, 2.8vw, 35px); letter-spacing: 11px; color: var(--sun); }
+.logo-sword { width: .44em; height: .98em; align-self: flex-start; margin: -.2em .02em 0 0; transform: rotate(20deg); overflow: visible;
+  filter: drop-shadow(0 4px 0 var(--wood-edge)); }
+.logo-blade { fill: #dfe2ef; } .logo-shine { fill: #ffffff; } .logo-guard { fill: var(--sun); } .logo-grip { fill: var(--wood); }
+
+.title-panel .menu { gap: 8px; }
+.title-panel .adventure-actions { display: grid; gap: 8px; margin: 0 0 4px; padding: 0 0 12px; border-bottom: 2px dashed #4d3b5b; }
+.title-panel .menu-item + .menu-item { margin-top: 0; }
+.title-panel .menu-button { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 10px 14px; border: 3px solid var(--edge); border-radius: 13px;
+  background: var(--plum-raised); color: var(--muted); box-shadow: 0 4px 0 var(--edge); font-size: calc(16px * var(--text-scale)); animation: none;
+  transition: transform 110ms, background 110ms, box-shadow 110ms, color 110ms; }
+.title-panel .menu-button::before { content: none; }
+.title-panel .menu-button:hover:not(:disabled) { background: var(--plum-hover); color: var(--ivory); }
+.title-panel .menu-button.is-selected { color: #2a1608; border-color: #5a2f15; background: linear-gradient(180deg, #ffc477, #f08e44); box-shadow: 0 4px 0 #5a2f15, 0 0 24px #ffb25e45; transform: translateY(-1px); }
+.title-panel .menu-button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--edge); }
+.title-panel .menu-button:disabled { opacity: .55; cursor: default; }
+.menu-label { flex: 1; }
+.menu-word { font-size: 12px; letter-spacing: 1px; color: var(--faint); }
+.menu-word b { color: var(--sun); font-weight: 700; }
+.is-selected .menu-word { color: #8a4a1f; }
+.is-selected .menu-word b { color: #2a1608; }
+.title-panel .continue-button { flex-wrap: wrap; row-gap: 2px; min-height: 46px; font-size: calc(14px * var(--text-scale)); }
+.title-panel .continue-button small { flex-basis: 100%; margin: 0; padding: 0; font-size: 11px; color: var(--faint); }
+.title-panel .continue-button.is-selected small { color: #6b3712; }
+.title-panel .menu-description { margin: 14px 2px 0; min-height: 21px; color: var(--muted); font-size: calc(13px * var(--text-scale)); line-height: 1.6; }
+.title-typing { display: flex; align-items: center; gap: 8px; min-height: 42px; margin: 12px 0 0; padding: 9px 12px; border: 3px solid var(--edge); border-radius: 11px;
+  background: var(--plum-deep); color: var(--faint); font-size: 12px; line-height: 1.5; }
+.title-typing > span:first-child { color: var(--sun); font-weight: 700; }
+.title-typing strong { color: var(--sun); font-size: 17px; letter-spacing: 2px; }
+.title-typing strong::after { content: '▌'; margin-left: 2px; color: var(--ivory); animation: title-caret 1s steps(1) infinite; }
+.title-typing.is-miss { border-color: var(--rose); animation: title-miss .24s; }
+@keyframes title-caret { 50% { opacity: 0; } }
+@keyframes title-miss { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.title-save-error { margin: 12px 0 0; color: #ffc7b8; font-size: 12px; }
+.title-place { position: fixed; z-index: 1; right: clamp(16px, 4vw, 48px); bottom: clamp(16px, 4vh, 40px); margin: 0; padding: 8px 16px;
+  border: 3px solid var(--wood-edge); border-radius: 9px; background: var(--wood-grain); color: var(--ivory); font-size: 14px; font-weight: 700;
+  text-shadow: 0 2px 0 var(--wood-edge); box-shadow: 0 4px 0 #0b0710; }
+.start-screen > .version { position: fixed; z-index: 1; left: 14px; bottom: 10px; margin: 0; color: #8b8099; font-size: 10px; }
+.app[data-background-motion="off"] .title-typing strong::after, .app[data-background-motion="off"] .title-typing.is-miss { animation: none; }
+
+@media (max-width: 760px), (max-aspect-ratio: 11/10) {
+  .start-screen { display: flex; flex-direction: column; justify-content: flex-end; padding: 12px; }
+  .title-backdrop::after { background: linear-gradient(0deg, #140f1bee 0, #140f1b88 45%, transparent 70%); }
+  .title-panel { width: 100%; max-width: 520px; margin: 0 auto; padding: 18px 16px 14px; }
+  .sword-logo { margin-bottom: 14px; }
+  .logo-line { font-size: 40px; }
+  .logo-master { font-size: 25px; letter-spacing: 9px; margin-top: 6px; }
+  .title-panel .menu-button { min-height: 46px; padding: 8px 12px; }
+  .title-place { top: 14px; bottom: auto; right: 14px; font-size: 12px; padding: 6px 12px; }
+  .start-screen > .version { display: none; }
+}
+@media (hover: none) { .title-typing { display: none; } .menu-word { display: none; } }
+
+/* ---------- 공통 패널: 두툼한 테두리와 아래로 떨어지는 그림자 ---------- */
+.scene-view { background: var(--night); }
+.scene-loading { color: var(--sun); background: linear-gradient(145deg, #221a2bf2, #18121ff2); font-family: var(--font-ui); }
+.scene-loading > span { border-color: #5a4569; border-top-color: var(--sun); }
+.game-dialog, .settings-dialog, .vocabulary-dialog, dialog { border: 3px solid var(--edge); border-radius: 20px; background: linear-gradient(180deg, #2a2034, #1d1625); box-shadow: inset 0 0 0 3px #3e2f4b, var(--shadow); color: var(--ivory); }
+dialog::backdrop, .game-dialog::backdrop, .settings-dialog::backdrop, .vocabulary-dialog::backdrop { background: #0b0710cc; }
+.game-header, .settings-header, .vocabulary-header { border-color: var(--wood-edge); background: var(--wood-grain); box-shadow: inset 0 -3px 0 var(--wood-edge); text-shadow: 0 2px 0 var(--wood-edge); }
+.game-header *, .settings-header *, .vocabulary-header * { color: var(--ivory); }
+.game-dialog .game-eyebrow { color: #ffe1b8; letter-spacing: 1px; }
+.game-dialog p, .game-dialog .game-help, .game-dialog .game-muted { color: var(--muted); }
+.game-dialog h4 { color: var(--ivory); }
+.game-footer, .settings-footer, .vocabulary-footer { background: var(--plum-deep); border-color: #3a2c46; color: var(--faint); }
+.settings-close { border: 3px solid var(--wood-edge); background: #3a2416; color: var(--ivory); box-shadow: 0 3px 0 var(--wood-edge); }
+.settings-close:hover { background: #4d3020; color: #fff; border-color: var(--wood-edge); }
+
+.game-primary, .settings-action, .return-button, .game-recovery button { border: 3px solid #5a2f15; border-radius: 12px!important; color: #2a1608; font-weight: 700;
+  background: linear-gradient(180deg, #ffc477, #f08e44); box-shadow: 0 4px 0 #5a2f15; text-shadow: none; }
+.game-primary:hover:not(:disabled), .return-button:hover, .settings-action:hover { background: linear-gradient(180deg, #ffd08e, #f59a52); border-color: #5a2f15; }
+.game-primary:active:not(:disabled), .return-button:active, .settings-action:active { transform: translateY(3px); box-shadow: 0 1px 0 #5a2f15; }
+.game-primary:disabled { filter: grayscale(.7); opacity: .6; }
+.game-secondary, .settings-reset { border: 3px solid var(--edge); border-radius: 12px!important; background: var(--plum-raised); color: var(--muted); box-shadow: 0 3px 0 var(--edge); }
+.game-secondary:hover:not(:disabled), .game-secondary[aria-pressed="true"] { background: var(--plum-hover); border-color: var(--edge); color: var(--ivory); }
+
+.run-toolbar { border-color: #3a2c46; background: var(--plum-deep); color: var(--muted); }
+.hp-text { color: #f2a493; } .gold-text { color: var(--sun); }
+.tier-choice { border: 3px solid var(--edge); background: var(--plum-raised); box-shadow: 0 4px 0 var(--edge); }
+.tier-choice[aria-pressed="true"] { background: linear-gradient(180deg, #4b3557, #33263f); border-color: var(--sun); box-shadow: 0 4px 0 var(--edge), 0 0 0 2px #ffb25e55; }
+.tier-condition { color: var(--faint); }
+.adventure-brief { background: #2e233899; border: 2px dashed #4d3b5b; }
+
+/* 전투 */
+.is-battle .game-header { background: var(--wood-grain); }
+.battle-save-status { color: #ffe1b8; }
+.battle-menu summary { border: 3px solid var(--wood-edge); background: #3a2416; color: var(--ivory); box-shadow: 0 3px 0 var(--wood-edge); }
+.battle-menu-content { border: 3px solid var(--edge); background: var(--plum); }
+.battle-screen > .combat-hud { background: linear-gradient(180deg, #2a2034, #221a2b); border-bottom: 3px solid var(--edge); }
+.game-dialog .combatant-heading h3 { color: var(--ivory); }
+.combatant-heading > span { color: var(--muted); }
+.combatant-hud meter::-webkit-meter-bar { background: var(--edge); border-radius: 8px; }
+.player-hud meter::-webkit-meter-optimum-value { background: linear-gradient(90deg, #e3735d, #ffb07a); }
+.enemy-hud meter::-webkit-meter-optimum-value { background: linear-gradient(90deg, #8b6fd4, #c6a8f0); }
+.game-dialog .enemy-intent { color: #ffd39b; }
+.enemy-intent small { color: var(--faint); }
+.battle-turn { border: 3px solid var(--edge); background: #1d1625e6; color: var(--sun); font-family: var(--font-ui); }
+.scene-vignette { background: linear-gradient(180deg, #140f1b08 65%, #140f1b80); box-shadow: inset 0 0 70px #140f1b40; }
+.status-badge > button { border: 2px solid var(--edge); background: var(--plum-raised); color: var(--muted); }
+.status-badge > button > small { color: var(--faint); }
+.status-tooltip { border: 3px solid var(--edge); background: var(--plum); }
+.no-status { color: var(--faint); }
+.battle-controls { background: linear-gradient(180deg, #221a2b, #18121f); border-color: var(--edge); }
+.energy-orb > span { border: 3px solid #5a2f15; background: radial-gradient(circle at 35% 30%, #ffd08e, #e9803c); color: #2a1608; box-shadow: 0 3px 0 #5a2f15; }
+.energy-orb small, .game-dialog .hand-toolbar .battle-message, .draw-status, .deck-pile small { color: var(--muted); }
+.deck-pile > span { border: 2px solid var(--edge); background: var(--plum-raised); color: var(--sun); }
+.flying-card-back { border: 3px solid var(--edge); background: repeating-linear-gradient(45deg, #3b2d47 0 8px, #34283f 8px 9px); }
+
+.game-card, .card-hand .game-card { --card-accent: var(--sun); border: 3px solid var(--edge)!important; background: linear-gradient(180deg, #34283f, #261d2f); box-shadow: 0 5px 0 var(--edge); }
+.game-card.rarity-희귀 { --card-accent: #b9a6f0; background: linear-gradient(180deg, #3b2f55, #2a2140); }
+.game-card.rarity-전설 { --card-accent: #ffd27a; background: linear-gradient(180deg, #5a3d2a, #3a281c); }
+.game-card:hover:not(:disabled), .card-hand .game-card:hover:not(:disabled), .card-hand .game-card:focus-visible { border-color: var(--card-accent)!important; background: linear-gradient(180deg, #44344f, #2f2439); box-shadow: 0 9px 0 var(--edge); }
+.card-cost { border: 2px solid #5a2f15; background: linear-gradient(180deg, #ffc477, #f08e44); color: #2a1608; }
+.card-top small, .card-description { color: var(--muted); }
+.card-shortcut { border: 2px solid #4d3b5b; color: var(--muted); }
+.card-art { background: radial-gradient(ellipse at 50% 70%, #ffb25e22, transparent 70%); border-color: #3e2f4b; }
+.game-card > strong { color: var(--ivory); }
+.game-card.is-upgraded > strong { color: #ffd39b; }
+.card-action { border-color: #ffb25e30; }
+
+.quiz-panel { border: 3px solid var(--edge); background: linear-gradient(180deg, #2e2338, #221a2b); box-shadow: 0 5px 0 var(--edge); }
+.game-dialog .quiz-panel h3 > span { color: #fff2dc; }
+.game-dialog .quiz-panel h3 small, .quiz-heading-row > span, .quiz-word-details { color: var(--muted); }
+.quiz-options button { border: 3px solid var(--edge); background: var(--plum-raised); color: var(--ivory); box-shadow: 0 3px 0 var(--edge); }
+.quiz-options button > span { color: var(--sun); border-color: #4d3b5b; }
+.quiz-options button:hover { background: var(--plum-hover); border-color: var(--sun); }
+.answer-verdict { border-width: 3px; }
+.answer-verdict.is-correct { background: #2f4a3a; border-color: #9fd6a6; }
+.answer-verdict.is-wrong { background: #5c2f33; border-color: var(--rose); }
+
+/* 경로·보상·대장간·학습 화면 */
+.map-overview, .location-scene { border: 3px solid var(--edge); }
+.living-map .map-scroll { background: var(--plum-deep); border: 3px solid var(--edge); }
+.living-map .map-node { background: var(--plum-raised); border: 2px solid var(--edge); }
+.living-map .map-node.is-reachable { background: #5a3d2a; border-color: var(--sun); }
+.living-map .map-node.is-visited { background: #2a2034; }
+.map-place-summary { background: #2e2338cc; border-left: 4px solid var(--sun); }
+.map-place-summary span { color: var(--muted); }
+.relic-item, .deck-item, .upgrade-item, .learning-summary, .review-empty { border: 3px solid var(--edge); background: linear-gradient(180deg, #2e2338, #221a2b); box-shadow: 0 4px 0 var(--edge); }
+.relic-icon { border: 2px solid #5a2f15; background: #3a2416; color: var(--sun); }
+.upgrade-item strong, .deck-item strong { color: var(--ivory); }
+.upgrade-item small, .upgrade-preview, .learning-summary { color: var(--muted); }
+.learning-summary strong { color: var(--sun); }
+.settings-sidebar, .vocabulary-sidebar, .vocabulary-toolbar { background: var(--plum-deep); border-color: #3a2c46; }
+.settings-tab, .tier-tab { color: var(--muted); }
+.settings-tab.is-active, .tier-tab.is-active { background: var(--plum-hover); color: var(--sun); border-color: var(--edge); }
+.setting-field { border-color: #3a2c46; }
+.setting-option > span { border: 3px solid var(--edge); background: var(--plum-raised); color: var(--muted); box-shadow: 0 3px 0 var(--edge); }
+.setting-option input:checked + span { background: linear-gradient(180deg, #ffc477, #f08e44); color: #2a1608; border-color: #5a2f15; box-shadow: 0 3px 0 #5a2f15; }
+.setting-field h4, .setting-fullscreen h4, .settings-section-heading h3, .vocabulary-tier-heading h3 { color: var(--ivory); }
+.settings-dialog .setting-field p { color: var(--faint); }
+.vocabulary-search input { border: 3px solid var(--edge); background: var(--plum-deep); color: var(--ivory); }
+.vocabulary-entry, .word-entry { border: 3px solid var(--edge); background: var(--plum-raised); }
+.vocabulary-entry summary strong, .word-entry .word-term { color: #fff2dc; }
+.word-entry .word-meaning, .word-entry .word-details dd, .vocabulary-entry p, .vocabulary-entry dd { color: var(--muted); }
+.word-entry .word-details { background: var(--plum-deep); border-color: #3a2c46; }
+.word-entry[open] { border-color: var(--sun); background: #352841; }
+kbd { border: 2px solid #4d3b5b; border-bottom-width: 3px; background: var(--plum-deep); color: var(--muted); font-family: var(--font-ui); }
+
+/* 결과 화면의 해금 알림: 나무 팻말 */
+.unlock-notice { border: 3px solid var(--wood-edge); border-radius: 14px; background: var(--wood-grain); color: var(--ivory); text-shadow: 0 2px 0 var(--wood-edge); box-shadow: 0 4px 0 #0b0710; }
+.unlock-notice small { color: #ffe1b8; }

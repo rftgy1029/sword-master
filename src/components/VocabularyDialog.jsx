@@ -87,7 +87,7 @@ export default function VocabularyDialog({ onClose }) {
       }}>
       <header className="vocabulary-header">
         <div>
-          <p className="vocabulary-eyebrow"><span aria-hidden="true">✦</span> S’WORD MASTER <span>/</span> WORD ARCHIVE</p>
+          <p className="vocabulary-eyebrow">단어 서고</p>
           <h2 id="vocabulary-title">단어장</h2>
           <p className="vocabulary-intro">모험에 필요한 단어를, 티어별로 차근차근.</p>
         </div>

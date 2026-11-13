@@ -11,10 +11,10 @@ export const WALL_FRONT = -2.5;
 export const COMPOSITE_PIECES = Object.freeze(['chest', 'gate', 'trap']);
 
 /**
- * Kenney 색상표에 곱하는 색. 원래 색 그대로는 이 장면의 조명에서 돌이 거의 흰색으로 보이고
- * 어두운 녹색 UI와도 동떨어져서, 밝기를 낮추고 녹회색 쪽으로 살짝 당긴다.
+ * Kenney 색상표에 곱하는 색. 원래 색 그대로는 이 장면의 조명에서 돌이 거의 흰색으로 날아가서
+ * 밝기를 낮춘다. 노을빛(주황)과 보랏빛 하늘 조명을 받아 돌이 연보라·주황으로 물든다.
  */
-export const KIT_TINT = '#8b968f';
+export const KIT_TINT = '#9b95a6';
 
 export const dungeonKitUrl = () => `${import.meta.env?.BASE_URL ?? '/'}models/dungeon-kit.glb`;
 

@@ -65,6 +65,7 @@ npm run preview
 | `src/components/AdventureDialog.jsx`, `src/components/QuizPanel.jsx` | 티어 선택, 경로, 전투·퀴즈, 보상과 결과 UI |
 | `src/game/engine.js`, `catalog.js`, `quiz.js`, `storage.js` | 전투 규칙, 카드·유물 데이터, 출제 및 진행 상태 저장 |
 | `src/components/SceneView.jsx`, `src/game/three/` | 3D 장면·관절 애니메이션·기술·품질 설정과 간편 화면 연결 |
+| `src/styles/dusk.css`, `src/titleWords.js`, `src/components/ui/SwordLogo.jsx` | 황혼 색·Galmuri 글꼴의 화면 디자인, 단어로 고르는 타이틀 메뉴, 칼 모양 로고 |
 | `src/game/titleScene.js`, `entranceScene.js`, `combatScene.js` | 간편 화면용 Phaser 타이틀·입장·전투 렌더링 |
 | `src/vocabulary.js`, `src/data/vocabulary.json` | 티어별 단어 자료와 검색 |
 | `assets/maps/`, `assets/source/`, `assets/illustrations/` | Tiled 맵·Pixelorama 보관 원본과 2D 일러스트 |

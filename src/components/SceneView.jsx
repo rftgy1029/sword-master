@@ -36,11 +36,11 @@ function SceneChoice({ mode='battle', fallback, onFailure, onLoaded, motionPrefe
   if(!use3d)return <div className={`scene-view ${className}`} data-renderer="2d">{fallback ?? <PaintedFallback mode={mode}/>}</div>;
   return <div className={`scene-view scene-${mode} ${className}`} data-renderer="3d" aria-busy={!ready}>
     <SceneBoundary onFailure={fail}>
-      <Suspense fallback={<div className="scene-loading" role="status"><span/>모험의 문을 열고 있어요</div>}>
+      <Suspense fallback={<div className="scene-loading" role="status"><span/>석문이 열린다…</div>}>
         <ThreeStage {...props} mode={mode} graphicsQuality={graphics.graphicsQuality} motionPreference={motionPreference ?? graphics.backgroundMotion} onFailure={fail} onLoaded={loaded} />
       </Suspense>
     </SceneBoundary>
-    {!ready&&<div className="scene-loading" role="status"><span/>모험의 문을 열고 있어요</div>}
+    {!ready&&<div className="scene-loading" role="status"><span/>석문이 열린다…</div>}
   </div>;
 }
 
