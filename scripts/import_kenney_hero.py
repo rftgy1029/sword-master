@@ -7,6 +7,8 @@ blender --background --factory-startup --python scripts/import_kenney_hero.py --
 - 캐릭터의 오른손에 같은 팩의 검을 쥐여 주고, 게임이 쓰는 키(발바닥 Y=0)에 맞춘다.
 - 팩의 동작 32개 중 게임이 재생하는 7개만 남기고 게임의 이름으로 바꾼다.
 - 뼈 이름을 게임·검사가 찾는 이름(arm_right 등)으로 바꾼다.
+- 검을 팔과 따로 움직일 수 있게 손목 관절(weapon)과 칼끝 표시 관절(weapon_tip)을 추가한다.
+  전투 장면은 이 관절로 베기 궤적을 직접 만들고, 칼끝 위치를 읽어 검 잔상을 그린다.
 - public/models/hero.glb, assets/models/hero.blend를 만들고 manifest.json의 hero 항목을 갱신한다.
 """
 import bpy
@@ -91,11 +93,36 @@ sword.rotation_mode = 'QUATERNION'
 sword.rotation_quaternion = aim
 sword.location = hand + aim @ Vector((0, 0, GRIP))
 bpy.context.view_layer.update()
-# 검을 팔 뼈에만 묶인 스킨 메시로 몸에 합친다. 별도 물체로 뼈에 붙이면 내보낼 때의 포즈에 따라
+blade_length = GRIP + max(vertex.co.z for vertex in sword.data.vertices)  # 손에서 칼끝까지
+
+# 손목 관절: 손 위치에서 시작해 칼날 방향(+Y)으로 뻗는다. 관절의 X축은 칼날의 폭, Z축은 칼날의 넓은 면이다.
+# 기존 동작에는 이 관절의 키가 없어 팔과 함께 그대로 움직이므로 대기·이동·방어 등은 전과 같아 보인다.
+bpy.ops.object.select_all(action='DESELECT')
+armature.select_set(True)
+bpy.context.view_layer.objects.active = armature
+bpy.ops.object.mode_set(mode='EDIT')
+edit_bones = armature.data.edit_bones
+flat = aim @ Vector((0, -1, 0))
+wrist = edit_bones.new('weapon')
+wrist.head = hand
+wrist.tail = hand + BLADE * blade_length
+wrist.align_roll(flat)
+wrist.parent = edit_bones['arm_right']
+wrist.use_connect = False
+tip = edit_bones.new('weapon_tip')
+tip.head = hand + BLADE * blade_length
+tip.tail = hand + BLADE * (blade_length + .05)
+tip.align_roll(flat)
+tip.parent = wrist
+tip.use_connect = False
+tip.use_deform = False
+bpy.ops.object.mode_set(mode='OBJECT')
+
+# 검을 손목 관절에만 묶인 스킨 메시로 몸에 합친다. 별도 물체로 뼈에 붙이면 내보낼 때의 포즈에 따라
 # 위치가 틀어질 수 있지만, 스킨 메시는 어떤 동작에서도 손을 그대로 따라간다.
 sword.data.materials.clear()
 sword.data.materials.append(body.data.materials[0])
-sword.vertex_groups.new(name='arm_right').add(range(len(sword.data.vertices)), 1, 'REPLACE')
+sword.vertex_groups.new(name='weapon').add(range(len(sword.data.vertices)), 1, 'REPLACE')
 bpy.ops.object.select_all(action='DESELECT')
 sword.select_set(True)
 body.select_set(True)
@@ -218,6 +245,8 @@ entry = {
     'meshes': len(data.get('meshes', [])),
     'rig': 'skinned armature',
     'ground': 0,
+    # 손목 관절에서 칼끝까지의 길이(모델 단위). 장면 단위로는 scale을 곱한다.
+    'weapon': {'bone': 'weapon', 'tip': 'weapon_tip', 'length': round(blade_length, 4), 'scale': round(armature.scale[0], 4)},
     'source': f'Kenney Mini Characters 2.0 (character-{CHARACTER}, weapon-sword), CC0 — scripts/import_kenney_hero.py',
 }
 manifest['source'] = 'scripts/create_3d_assets.py, scripts/import_kenney_hero.py'
