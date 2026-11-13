@@ -13,6 +13,12 @@ const paths = {
   oath: 'M5 8l5 6 6-10 6 10 5-6-3 17H8ZM9 29h14M12 20h8',
   book: 'M16 7C11 3 5 4 3 5v22c5-2 9-1 13 2 4-3 8-4 13-2V5c-4-1-9-2-13 2ZM16 7v22',
   spark: 'M16 2 19 12 30 16 19 20 16 30 12 20 2 16 12 12Z',
+  // 던전 지도의 장소 표시
+  swords: 'M5 5l15 15M17 23l6-6M21 21l5 5M27 5 12 20M9 17l6 6M11 21l-5 5',
+  horns: 'M7 4c0 6 2 9 5 10M25 4c0 6-2 9-5 10M9 18a7 7 0 0 1 14 0v4l-3 2v4h-8v-4l-3-2ZM13 19h1M18 19h1M14 28v-3M18 28v-3',
+  chest: 'M5 14h22v13H5ZM5 14c0-6 4-8 11-8s11 2 11 8M5 18h22M14 16h4v5h-4Z',
+  campfire: 'M16 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-3 2-4 3-7 1 3 3 3 3 0ZM5 27l22-5M5 22l22 5',
+  anvil: 'M4 10h18c0 4 3 6 6 6v2h-8l2 6H10l2-6H8c-3 0-4-4-4-8ZM8 28h16',
 };
 
 export default function GameIcon({ name = 'spark', className = '', ...props }) {

@@ -165,76 +165,9 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .run-toolbar .run-inspect-buttons { gap: 7px; }
 .run-toolbar .game-secondary { min-height: 36px; padding: 7px 12px; font-size: calc(10px * var(--text-scale)); }
 .hp-text { color: #d8a88e; } .gold-text { color: var(--amber); }
-.game-body:has(.dungeon-map) { display: flex; overflow: hidden; padding: 16px 20px; }
-.inspection:has(> .dungeon-map) { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
-.dungeon-map.living-map { display: flex; flex: 1; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; max-width: none; }
-.map-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, 280px); flex: 1; gap: 16px; min-height: 0; }
-.map-layout .map-overview { height: auto; min-height: 120px; min-width: 0; margin: 0; }
-.map-selection { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; overflow: auto; padding: 2px 4px 6px; }
-.game-dialog .map-selection h4 { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; font-size: calc(14px * var(--text-scale)); }
-.map-selection h4 > span { color: var(--muted); font-size: calc(11px * var(--text-scale)); white-space: nowrap; }
-.map-route-options { display: grid; gap: 10px; }
-.living-map .map-route-options .map-route-option { display: flex; flex-direction: row; align-items: center; gap: 12px; width: 100%; min-height: 78px; margin: 0; padding: 12px; border: 2px solid var(--amber); border-radius: 8px; text-align: left; }
-.map-route-option > .game-icon { width: 28px; height: 28px; flex-shrink: 0; color: var(--amber); }
-.living-map .map-route-option > span { min-width: 0; font-size: inherit; }
-.map-route-option > span:not(.map-route-arrow) { display: grid; flex: 1; gap: 6px; }
-.living-map .map-route-option strong { font-size: calc(14px * var(--text-scale)); }
-.living-map .map-route-options .map-route-option small { position: static; display: block; width: auto; padding: 0; opacity: 1; transform: none; border: 0; background: none; font-size: calc(11px * var(--text-scale)); line-height: 1.6; text-align: left; color: var(--muted); }
-.map-route-option .map-route-arrow { flex-shrink: 0; color: var(--amber); }
-.map-selection .map-place-summary { display: grid; gap: 4px; min-height: 0; margin: 0; padding: 10px 12px; }
-.map-selection .map-place-summary span { font-size: calc(11px * var(--text-scale)); }
-.map-details { min-width: 0; }
-.map-details > summary { min-height: 44px; padding: 10px 4px; color: var(--muted); cursor: pointer; font-size: calc(12px * var(--text-scale)); }
-.map-details .map-scroll { margin: 8px 0 0; max-height: 280px; overflow: auto; }
-.game-dialog .map-legend { flex-shrink: 0; margin: 0; font-size: calc(11px * var(--text-scale)); line-height: 1.6; }
-.map-intro { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-.map-intro h3 { margin: 0; }
-.game-dialog .map-intro p { margin: 0; font-size: calc(11px * var(--text-scale)); }
-.map-scroll { margin: 22px auto 0; max-width: 760px; padding-inline: 18px; }
-.map-grid { position: relative; width: 100%; }
-.map-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.map-lines line { stroke: #4d5844; stroke-width: 1; stroke-dasharray: 4 6; opacity: .6; }
-.map-lines line.path-traveled { stroke: var(--amber); stroke-width: 2; stroke-dasharray: none; opacity: 1; }
-.map-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); height: 108px; align-items: start; gap: 22px; position: relative; }
-.map-floor { position: absolute; left: -24px; top: 31px; color: #77866f; font-size: 9px; }
-.map-node { min-width: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; min-height: 84px; padding: 7px 8px; color: #b6c1aa; border: 1px solid #46513e; background: #1b251f; }
-.map-node > span { font-size: 22px; color: #929d7c; line-height: 1.1; }
-.map-node strong { font-size: calc(11px * var(--text-scale)); font-weight: 400; }
-.map-node small { font-size: calc(9px * var(--text-scale)); line-height: 1.5; text-align: center; }
-.map-node:disabled { cursor: default; opacity: .55; }
-.map-node.is-reachable { border-color: var(--amber); color: var(--ivory); background: #343a2a; box-shadow: inset 0 2px #d3ae6360; }
-.map-node.is-reachable > span { color: var(--amber); }
-.map-node.is-reachable:hover { background: #414731; }
-.map-node.is-visited { opacity: 1; border-color: #7a7f51; background: #293124; color: #c9cbab; }
-.map-node.is-visited > span { color: var(--amber); }
 @media (max-width: 700px) {
-  .game-body:has(.dungeon-map) { padding: 10px 12px; }
-  .dungeon-map.living-map { gap: 8px; }
-  .map-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(100px, 1fr) auto; gap: 10px; }
-  .map-selection { gap: 8px; overflow: visible; padding: 0 2px 4px; }
-  .map-route-options { grid-template-columns: repeat(var(--route-count), minmax(0, 1fr)); gap: 7px; }
-  .living-map .map-route-options .map-route-option { justify-content: center; gap: 7px; min-height: 52px; padding: 9px 6px; }
-  .map-route-option > .game-icon { width: 20px; height: 20px; }
-  .living-map .map-route-option strong { font-size: calc(12px * var(--text-scale)); }
-  .living-map .map-route-options .map-route-option small, .map-route-option .map-route-arrow { display: none; }
-  .map-selection:has(.map-route-options) .map-place-summary { display: none; }
-  .map-details[open] .map-scroll { max-height: 150px; }
-  .map-intro > p { display: none; }
-  .game-dialog .map-intro h3 { font-size: calc(18px * var(--text-scale)); }
-  .game-dialog .map-selection h4 { font-size: calc(12px * var(--text-scale)); }
-  .game-dialog .map-legend { font-size: calc(10px * var(--text-scale)); }
 }
 @media (max-height: 550px) {
-  .game-body:has(.dungeon-map) { padding: 8px 12px; }
-  .living-map > .map-intro, .game-dialog .map-legend, .map-selection .map-place-summary { display: none; }
-  .map-layout, .map-layout .map-overview { min-height: 80px; }
-  .map-selection { gap: 6px; padding: 0 2px 4px; }
-  .map-route-options { grid-template-columns: repeat(var(--route-count), minmax(0, 1fr)); gap: 6px; }
-  .living-map .map-route-options .map-route-option { min-height: 48px; padding: 8px 5px; }
-  .map-route-option > .game-icon, .map-route-option .map-route-arrow, .living-map .map-route-options .map-route-option small { display: none; }
-  .living-map .map-route-option strong { font-size: calc(12px * var(--text-scale)); }
-  .game-dialog .map-selection h4 { font-size: calc(12px * var(--text-scale)); }
-  .map-details > summary { min-height: 32px; padding: 6px 2px; }
 }
 .battle-screen { display: flex; flex-direction: column; flex: 1; width: 100%; min-width: 0; }
 .battle-stage { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; }
@@ -417,7 +350,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .battle-controls .quiz-feedback p { margin-bottom: 6px; }
   .battle-controls .quiz-feedback .game-primary { margin-top: 8px; }
   .game-card { flex-basis: 145px; }
-  .map-row { gap: 12px; }
 }
 @media (max-width: 500px) {
   .game-dialog, .review-dialog { width: calc(100vw - 20px); height: calc(100svh - 24px); max-height: calc(100svh - 24px); }
@@ -479,15 +411,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .tier-choice > span:last-child { margin-left: auto; }
   .adventure-brief { grid-template-columns: 1fr; padding: 16px 0; }
   .game-dialog .adventure-brief p { flex-direction: row; justify-content: space-between; gap: 10px; }
-  .map-intro { display: block; }
-  .map-intro > div { margin-bottom: 12px; }
-  .map-scroll { padding-left: 12px; padding-right: 0; }
-  .map-floor { left: -17px; }
-  .map-row { gap: 7px; }
-  .map-node { padding: 10px 4px; min-height: 86px; }
-  .map-node small { display: none; }
-  .map-node strong { font-size: calc(10px * var(--text-scale)); }
-  .map-node > span { font-size: 25px; margin-bottom: 7px; }
   .game-card { flex-basis: 142px; min-height: 226px; }
   .quiz-panel { padding: 15px 12px; }
   .quiz-panel h3 { gap: 6px 12px; }
@@ -516,7 +439,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .game-dialog { max-width: calc(100vw - 20px); }
 .game-dialog.is-battle { max-width: 100vw; }
 .game-body { width: 100%; min-width: 0; }
-.dungeon-map { width: 100%; max-width: 1040px; margin-inline: auto; }
 .battle-screen { position: relative; align-self: stretch; margin-inline: auto; overflow: hidden; }
 .battlefield, .battle-controls { width: 100%; min-width: 0; }
 .combat-canvas, .card-deal-canvas { width: 100%; height: 100%; }
@@ -545,30 +467,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .tier-choice:nth-child(2) { animation-delay: 60ms; } .tier-choice:nth-child(3) { animation-delay: 120ms; }
 .tier-choice:nth-child(4) { animation-delay: 180ms; } .tier-choice:nth-child(5) { animation-delay: 240ms; }
 .tier-choice[aria-pressed="true"] { animation-name: tier-radiance; animation-duration: 2.2s; }
-.living-map .map-scroll { position: relative; isolation: isolate; max-width: 800px; padding: 20px 24px 32px; background: radial-gradient(ellipse at 50% 15%,#56604430,transparent 60%),linear-gradient(#111f1bd9,#18231e); border: 1px solid #5c65443d; box-shadow: inset 0 0 65px #07120eb0; overflow: hidden; }
-.living-map .map-grid { height: 928px; }
-.living-map .map-row { height: 116px; gap: 0; align-items: start; animation: map-unfold .48s ease both; animation-delay: calc(var(--floor) * 45ms); }
-.living-map .map-floor { top: 28px; left: -17px; }
-.living-map .map-lines path { fill: none; stroke: #5b6b4e; stroke-width: 1.5; stroke-dasharray: 3 7; opacity: .45; }
-.living-map .map-lines .path-traveled { stroke: #b79c62; stroke-width: 4; stroke-dasharray: 1 11; stroke-linecap: round; opacity: .9; }
-.living-map .map-lines .path-available { stroke: #e2c47e; stroke-width: 2.5; stroke-dasharray: 7 9; opacity: 1; animation: path-flow 1.5s linear infinite; filter: drop-shadow(0 0 4px #ddbc64); }
-.living-map .map-node { width: min(140px, 96%); margin: 0 auto; min-height: 76px; padding: 4px 2px; border: 0; background: radial-gradient(ellipse,#283d2ee0,transparent 72%); box-shadow: none; gap: 3px; overflow: visible; transition: transform .22s, filter .22s; }
-.living-map .map-node .place-icon { position: relative; display: grid; place-items: center; width: 56px; height: 44px; font-size: 27px; color: #9ba98a; text-shadow: 2px 3px #07180c; background: linear-gradient(135deg,#3a4b36,#1e2f23); border: 1px solid #61704c; clip-path: polygon(15% 0,85% 0,100% 25%,100% 80%,85% 100%,15% 100%,0 80%,0 25%); }
-.living-map .place-boss .place-icon, .living-map .place-elite .place-icon { color: #dda77a; border-color: #9e7458; background: linear-gradient(#634834,#302821); }
-.living-map .place-treasure .place-icon { color: #e9d090; background: linear-gradient(#655338,#312f22); }
-.living-map .place-rest .place-icon { color: #f0bd7d; background: linear-gradient(#51492d,#263124); }
-.living-map .place-forge .place-icon { color: #ffa56e; }
-.living-map .map-node small { position: absolute; top: 82px; z-index: 5; width: min(190px, 28vw); padding: 6px; background: #101e18f5; border: 1px solid #99845a; opacity: 0; pointer-events: none; transform: translateY(-5px); transition: opacity .15s,transform .15s; }
-.living-map .map-node:hover:not(:disabled), .living-map .map-node:focus-visible { transform: translateY(-4px) scale(1.04); filter: drop-shadow(0 0 9px #d3ae6355); }
-.living-map .map-node:hover:not(:disabled) small, .living-map .map-node:focus-visible small { opacity: 1; transform: translateY(0); }
-.living-map .map-node.is-reachable .place-icon { border-color: #ebca7f; color: #fff0bb; animation: place-beacon 1.8s ease-in-out infinite alternate; }
-.living-map .map-node.is-reachable { opacity: 1; color: #f2dfb1; }
-.living-map .map-node.is-visited { background: radial-gradient(ellipse,#5a5f3038,transparent 70%); color: #c2bc8d; }
-.map-traveler { position: absolute; z-index: 4; width: 23px; height: 33px; margin-left: -11px; pointer-events: none; transition: left 360ms cubic-bezier(.4,0,.2,1),top 360ms cubic-bezier(.4,0,.2,1); filter: drop-shadow(0 0 4px #e4d29777); }
-.map-hero-art { width: 100%; height: 100%; animation: traveler-idle 1.8s ease-in-out infinite; }
-.map-traveler.is-walking .map-hero-art { animation: traveler-walk .12s ease-in-out infinite alternate; }
-.map-traveler > i { position: absolute; width: 24px; height: 5px; background: #0008; border-radius: 50%; bottom: -1px; left: 0; z-index: -1; }
-.map-fog { position: absolute; inset: -10%; pointer-events: none; z-index: -1; background: radial-gradient(ellipse at 20% 35%,#b7d3a91c,transparent 30%),radial-gradient(ellipse at 70% 70%,#a7c1a215,transparent 35%); animation: dungeon-fog 12s ease-in-out infinite alternate; }
 .reward-screen, .service-screen, .run-result, .inspection { animation: content-rise .35s ease both; }
 .reward-cards > .game-card { animation: reward-reveal .45s cubic-bezier(.2,.7,.3,1.1) both; }
 .reward-cards > .game-card:nth-child(2) { animation-delay: 100ms; } .reward-cards > .game-card:nth-child(3) { animation-delay: 200ms; }
@@ -585,11 +483,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 @keyframes content-rise { from { opacity: .72; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes tier-radiance { from { box-shadow: inset 0 3px var(--amber),0 0 10px #d3ae6312; } to { box-shadow: inset 0 3px var(--amber),0 0 28px #d3ae6345; } }
 @keyframes tier-sheen { from { transform: translateX(-35%) rotate(12deg); } 65%,to { transform: translateX(35%) rotate(12deg); } }
-@keyframes path-flow { to { stroke-dashoffset: -32; } }
-@keyframes map-unfold { from { opacity: .7; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
-@keyframes place-beacon { to { box-shadow: inset 0 0 18px #e9cb7540; filter: brightness(1.35); } }
-@keyframes traveler-idle { 50% { transform: translateY(-2px); } }
-@keyframes traveler-walk { to { transform: translateY(-3px) rotate(4deg); } }
 @keyframes dungeon-fog { to { transform: translate(7%,3%) scale(1.1); opacity: .6; } }
 @keyframes reward-reveal { from { opacity: .72; transform: translateY(25px) rotateY(65deg); } to { opacity: 1; transform: none; } }
 @keyframes relic-float { to { transform: translateY(-5px); filter: drop-shadow(0 0 18px #edd18e99); } }
@@ -604,9 +497,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .deck-pile > span { width: 23px; height: 30px; }
   .deck-pile small { font-size: 8px; }
   .draw-status { max-width: 110px; font-size: 8px; letter-spacing: 0; }
-  .living-map .map-scroll { padding-inline: 14px; }
-  .living-map .map-floor { left: -11px; }
-  .living-map .map-node strong { font-size: 10px; }
   .tier-condition { font-size: 8px; }
 }
 .app[data-background-motion="off"] .game-dialog *, .app[data-background-motion="off"] .game-dialog *::after,
@@ -635,16 +525,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 @keyframes loot-bloom { from { opacity: .72; transform: translateY(15px) scale(.9); } to { opacity: 1; transform: none; } }
 
 /* Map descriptions have a reserved place; no text floats over the traveler. */
-.map-place-summary { display: flex; align-items: center; gap: 16px; min-height: 58px; margin-top: 16px; padding: 12px 18px; border-left: 3px solid #d3ae63; background: #15271f; color: #ecddb2; }
-.map-place-summary strong { white-space: nowrap; }
-.map-place-summary span { font-size: 12px; line-height: 1.7; }
-.living-map .map-grid { height: 1152px; }
-.living-map .map-row { height: 144px; }
-.living-map .map-node:focus-visible, .living-map .map-node:hover:not(:disabled) { outline: none; box-shadow: none; transform: none; filter: none; }
-.living-map .map-node .place-icon { transition: transform 180ms ease, filter 180ms ease; }
-.living-map .map-node:focus-visible .place-icon, .living-map .map-node:hover:not(:disabled) .place-icon { transform: scale(1.12); filter: brightness(1.35) drop-shadow(0 0 8px #f4d896aa); }
-.living-map .map-node:focus-visible strong { color: #fff1bd; text-shadow: 0 0 10px #e4c46b; }
-.map-traveler::after { content: ''; position: absolute; bottom: -4px; left: -7px; width: 37px; height: 6px; border: 1px solid #beab6a88; background: #334832; border-radius: 50%; z-index: -2; }
 .battle-stage > .combat-hud { position: relative; inset: auto; flex: 0 0 auto; padding: 12px 20px; gap: 18px; background: #15211d; border-bottom: 1px solid #546244; z-index: 8; }
 .battle-stage > .combat-hud .combatant-hud { width: calc(50% - 9px); max-width: none; padding: 8px 12px; box-shadow: none; background: #1c2a22; }
 .status-badges { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
@@ -722,8 +602,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .status-badge > button { padding: 4px; font-size: 9px; }
   .status-badge > button > small { font-size: 7px; }
   .status-tooltip { width: 42vw; padding: 9px; font-size: 10px; }
-  .map-place-summary { gap: 10px; padding: 10px; }
-  .map-place-summary span { font-size: 10px; }
   .answer-verdict > strong { font-size: 21px; }
 }
 .battle-controls .quiz-panel.is-resolving { justify-content: center; text-align: center; }
@@ -731,10 +609,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .battle-controls .is-resolving > p { font-size: 12px; margin: 0; color: #e6d5a4; }
 .status-badge .status-pixel-icon { width: 24px; height: 24px; display: inline-block; flex: 0 0 24px; background-size: 192px 24px; image-rendering: pixelated; font-size: 0; }
 .intent-wait { color: #badbd0; }
-.map-traveler:has(img) { width: 36px; height: 36px; margin-left: -18px; }
-.map-hero-art:is(img) { object-fit: contain; image-rendering: auto; }
-.map-traveler:has(img)::after { left: 0; }
-.map-traveler:has(img) > i { left: 6px; }
 
 /* Shortcut labels show hand position, separate from the card energy cost. */
 .card-shortcut { margin-left: auto; min-width: 21px; height: 21px; display: grid; place-items: center; border: 1px solid #7e896b; color: #d7dfc7; font-size: 10px; line-height: 1; }
@@ -842,3 +716,12 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .survey-dialog .survey-record { gap: 8px; padding: 12px 10px; }
   .survey-record dd { font-size: calc(19px * var(--text-scale)); }
 }
+
+/* 모험 화면은 팝업이 아니라 창 전체를 쓴다. (지도·전투·보상·휴식·결과·티어 선택 공통)
+   예전 크기 규칙(일반·전투·티어 선택·좁은 화면)보다 우선하도록 dialog 요소 선택자로 덮는다. */
+dialog.game-dialog[open] {
+  inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0;
+  border: 0; border-radius: 0; box-shadow: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+dialog.game-dialog[open]::backdrop { background: var(--night, #140f1b); }
