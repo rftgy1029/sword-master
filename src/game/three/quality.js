@@ -1,5 +1,6 @@
+import { publicAsset } from '../../publicAsset.js';
 export const MODEL_TYPES = Object.freeze(['hero', 'crawler', 'sentinel', 'ember', 'bat', 'slime', 'mushroom', 'scarab', 'wisp', 'hound', 'ravager', 'watcher', 'boss']);
-export const modelUrl = (type) => `${import.meta.env?.BASE_URL ?? '/'}models/${MODEL_TYPES.includes(type) ? type : 'sentinel'}.glb`;
+export const modelUrl = (type) => publicAsset(`models/${MODEL_TYPES.includes(type) ? type : 'sentinel'}.glb`);
 
 export function qualityProfile(choice = 'auto', { compact = false, pixelRatio = 1 } = {}) {
   const level = choice === 'auto' ? compact ? 'low' : 'balanced' : choice;

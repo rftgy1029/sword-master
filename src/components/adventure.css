@@ -621,3 +621,26 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .review-field select { max-width: 100%; }
   .review-search { max-width: none; }
 }
+
+/* 사용자 경험 조사: 작은 안내 창 하나. 기록 요약은 오답 복습의 학습 요약과 같은 모양을 쓴다.
+   공통 .game-dialog·.game-primary 규칙이 뒤의 스타일시트에서 다시 정의되므로 두 클래스로 묶어 덮어쓴다. */
+.game-dialog.survey-dialog { width: min(560px, calc(100vw - 40px)); height: fit-content; max-height: calc(100svh - 40px); }
+.survey-dialog .survey-body { display: grid; align-content: start; gap: 14px; word-break: keep-all; }
+.survey-dialog .survey-body p { margin: 0; }
+.survey-dialog .survey-intro { color: var(--ivory); font-size: calc(14px * var(--text-scale)); }
+.survey-dialog .survey-record { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 16px; }
+.survey-record dt { font-size: calc(12px * var(--text-scale)); color: var(--muted); }
+.survey-record dd { margin: 5px 0; color: var(--sun, var(--amber)); font-size: calc(24px * var(--text-scale)); }
+.survey-record small { color: var(--muted); font-size: calc(11px * var(--text-scale)); line-height: 1.55; }
+.survey-dialog .survey-open { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 10px 18px;
+  text-decoration: none; font-size: calc(15px * var(--text-scale)); }
+.survey-dialog .survey-open:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+.survey-dialog .survey-open > span { color: inherit; }
+.survey-dialog .survey-later { min-height: 44px; padding: 8px 16px; font-size: calc(13px * var(--text-scale)); }
+.survey-dialog .survey-pending { color: var(--muted); text-align: center; }
+@media (max-width: 500px) {
+  .game-dialog.survey-dialog { width: calc(100vw - 20px); height: fit-content; max-height: calc(100svh - 24px); }
+  .survey-dialog .survey-body { padding: 18px 16px; }
+  .survey-dialog .survey-record { gap: 8px; padding: 12px 10px; }
+  .survey-record dd { font-size: calc(19px * var(--text-scale)); }
+}

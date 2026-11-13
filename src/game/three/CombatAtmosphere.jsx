@@ -3,8 +3,9 @@ import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { impactAges } from './playback.js';
 import { ENEMY_HOME, HERO_HOME } from './heroMotion.js';
+import { publicAsset } from '../../publicAsset.js';
 
-const URL = `${import.meta.env.BASE_URL}effects/impact-flipbook.png`;
+const URL = publicAsset('effects/impact-flipbook.png');
 const spriteVertex = `
 varying vec2 spriteUv;
 void main() {

@@ -1,10 +1,10 @@
 // 타이틀 메뉴는 클릭·방향키 외에 영어 단어를 쳐서도 고른다. "단어가 무기가 된다"는 게임 콘셉트를 첫 화면에서 보여 준다.
 
-/** 메뉴 순서와 같은 순서의 입력 단어 */
-export const MENU_WORDS = Object.freeze(['start', 'continue', 'words', 'review', 'settings']);
+/** 메뉴 순서와 같은 순서의 입력 단어. survey는 학교 티어를 클리어한 뒤에만 선택할 수 있다. */
+export const MENU_WORDS = Object.freeze(['start', 'continue', 'words', 'review', 'settings', 'survey']);
 
 /** 메뉴를 고르는 동안 기사가 보이는 반응(용사 모델의 동작 이름). 단어를 끝까지 치면 attack(칼 휘두르기)이다. */
-export const MENU_REACTIONS = Object.freeze(['victory', 'walk', 'idle', 'guard', 'idle']);
+export const MENU_REACTIONS = Object.freeze(['victory', 'walk', 'idle', 'guard', 'idle', 'victory']);
 
 /**
  * 지금까지 친 글자로 메뉴를 찾는다.

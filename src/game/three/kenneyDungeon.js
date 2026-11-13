@@ -1,3 +1,4 @@
+import { publicAsset } from '../../publicAsset.js';
 // Kenney 'Mini Dungeon'(CC0) 부품으로 던전 장면을 배치한다.
 // 부품 파일은 scripts/build_kenney_dungeon.py가 public/models/dungeon-kit.glb 하나로 묶는다.
 
@@ -16,7 +17,7 @@ export const COMPOSITE_PIECES = Object.freeze(['chest', 'gate', 'trap']);
  */
 export const KIT_TINT = '#9b95a6';
 
-export const dungeonKitUrl = () => `${import.meta.env?.BASE_URL ?? '/'}models/dungeon-kit.glb`;
+export const dungeonKitUrl = () => publicAsset('models/dungeon-kit.glb');
 
 // 같은 장면에서는 항상 같은 모양이 나오도록 위치에서 0~1 사이 값을 만든다.
 const hash = (x, z) => {

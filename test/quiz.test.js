@@ -39,3 +39,37 @@ test('a battle uses every validated word/type before recycling and handles no va
   assert.equal(nextQuestion('bronze', used, () => random(state)).recycled, true);
   assert.equal(nextQuestion('invalid', [], () => random(state)), null);
 });
+
+test('every word in the teacher list is quizzed in its own tier and every tier above it', async () => {
+  const { default: words } = await import('../src/data/vocabulary.json', { with: { type: 'json' } });
+  const ids = new Set(QUESTION_BANK.map((q) => q.wordId));
+  assert.equal(words.length, 1000);
+  for (const word of words) assert.ok(ids.has(word.id), `${word.term} has no question`);
+  for (let index = 0; index < TIERS.length; index++) {
+    const pool = new Set(questionPool(TIERS[index].id).map((q) => q.wordId));
+    const expected = words.filter((w) => TIERS.findIndex((t) => t.id === w.tier) <= index);
+    assert.equal(pool.size, expected.length, `${TIERS[index].label}: ${pool.size}/${expected.length}`);
+  }
+});
+
+test('automatic meaning choices are stable, distinct, and never another reading of the answer', async () => {
+  const { default: words } = await import('../src/data/vocabulary.json', { with: { type: 'json' } });
+  const meanings = new Map(words.map((w) => [w.meaning, w]));
+  const before = JSON.stringify(QUESTION_BANK.map((q) => q.distractors));
+  for (const q of QUESTION_BANK.filter((q) => q.type === 'meaning')) {
+    assert.ok(q.distractors.length >= 3, q.word.term);
+    assert.equal(new Set(q.distractors).size, q.distractors.length);
+    assert.ok(!q.distractors.includes(q.word.meaning), q.word.term);
+    for (const d of q.distractors) {
+      const other = meanings.get(d);
+      if (!other || other.term === q.word.term) continue;
+      const related = `${q.word.synonyms},${q.word.antonyms}`.toLowerCase();
+      assert.ok(!related.split(/[,①-⑨()]/).map((s) => s.trim()).includes(other.term.toLowerCase()),
+        `${q.word.term}: ${other.term} is listed as its synonym/antonym`);
+    }
+    const multi = /[①-⑨]/.test(q.word.meaning);
+    assert.ok(q.distractors.every((d) => /[①-⑨]/.test(d) === multi), `${q.word.term}: numbered senses never stand out among the choices`);
+  }
+  const fresh = await import(`../src/game/quiz.js?again=${Date.now()}`);
+  assert.equal(JSON.stringify(fresh.QUESTION_BANK.map((q) => q.distractors)), before, 'Choices are rebuilt identically, so saved quizzes stay valid');
+});

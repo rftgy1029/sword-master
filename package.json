@@ -12,6 +12,7 @@
     "assets:dungeon": "blender --background --factory-startup --threads 2 --python scripts/build_kenney_dungeon.py",
     "dev": "vite --host 127.0.0.1 --port 8175 --strictPort",
     "build": "vite build",
+    "build:single": "vite build --mode single && node scripts/build-single.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 8176 --strictPort",
     "test": "node --test",
     "test:3d": "node scripts/verify-3d.mjs",

@@ -1,4 +1,5 @@
 import { groupWrongWords, questionType, reviewStatus } from './learning.js';
+import { publicAsset } from '../publicAsset.js';
 
 function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
@@ -41,7 +42,7 @@ async function loadPdfRuntime() {
 }
 
 async function loadFont(name) {
-  const response = await fetch(`${import.meta.env.BASE_URL}fonts/${name}`);
+  const response = await fetch(publicAsset(`fonts/${name}`));
   if (!response.ok) throw new Error('PDF 글꼴을 읽지 못했습니다.');
   const bytes = new Uint8Array(await response.arrayBuffer());
   let binary = '';
