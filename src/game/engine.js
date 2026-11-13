@@ -128,10 +128,19 @@ function applyCard(run, card) {
     }
     b.firstAttack = false;
   }
-  if (c.block) b.block += c.block + focus;
-  if (c.heal) run.hp = Math.min(run.maxHp, run.hp + c.heal + focus);
-  if (c.strength) b.strength += c.strength + focus;
-  if (c.weak) b.enemy.weak += c.weak + focus;
+  // Applied values (focus included) for the floating number; the state changes below are the rule.
+  const block = c.block && c.block + focus;
+  const strength = c.strength && c.strength + focus;
+  const weak = c.weak && c.weak + focus;
+  let healed = 0;
+  if (c.block) b.block += block;
+  if (c.heal) {
+    const before = run.hp;
+    run.hp = Math.min(run.maxHp, run.hp + c.heal + focus);
+    healed = run.hp - before; // Like damage dealt: the HP actually gained, capped by max HP.
+  }
+  if (c.strength) b.strength += strength;
+  if (c.weak) b.enemy.weak += weak;
   if (c.focus) b.focus += c.focus;
   if (c.draw) drawCards(run, c.draw);
   if (!c.damage && !b.springUsed && relicLevel(run, 'spring')) {
@@ -139,9 +148,9 @@ function applyCard(run, card) {
     b.springUsed = true;
     if (relicLevel(run, 'spring') === 2) drawCards(run, 1);
   }
-  b.effect = { id: b.effect.id + 1, kind: c.damage ? 'attack' : c.heal ? 'heal' : 'block', amount: damage || c.block || c.heal || c.strength || c.focus || c.weak,
+  b.effect = { id: b.effect.id + 1, kind: c.damage ? 'attack' : c.heal ? 'heal' : 'block', amount: damage || block || healed || strength || c.focus || weak,
     cardType: card.type, upgraded: card.upgraded, impacts };
-  return c.damage ? `피해 ${damage}` : c.block ? `방어 +${c.block + focus}` : c.heal ? `HP 회복 ${c.heal + focus}` : '효과 발동';
+  return c.damage ? `피해 ${damage}` : c.block ? `방어 +${block}` : c.heal ? `HP 회복 ${healed}` : '효과 발동';
 }
 
 function recordAnswer(progress, question, correct) {

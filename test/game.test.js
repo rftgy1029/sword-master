@@ -99,6 +99,63 @@ test('multi-hit, first attack and focus synergies apply once with persistent str
   assert.equal(p.run.battle.firstAttack, false);
 });
 
+test('floating amount includes focus exactly as applied to block, heal, strength and weak', () => {
+  // Played focus card: its own amount stays the raw focus value.
+  let p = answer(select(start(), 'focus'));
+  assert.equal(p.run.battle.focus, 5);
+  assert.equal(p.run.battle.effect.amount, 5);
+  let block = p.run.battle.block; // Starting relic block is not part of the card's amount.
+  p = answer(select(gameReducer(p, { type: 'ACK' }), 'guard'));
+  assert.equal(p.run.battle.block - block, 9 + 5);
+  assert.equal(p.run.battle.effect.amount, 14);
+  assert.equal(p.run.battle.focus, 0);
+
+  // Reported repro: bronze seed 42, focus then heal below the cap.
+  p = start();
+  p.run.hp = 50;
+  p = answer(select(gameReducer(answer(select(p, 'focus')), { type: 'ACK' }), 'heal'));
+  assert.equal(p.run.hp, 64);
+  assert.equal(p.run.battle.effect.kind, 'heal');
+  assert.equal(p.run.battle.effect.amount, 14);
+  assert.match(p.run.battle.log[0], /HP 회복 14$/);
+
+  // Heal capped by max HP: the amount is the HP actually gained, like damage dealt.
+  p = start();
+  p.run.hp = p.run.maxHp - 3;
+  p.run.battle.focus = 5;
+  p = answer(select(p, 'heal'));
+  assert.equal(p.run.hp, p.run.maxHp);
+  assert.equal(p.run.battle.effect.amount, 3);
+  assert.match(p.run.battle.log[0], /HP 회복 3$/);
+
+  p = start();
+  p.run.battle.focus = 5;
+  p = answer(select(p, 'empower'));
+  assert.equal(p.run.battle.strength, 2 + 5);
+  assert.equal(p.run.battle.effect.amount, 7);
+
+  p = start();
+  p.run.battle.focus = 5;
+  p = answer(select(p, 'weaken'));
+  assert.equal(p.run.battle.enemy.weak, 2 + 5);
+  assert.equal(p.run.battle.effect.amount, 7);
+
+  // Block + strength card keeps block as the shown value; focus applies to both stats.
+  p = start();
+  p.run.deck.push({ uid: `card-${p.run.nextCard++}`, type: 'oath', upgraded: false });
+  p.run.battle.focus = 5;
+  block = p.run.battle.block;
+  p = answer(select(p, 'oath'));
+  assert.equal(p.run.battle.block - block, 8 + 5);
+  assert.equal(p.run.battle.strength, 3 + 5);
+  assert.equal(p.run.battle.effect.amount, 13);
+
+  // No focus: unchanged raw values.
+  p = answer(select(start(), 'guard'));
+  assert.equal(p.run.battle.effect.amount, 9);
+  assert.ok(validProgress(p));
+});
+
 test('healing/exhaust and first skill energy relic cannot be farmed', () => {
   let p = start();
   p.run.relics.push({ id: 'spring', level: 2 });
