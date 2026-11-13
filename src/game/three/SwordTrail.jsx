@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { swingWindows } from './heroMotion.js';
+import { publicAsset } from '../../publicAsset.js';
 
 const MAX_AGE = 170;
-const MASK = `${import.meta.env.BASE_URL}effects/sword-light.png`;
+const MASK = publicAsset('effects/sword-light.png');
 const VERTEX = `
   attribute float strength;
   varying float glow;
