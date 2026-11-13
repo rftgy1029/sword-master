@@ -4,7 +4,7 @@
 /* 배치 */
 .game-body:has(.dungeon-map) { display: flex; overflow: hidden; padding: 18px 22px; }
 .inspection:has(> .dungeon-map) { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
-.dungeon-map.living-map { display: flex; flex: 1; flex-direction: column; width: 100%; max-width: 1100px; min-width: 0; min-height: 0; margin-inline: auto; }
+.dungeon-map.living-map { display: flex; flex: 1; flex-direction: column; width: 100%; max-width: 1440px; min-width: 0; min-height: 0; margin-inline: auto; }
 .living-map .map-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(270px, 310px); flex: 1; gap: 20px; min-height: 0; }
 .living-map .map-overview { position: relative; min-width: 0; min-height: 0; margin: 0; container-type: size; overflow: hidden;
   border: 3px solid var(--edge); border-radius: 16px; box-shadow: 0 4px 0 var(--edge); }

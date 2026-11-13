@@ -716,3 +716,12 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .survey-dialog .survey-record { gap: 8px; padding: 12px 10px; }
   .survey-record dd { font-size: calc(19px * var(--text-scale)); }
 }
+
+/* 모험 화면은 팝업이 아니라 창 전체를 쓴다. (지도·전투·보상·휴식·결과·티어 선택 공통)
+   예전 크기 규칙(일반·전투·티어 선택·좁은 화면)보다 우선하도록 dialog 요소 선택자로 덮는다. */
+dialog.game-dialog[open] {
+  inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0;
+  border: 0; border-radius: 0; box-shadow: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+dialog.game-dialog[open]::backdrop { background: var(--night, #140f1b); }
