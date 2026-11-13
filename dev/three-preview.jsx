@@ -13,14 +13,21 @@ function Preview(){
   const [type,setType]=useState('sentinel'),[settings,setSettings]=useState(DEFAULT_SETTINGS);
   const [effect,setEffect]=useState({id:0,kind:'start',amount:0});
   const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[fatal,setFatal]=useState(false);
-  const [upgraded,setUpgraded]=useState(false);
+  const [upgraded,setUpgraded]=useState(false),[lethal,setLethal]=useState(false),[killed,setKilled]=useState(false);
   const [hits,setHits]=useState([]),[status,setStatus]=useState('장면 준비 중');
   const controller=useRef(null),counter=useRef(0);
-  const enemy={type,hp:1000};
-  const changeType=event=>{setReady(false);setBusy(false);setFatal(false);setHits([]);setType(event.target.value);setStatus('장면 준비 중');};
+  const enemy={type,hp:killed ? 0 : 1000};
+  const changeType=event=>{setReady(false);setBusy(false);setFatal(false);setKilled(false);setHits([]);setType(event.target.value);setStatus('장면 준비 중');};
   const play=(cardType)=>{
     setHits([]);setFatal(false);const card=CARDS[cardType];
+    setKilled(!!card.damage && lethal);
     setEffect({id:++counter.current,kind:card.damage?'attack':card.heal?'heal':'block',cardType,upgraded,amount:card.damage??card.heal??card.block??3,impacts:ATTACK_HITS[cardType]?.map(()=>4)});
+  };
+  const hurt = (impacts, isFatal = false) => {
+    setHits([]);
+    setKilled(false);
+    setFatal(isFatal);
+    setEffect({ id: ++counter.current, kind: 'hurt', amount: impacts.reduce((sum, hit) => sum + hit, 0), impacts });
   };
   const callbacks={onReady:()=>{setReady(true);setStatus('장면 준비 완료');},onBusy:value=>{setBusy(value);if(!value)setStatus('연출 완료');},onImpact:(index,target)=>setHits(list=>[...list,`${target??'enemy'}:${index}`])};
   return <GraphicsProvider settings={settings}><main className="three-preview-page" style={{maxWidth:1280,margin:'auto',padding:24}}>
@@ -32,8 +39,10 @@ function Preview(){
       <label>움직임 <select aria-label="움직임" value={settings.backgroundMotion} onChange={e=>setSettings({...settings,backgroundMotion:e.target.value})}>{['normal','reduced','off'].map(v=><option key={v}>{v}</option>)}</select></label>
       <label>화면 <select aria-label="화면" value={settings.renderer} onChange={e=>setSettings({...settings,renderer:e.target.value})}>{['auto','3d','2d'].map(v=><option key={v}>{v}</option>)}</select></label>
       <label><input type="checkbox" checked={upgraded} onChange={e=>setUpgraded(e.target.checked)}/>강화 카드</label>
-      <button className="game-secondary" disabled={!ready||busy} onClick={()=>{setHits([]);setFatal(false);setEffect({id:++counter.current,kind:'hurt',amount:12,impacts:[4,4,4]});}}>몬스터 다단 공격</button>
-      <button className="game-secondary" disabled={!ready||busy} onClick={()=>{setHits([]);setFatal(true);setEffect({id:++counter.current,kind:'hurt',amount:12,impacts:[4,4,4]});}}>치명타</button>
+      <label><input type="checkbox" checked={lethal} onChange={e=>setLethal(e.target.checked)}/>적 처치</label>
+      <button className="game-secondary" disabled={!ready||busy} onClick={()=>hurt([4,4,4])}>몬스터 다단 공격</button>
+      <button className="game-secondary" disabled={!ready||busy} onClick={()=>hurt([0])}>완전 방어</button>
+      <button className="game-secondary" disabled={!ready||busy} onClick={()=>hurt([4,4,4],true)}>치명타</button>
       <button className="game-secondary" onClick={()=>controller.current?.rotate(.6)}>카메라 회전</button>
       <button className="game-secondary" onClick={()=>controller.current?.advance(2500)}>연출 끝까지</button>
     </div>

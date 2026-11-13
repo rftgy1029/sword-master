@@ -64,13 +64,14 @@ export default function CombatAtmosphere({ director, quality, sword }) {
     const y = type === 'heavy' ? .32 : 1.05;
 
     for (let slot = 0; slot < 2; slot++) {
-      let age = -1, power = 1;
+      let age = -1, power = 1, blocked = false;
       for (let index = slot; index < hitAges.length; index += 2) {
         if (hitAges[index] < 0) continue;
         age = hitAges[index];
         power = plan.hitInfo[index].power;
+        blocked = plan.hitInfo[index].blocked;
       }
-      const tint = slot === 1 && type === 'twin' ? plan.recipe.accent : color;
+      const tint = blocked ? 0x8ce8d7 : slot === 1 && type === 'twin' ? plan.recipe.accent : color;
       updateSprite(group.children[slot], { age, duration: 300, color: tint, x, y, z: .28, size: 1.45 + .65 * power, alpha: .92 });
       updateSprite(group.children[slot + 2], {
         age, duration: 680, color: 0xab8d79, x, y: .25 + .34 * cap(age / 680), z: .15,
@@ -80,7 +81,7 @@ export default function CombatAtmosphere({ director, quality, sword }) {
 
     const lastAge = hitAges.findLast((age) => age >= 0) ?? -1;
     const debris = sparks.current;
-    const burst = lastAge >= 0 && lastAge < 610 && (type === 'heavy' || type === 'nova' || plan.lethal || plan.heavy);
+    const burst = lastAge >= 16 && lastAge < 610 && (type === 'heavy' || type === 'nova' || !!plan.lethal || !!plan.heavy);
     debris.visible = burst;
     if (burst) {
       const t = lastAge / 610;
@@ -92,7 +93,7 @@ export default function CombatAtmosphere({ director, quality, sword }) {
         matrix.scale.setScalar((.08 + index % 4 * .035) * (1 - t) ** .5);
         matrix.updateMatrix();
         debris.setMatrixAt(index, matrix.matrix);
-        debris.setColorAt(index, stone.setHex(0x93807f).lerp(tint, index % 3 ? .26 : .72));
+        debris.setColorAt(index, stone.setHex(0x6a5c60).lerp(tint, index % 3 ? .15 : .48));
       }
       debris.instanceMatrix.needsUpdate = true;
       if (debris.instanceColor) debris.instanceColor.needsUpdate = true;

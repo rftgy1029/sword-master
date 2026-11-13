@@ -149,8 +149,8 @@ export default function ImpactEffects({ director, pose, quality, reduced }) {
       // 1) 베기 궤적: 타격 순간부터 100ms 동안 위에서 아래로 그어지고, 곧 사라진다.
       const slash = facing.getObjectByName('slash');
       const swing = clamp01(age / 100), out = clamp01((age - 110) / 260);
-      slash.visible = melee;
-      if (melee) {
+      slash.visible = melee && !hit.blocked;
+      if (slash.visible) {
         // 호의 한가운데가 타격 지점을 지나도록 호의 중심을 반대쪽으로 옮긴다. 위에서 아래로 그어진다.
         const mirrored = enemyHit || (type === 'twin' && hitIndex % 2 === 1);
         const angle = type === 'heavy' ? -.15 : -.75, sign = mirrored ? -1 : 1;
@@ -173,7 +173,7 @@ export default function ImpactEffects({ director, pose, quality, reduced }) {
 
       // 3) 충격파 고리
       const ring = facing.getObjectByName('ring'), ringT = clamp01(age / 300);
-      ring.scale.setScalar(.3 + easeOut(ringT) * 1.7 * power ** .5);
+      ring.scale.setScalar(hit.blocked ? .72 + ringT * .38 : .3 + easeOut(ringT) * 1.7 * power ** .5);
       ring.material.uniforms.color.value.copy(color);
       ring.material.uniforms.thickness.value = .25 * (1 - ringT) + .04;
       ring.material.uniforms.fade.value = (1 - ringT) ** 1.2;

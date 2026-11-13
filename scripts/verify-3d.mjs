@@ -69,24 +69,74 @@ for(const type of ['strike','guard','heavy','twin','heal','empower','weaken','fo
   await page.locator('#scene-status').filter({hasText:'연출 완료'}).waitFor();
   console.log('upgraded card',type,'halo passed');
 }
-await page.getByRole('combobox',{name:'움직임',exact:true}).selectOption('off');
-await page.locator('[data-card-type="twin"]').click();
-await page.waitForFunction(()=>document.querySelector('#hit-status').textContent==='enemy:0,enemy:1');
-await page.getByRole('combobox',{name:'품질',exact:true}).selectOption('low');
-await page.waitForTimeout(100);
-console.log('low',await controller(c=>c.__sword3d.inspect()));
-await page.getByRole('button',{name:'카메라 회전',exact:true}).click();
-await page.waitForTimeout(200);
-await page.screenshot({path:artifactRoot+'sword3d-rotated.png'});
-await page.getByRole('combobox',{name:'움직임',exact:true}).selectOption('normal');
-await page.locator('[data-card-type="twin"]').click();
-await page.setViewportSize({width:390,height:844});
-await controller(c=>c.__sword3d.advance(2500));
-await page.waitForFunction(()=>document.querySelector('#hit-status').textContent==='enemy:0,enemy:1');
-console.log('resize during multi-hit animation passed');
-await controller(c=>c.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
-await page.locator('.scene-view[data-renderer="2d"]').waitFor({timeout:10000});
-await page.locator('canvas:not([data-renderer="three"])').waitFor();
-console.log('context loss -> 2D fallback passed');
+const motion = page.getByRole('combobox', { name: '움직임', exact: true });
+const quality = page.getByRole('combobox', { name: '품질', exact: true });
+const cardButton = (type) => page.locator(`[data-card-type="${type}"]`);
+const hits = (expected) => page.waitForFunction(
+  (value) => document.querySelector('#hit-status').textContent === value, expected);
+const completed = () => page.locator('#scene-status').filter({ hasText: '연출 완료' }).waitFor();
+
+await page.getByRole('checkbox', { name: '강화 카드' }).uncheck();
+await quality.selectOption('high');
+await page.waitForFunction(() => document.querySelector('canvas[data-renderer="three"]')?.__sword3d?.inspect().bloom);
+await canvasSample(CARD_MOTIONS.nova.hits[0]);
+await cardButton('nova').click();
+await hits('enemy:0');
+assert.equal(await controller((c) => c.__sword3d.scene.getObjectByName('nova-column').visible), true);
+await page.locator('.preview-arena').screenshot({ path: artifactRoot + 'overhaul-high-nova.png' });
+await controller((c) => c.__sword3d.settle());
+await quality.selectOption('low');
+
+await page.getByRole('button', { name: '완전 방어', exact: true }).click();
+await hits('player:0');
+await page.locator('.combat-hit-number.is-blocked').filter({ hasText: '방어' }).waitFor();
+await completed();
+await page.getByRole('checkbox', { name: '적 처치' }).check();
+await cardButton('strike').click();
+await hits('enemy:0');
+await completed();
+const monster = await page.getByRole('combobox', { name: '몬스터' }).inputValue();
+await page.waitForFunction((type) => document.querySelector('canvas[data-renderer="three"]')?.__sword3d
+  ?.scene.getObjectByName(`actor-${type}`)?.visible === false, monster);
+await page.getByRole('checkbox', { name: '적 처치' }).uncheck();
+
+await motion.selectOption('reduced');
+await cardButton('twin').click();
+await page.locator('.combat-scene[data-motion="calm"]').waitFor();
+await hits('enemy:0,enemy:1');
+await completed();
+await motion.selectOption('off');
+await cardButton('twin').click();
+await hits('enemy:0,enemy:1');
+await completed();
+await motion.selectOption('normal');
+await page.emulateMedia({ reducedMotion: 'reduce' });
+await page.locator('.combat-scene[data-motion="calm"]').waitFor();
+await page.emulateMedia({ reducedMotion: 'no-preference' });
+await page.locator('.combat-scene[data-motion="full"]').waitFor();
+
+await page.evaluate(() => {
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+  document.dispatchEvent(new Event('visibilitychange'));
+});
+await cardButton('twin').click();
+await page.waitForFunction(() => document.querySelector('canvas[data-renderer="three"]')?.__sword3d?.inspect().active);
+assert.equal(await controller((c) => c.__sword3d.inspect().elapsed), 0);
+assert.equal(await page.locator('#hit-status').textContent(), '');
+await canvasSample(ATTACK_HITS.twin[0]);
+await page.evaluate(() => {
+  delete document.hidden;
+  document.dispatchEvent(new Event('visibilitychange'));
+});
+await hits('enemy:0');
+await page.setViewportSize({ width: 390, height: 844 });
+await controller((c) => c.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+await page.locator('.scene-view[data-renderer="2d"] canvas').waitFor({ timeout: 10000 });
+await hits('enemy:0,enemy:1');
+await completed();
+await cardButton('strike').click();
+await hits('enemy:0');
+await completed();
+console.log('high quality bloom, blocked hit, defeat, motion settings, resize and in-flight 3D → 2D recovery passed');
 console.log('ERRORS',errors);assert.deepEqual(errors,[]);
 await browser.close();
