@@ -10,8 +10,10 @@ import { impactAges } from './playback.js';
 import { ENEMY_HOME, heroPose, impulse } from './heroMotion.js';
 import { createKnightRig } from './knightRig.js';
 import { enemyAttackPose } from '../enemyAttackTimeline.js';
-import { CARD_MOTIONS } from '../cardMotions.js';
+import SkillEffects from './SkillEffects.jsx';
 import { setHitFlash, setOutlineScale, stylizeActor } from './toon.js';
+import CombatAtmosphere from './CombatAtmosphere.jsx';
+import SwordTrail from './SwordTrail.jsx';
 import ImpactEffects, { hitFlashAmount } from './ImpactEffects.jsx';
 import { COMPOSITE_PIECES, KIT_SCALE, KIT_TINT, TILE, WALL_FRONT, dungeonKitUrl, dungeonLayout, groupByPiece } from './kenneyDungeon.js';
 
@@ -174,7 +176,7 @@ function Dungeon({ variant = 'hall', mode = 'battle' }) {
   </group>;
 }
 
-export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false, procedural = false }) {
+export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false, procedural = false, weaponRef }) {
   const source = useLoader(GLTFLoader, modelUrl(type));
   const root = useRef(null);
   const actor = useMemo(() => {
@@ -186,6 +188,12 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
     const rig = procedural ? createKnightRig(object) : null;
     return { object, mixer, actions, outline, rig, name: null, action: null };
   }, [source, procedural]);
+  useLayoutEffect(() => {
+    if (!weaponRef) return;
+    const base = actor.object.getObjectByName('weapon'), tip = actor.object.getObjectByName('weapon_tip');
+    weaponRef.current = base && tip ? { base, tip } : null;
+    return () => { weaponRef.current = null; };
+  }, [actor, weaponRef]);
   useEffect(() => () => { actor.mixer.stopAllAction(); actor.outline.dispose(); actor.name=null; actor.action=null; }, [actor]);
   useFrame((_, delta) => {
     if (!root.current) return;
@@ -241,94 +249,9 @@ function Motes({ count, still }) {
   return <points ref={points}><bufferGeometry><bufferAttribute attach="attributes-position" args={[values,3]} /></bufferGeometry><pointsMaterial color="#e6d39b" size={.025} transparent opacity={.5} sizeAttenuation depthWrite={false} /></points>;
 }
 
-function SkillEffects({ director, quality }) {
-  const root = useRef(null), ring = useRef(null), slash = useRef(null), beam = useRef(null), particles = useRef(null);
-  const stones=useRef(null), shield=useRef(null), moons=useRef(null), seal=useRef(null), focus=useRef(null), wind=useRef(null), crown=useRef(null), fire=useRef(null);
-  const upgraded=useRef(null);
-  const geometry = useMemo(() => new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(quality.particles * 3), 3)), [quality.particles]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  useFrame(() => {
-    const current = director.active;
-    if (!root.current) return;
-    root.current.visible = !!current && !current.plan.calm && current.effect.kind !== 'miss';
-    if (!root.current.visible) return;
-    const { effect, enemy, elapsed, duration, plan } = current;
-    const progress = elapsed / duration;
-    const enemyAction=effect.kind==='enemy';
-    const type = effect.cardType ?? (enemyAction?{block:'guard',buff:'empower',charge:'focus',wait:'flow'}[effect.enemyAction]:undefined);
-    const color = new THREE.Color(enemy || enemyAction ? plan.color : CARD_MOTIONS[type]?.color ?? 0xd6ddb1);
-    const damage = effect.kind === 'attack' || enemy;
-    const launch = plan.recipe?.marks.launch ?? 0;
-    const flight = Math.max(0, Math.min(1, (elapsed - launch) / Math.max(1, (current.hits[0] ?? duration) - launch)));
-    const x = enemyAction ? 2.3 : enemy ? -2.3 : type === 'flare' ? -2.3 + 4.6 * flight : damage || type === 'weaken' ? 2.3 : -2.3;
-    root.current.position.set(x, .025, 0);
-    const pulse = Math.sin(Math.PI * progress);
-    const phase = current.hits.length ? Math.max(...current.hits.map(at => Math.max(0, 1 - Math.abs(elapsed - at) / 400))) : pulse;
-    ring.current.material.color.copy(color); ring.current.material.opacity = pulse * .7;
-    ring.current.scale.setScalar(.45 + progress * (type === 'nova' ? 2.1 : 1.2));
-    ring.current.rotation.z = progress * Math.PI;
-    const melee = damage && (enemy || ['strike','heavy','twin'].includes(type));
-    // 근접 타격은 ImpactEffects가 맡는다. 예전의 얇은 고리 베기는 쓰지 않는다.
-    slash.current.visible = false;
-    ring.current.visible = !melee;
-    particles.current.visible = !melee;
-    slash.current.material.color.copy(color); slash.current.material.opacity = phase;
-    slash.current.rotation.z = type === 'heavy' ? progress * 2 : progress * 5 - 1.7;
-    slash.current.scale.setScalar((effect.upgraded ? 1.4 : 1.1) + phase * .3);
-    beam.current.visible = type === 'nova' || type === 'oath' || type === 'heal' || type === 'empower';
-    beam.current.scale.set(.5 + pulse * .6, 1, .5 + pulse * .6);
-    beam.current.material.color.copy(color); beam.current.material.opacity = pulse * .17;
-    stones.current.visible=type==='heavy'||type==='guard';
-    stones.current.children.forEach((stone,i)=>{
-      const angle=i*Math.PI/4;
-      const radius=type==='guard' ? .75 : progress*1.5;
-      stone.position.set(Math.cos(angle)*radius,type==='guard'?pulse*(.4+Math.sin(angle)*.2):phase*(.2+i%3*.22),Math.sin(angle)*radius);
-      stone.rotation.set(progress+i,angle,progress*.6);
-      stone.scale.setScalar((type==='guard'?pulse:phase)*.9);
-    });
-    shield.current.visible=type==='guard';shield.current.scale.setScalar(.4+pulse*.8);shield.current.material.opacity=pulse*.25;
-    moons.current.visible=type==='twin';moons.current.rotation.z=progress*7;moons.current.scale.setScalar(.7+phase*.65);
-    seal.current.visible=type==='weaken';seal.current.rotation.z=progress*3;seal.current.scale.setScalar(.65+pulse*.3);
-    focus.current.visible=type==='focus';focus.current.rotation.y=progress*4;focus.current.scale.setScalar(.8+pulse*.2);
-    wind.current.visible=type==='flow'||type==='flare';wind.current.rotation.x=progress*8;wind.current.position.y=.6+pulse*.5;
-    wind.current.scale.setScalar(type==='flare' ? .7+progress*.8 : 1);
-    crown.current.visible=type==='oath';crown.current.rotation.y=progress*2;crown.current.scale.setScalar(.4+pulse*.7);
-    fire.current.visible=type==='empower';fire.current.children.forEach((flame,i)=>{flame.scale.setScalar(pulse*(.7+Math.sin(i+progress*14)*.3));});
-    upgraded.current.visible=!!effect.upgraded;
-    upgraded.current.scale.setScalar(.8+pulse*.6);
-    upgraded.current.rotation.z=progress*3;
-    upgraded.current.material.opacity=pulse*.7;
-    if(import.meta.env.DEV)Object.assign(root.current.userData,{effectId:effect.id,upgraded:!!effect.upgraded});
-    const positions = geometry.attributes.position.array;
-    for (let i = 0; i < quality.particles; i++) {
-      const a = i * 2.39996 + progress * 2;
-      const radius = damage ? (.2 + phase * 1.5) * (i % 7 + 2) / 8 : .45 + Math.sin(i) * .25;
-      positions[i * 3] = Math.cos(a) * radius;
-      positions[i * 3 + 1] = damage ? .8 + Math.sin(a) * radius : ((i / quality.particles + progress) % 1) * 2.7;
-      positions[i * 3 + 2] = Math.sin(a * 1.3) * radius * .5;
-    }
-    geometry.attributes.position.needsUpdate = true;
-    particles.current.material.color.copy(color); particles.current.material.opacity = pulse;
-  });
-  return <group ref={root} name="skill-effects" visible={false}>
-    <mesh ref={ring} rotation={[-Math.PI / 2,0,0]}><ringGeometry args={[.80,.84,64]} /><meshBasicMaterial transparent depthWrite={false} side={THREE.DoubleSide} /></mesh>
-    <mesh ref={slash} position={[0,1.1,.25]}><torusGeometry args={[.8,.035,6,40,Math.PI * 1.35]} /><meshBasicMaterial transparent depthWrite={false} /></mesh>
-    <mesh ref={beam} position={[0,1.5,0]}><cylinderGeometry args={[.45,.65,3.0,24,1,true]} /><meshBasicMaterial transparent depthWrite={false} side={THREE.DoubleSide} /></mesh>
-    <points ref={particles} geometry={geometry}><pointsMaterial size={.065} sizeAttenuation transparent depthWrite={false} /></points>
-    <mesh ref={upgraded} name="upgraded-halo" rotation={[-Math.PI/2,0,0]} position={[0,.12,0]} visible={false}><torusGeometry args={[1.05,.018,5,48]}/><meshBasicMaterial color="#fff3d0" transparent opacity={.6} depthWrite={false}/></mesh>
-    <group ref={stones}>{Array.from({length:8},(_,i)=><mesh key={i}><dodecahedronGeometry args={[.18,0]}/><meshStandardMaterial color="#a5b589" roughness={.8}/></mesh>)}</group>
-    <mesh ref={shield} position={[0,1.1,0]}><sphereGeometry args={[1,20,12]}/><meshBasicMaterial color="#b4dbb5" transparent opacity={.2} wireframe depthWrite={false}/></mesh>
-    <group ref={moons} position={[0,1.2,.2]}>{[-1,1].map(side=><mesh key={side} rotation={[0,0,side*Math.PI/2]}><torusGeometry args={[.9,.035,6,32,Math.PI*1.3]}/><meshBasicMaterial color={side<0?'#bbe1ff':'#ddc3ff'}/></mesh>)}</group>
-    <mesh ref={seal} position={[0,1.3,.3]}><ringGeometry args={[.65,.72,6]}/><meshBasicMaterial color="#cdbd86" side={THREE.DoubleSide}/></mesh>
-    <group ref={focus} position={[0,1.4,0]}>{[0,1,2].map(i=><mesh key={i} rotation={[i*Math.PI/3,i*Math.PI/4,0]}><torusGeometry args={[.55,.015,5,32]}/><meshBasicMaterial color="#c0e5ff"/></mesh>)}</group>
-    <group ref={wind}>{[0,1,2].map(i=><mesh key={i} position={[0,i*.2,0]} rotation={[Math.PI/2,.15*i,0]}><torusGeometry args={[.6+i*.12,.018,5,32,Math.PI*1.6]}/><meshBasicMaterial color="#b8eee0"/></mesh>)}</group>
-    <group ref={crown} position={[0,2.3,0]}>{Array.from({length:7},(_,i)=><mesh key={i} position={[Math.cos(i*Math.PI*2/7)*.4,.07,Math.sin(i*Math.PI*2/7)*.4]}><octahedronGeometry args={[.12]}/><meshStandardMaterial color="#ffe2a4" metalness={.7} roughness={.2} emissive="#c4a04c" emissiveIntensity={.7}/></mesh>)}</group>
-    <group ref={fire}>{Array.from({length:7},(_,i)=><mesh key={i} position={[Math.cos(i)*.45,.5,Math.sin(i)*.45]}><coneGeometry args={[.1,.75,7]}/><meshBasicMaterial color="#ffb26e" transparent opacity={.75}/></mesh>)}</group>
-  </group>;
-}
-
 function BattleActors({ state, director, quality, reduced }) {
   const pose = useRef({});
+  const sword = useRef(null);
   const ages = useRef([]);
   const foe = useRef({ position: [ENEMY_HOME, 0, 0] });
   const impact = useRef({ heroX: -2.3, enemyX: ENEMY_HOME });
@@ -351,7 +274,7 @@ function BattleActors({ state, director, quality, reduced }) {
     const enemy = foe.current;
     const attack = plan?.attack && !plan.calm ? enemyAttackPose(plan.attack, current.elapsed) : null;
     const dead = state.enemy.hp <= 0 && (!current || (plan.lethal &&
-      (plan.hits.length ? current.delivered === plan.hits.length : current.momentDelivered)));
+      (plan.hits.length ? current.delivered > plan.killIndex : current.momentDelivered)));
     const fall = dead && !plan?.calm ? Math.min(1, current ? Math.max(0, current.elapsed - plan.killAt) / 640 : 1) : Number(dead);
     const action = plan?.action;
     enemy.action = dead ? 'death' : attack ? 'attack' : hitAge >= 0 && hitAge < 330 ? 'hit'
@@ -368,11 +291,13 @@ function BattleActors({ state, director, quality, reduced }) {
   }, -2);
 
   return <>
-    <Actor type="hero" rotation={Math.PI / 2} procedural still={reduced} control={() => ({
+    <Actor type="hero" rotation={Math.PI / 2} procedural weaponRef={sword} still={reduced} control={() => ({
       pose: pose.current, flash: reduced ? 0 : hitFlashAmount(director.active, 'hero'), flashColor: '#ffd2c4',
     })} />
     <Actor type={state.enemy.type} rotation={-Math.PI / 2} still={reduced} control={() => foe.current} />
-    <SkillEffects director={director} quality={quality} />
+    <CombatAtmosphere director={director} quality={quality} pose={pose} sword={sword} />
+    <SwordTrail director={director} quality={quality} sword={sword} />
+    <SkillEffects director={director} quality={quality} sword={sword} />
     <ImpactEffects director={director} pose={() => impact.current} quality={quality} reduced={reduced} />
   </>;
 }

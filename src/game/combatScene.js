@@ -235,7 +235,7 @@ export function startCombatScene(parent, monsterType, { playback, initialEffectI
       }
       const lethal = state?.enemy.hp <= 0;
       if (!current || current.plan.calm) {
-        const hide = lethal && (!current || (current.plan.hits.length ? current.delivered === current.plan.hits.length : current.momentDelivered));
+        const hide = lethal && (!current || (current.plan.hits.length ? current.delivered > current.plan.killIndex : current.momentDelivered));
         this.foe.setAlpha(hide ? 0 : 1);
         this.enemyShadow.setAlpha(hide ? 0 : .7);
         if (!current && state?.playerDead) this.adventurer.setPosition(this.heroHome.x, this.floor + 12).setAngle(-65);

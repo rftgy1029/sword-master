@@ -6,6 +6,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   selectionEffect: 'breathe',
   renderer: 'auto',
   graphicsQuality: 'auto',
+  combatSound: 'on',
+  combatVolume: 60,
 });
 
 const OPTIONS = {
@@ -14,12 +16,16 @@ const OPTIONS = {
   selectionEffect: ['breathe', 'static'],
   renderer: ['auto', '3d', '2d'],
   graphicsQuality: ['auto', 'low', 'balanced', 'high'],
+  combatSound: ['on', 'off'],
 };
 
 export function normalizeSettings(value) {
-  return Object.fromEntries(Object.entries(DEFAULT_SETTINGS).map(([key, fallback]) => [
-    key, OPTIONS[key].includes(value?.[key]) ? value[key] : fallback,
+  const normalized = Object.fromEntries(Object.entries(OPTIONS).map(([key, options]) => [
+    key, options.includes(value?.[key]) ? value[key] : DEFAULT_SETTINGS[key],
   ]));
+  const volume = value?.combatVolume;
+  normalized.combatVolume = Number.isFinite(volume) ? Math.min(100, Math.max(0, Math.round(volume))) : DEFAULT_SETTINGS.combatVolume;
+  return normalized;
 }
 
 export function readSettings(storage) {

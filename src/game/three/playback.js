@@ -46,10 +46,12 @@ export function presentationPlan(effect, context = {}, mode = 'full') {
         stops: recipe.hitStop.map((stop) => stop + (upgraded ? UPGRADE_STOP : 0)), powers: recipe.power.map((power) => power * (upgraded ? 1.15 : 1)) };
     } else plan = { ...base, style: recipe?.style ?? 'plain', duration: recipe?.duration ?? 650, moment: recipe?.moment ?? 300, hits: [], stops: [], powers: [] };
     if (context.lethal && effect.kind !== 'miss') {
-      // 처치: 마지막 타격(타격이 없으면 효과가 완성되는 순간)에 적이 무너지기 시작한다.
       plan.lethal = true;
-      plan.killAt = plan.hits.length ? plan.hits.at(-1) : plan.moment;
-      if (plan.stops.length) plan.stops[plan.stops.length - 1] += KILL_STOP;
+      // Reducer impacts are capped by remaining HP. Ignore any zeroes after the killing blow.
+      const lastDamage = effect.impacts?.findLastIndex((amount) => amount > 0) ?? -1;
+      plan.killIndex = lastDamage >= 0 && lastDamage < plan.hits.length ? lastDamage : plan.hits.length - 1;
+      plan.killAt = plan.hits[plan.killIndex] ?? plan.moment;
+      if (plan.killIndex >= 0) plan.stops[plan.killIndex] += KILL_STOP;
       plan.duration = Math.max(plan.duration, plan.killAt + KILL_TAIL);
     }
   }
@@ -60,17 +62,18 @@ export function presentationPlan(effect, context = {}, mode = 'full') {
     plan.stops = plan.stops.map(() => 0);
     if (plan.moment !== undefined) plan.moment = CALM_BEAT.moment;
     plan.duration = count ? plan.hits.at(-1) + CALM_BEAT.tail : CALM_BEAT.duration;
-    if (plan.lethal) plan.killAt = count ? plan.hits.at(-1) : plan.moment;
+    if (plan.lethal) plan.killAt = count ? plan.hits[plan.killIndex] : plan.moment;
     if (plan.fatal) plan.downAt = plan.hits.at(-1);
   }
   const count = plan.hits.length;
   plan.hitInfo = plan.hits.map((at, index) => {
     const amount = effect.impacts?.[index] ?? (count ? Math.round((effect.amount ?? 0) / count) : 0);
     const last = index === count - 1;
+    const lethal = plan.lethal ? index === plan.killIndex : !!(plan.fatal && last);
     return { effectId: effect.id, index, at, amount, last, power: plan.powers[index] ?? 1, target: plan.side === 'enemy' ? 'player' : 'enemy',
       // 방어가 피해를 모두 막은 타격. 처치 타격은 막힌 것으로 치지 않는다.
-      blocked: amount === 0 && !(plan.lethal && last), partial: !!plan.attack?.partial[index],
-      lethal: !!(last && (plan.lethal || plan.fatal)), heavy: !!plan.heavy || (plan.powers[index] ?? 1) >= 1.6 };
+      blocked: amount === 0 && !(plan.lethal && index > plan.killIndex), partial: !!plan.attack?.partial[index],
+      lethal, heavy: !!plan.heavy || (plan.powers[index] ?? 1) >= 1.6 };
   });
   return plan;
 }
@@ -81,12 +84,13 @@ export function combatMotionMode(preference, systemReduced = false) {
 }
 
 export class CombatPlayback {
-  constructor({ initialEffectId = 0, onBusy = () => {}, onImpact = () => {}, onMoment = () => {}, onStart = () => {} } = {}) {
+  constructor({ initialEffectId = 0, onBusy = () => {}, onImpact = () => {}, onMoment = () => {}, onStart = () => {}, onFrame = () => {} } = {}) {
     this.lastId = initialEffectId;
     this.onBusy = onBusy;
     this.onImpact = onImpact;
     this.onMoment = onMoment;
     this.onStart = onStart;
+    this.onFrame = onFrame;
     this.active = null;
     this.disposed = false;
   }
@@ -128,10 +132,18 @@ export class CombatPlayback {
       const nextHit = current.hits[current.delivered] ?? Infinity;
       const nextMoment = current.momentDelivered ? Infinity : (current.plan.moment ?? Infinity);
       const next = Math.min(nextHit, nextMoment);
-      const step = Math.min(left, next - current.elapsed, current.duration - current.elapsed);
-      current.elapsed += step; left -= step;
+      const boundary = Math.min(next, current.duration);
+      const remaining = boundary - current.elapsed;
+      if (left >= remaining) {
+        current.elapsed = boundary;
+        left -= remaining;
+      } else {
+        current.elapsed += left;
+        left = 0;
+      }
     }
     current.clock = startClock + total;
+    this.onFrame(current);
     if (current.elapsed >= current.duration) this.finish();
     return current;
   }
@@ -144,7 +156,7 @@ export class CombatPlayback {
       const index = current.delivered++;
       current.impactAt[index] = current.clock;
       if (current.mode === 'full') { current.stop += current.plan.stops[index] ?? 0; current.stopIndex = index; }
-      this.onImpact(index, current.enemy ? 'player' : undefined, current.plan.hitInfo[index]);
+      this.onImpact(index, current.enemy ? 'player' : undefined, current.plan.hitInfo[index], current);
     }
   }
   finish() {

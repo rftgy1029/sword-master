@@ -8,7 +8,7 @@ import { impactAges } from './playback.js';
 // 모두 가산 혼합(additive)이라 어두운 던전 위에서 빛처럼 보인다. 게임 상태는 바꾸지 않는다.
 
 const MELEE = ['strike', 'heavy', 'twin'];
-const SLOTS = 2; // 쌍월처럼 타격이 겹칠 때를 위한 연출 칸
+const SLOTS = 3; // 쌍월처럼 타격이 겹칠 때를 위한 연출 칸
 const additive = { transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, toneMapped: false };
 const clamp01 = value => Math.max(0, Math.min(1, value));
 const easeOut = t => 1 - (1 - clamp01(t)) ** 3;
@@ -109,18 +109,19 @@ function ImpactSlot({ slotRef, sparks }) {
 
 export default function ImpactEffects({ director, pose, quality, reduced }) {
   const { camera, invalidate } = useThree();
-  const first = useRef(null), second = useRef(null);
-  const slots = [first, second]; // SLOTS개
-  const sparks = Math.max(12, Math.round(quality.particles * .9));
+  const first = useRef(null), second = useRef(null), third = useRef(null);
+  const slots = [first, second, third]; // SLOTS개
+  const sparks = Math.max(8, Math.round(quality.particles * .65));
+  const agesBuffer = useRef([]);
   const shaken = useRef(false);
   const color = useMemo(() => new THREE.Color(), []);
   useFrame(() => {
     const current = director.active;
-    const ages = impactAges(current);
+    const ages = impactAges(current, agesBuffer.current);
     const enemyHit = !!current?.enemy;
     const type = current?.effect.cardType;
     const playerAttack = current && !enemyHit && current.effect.kind === 'attack';
-    if (current) color.set(enemyHit ? current.plan.color : CARD_MOTIONS[type]?.color ?? 0xffe5a5);
+
     let shake = 0;
     slots.forEach((slot, slotIndex) => {
       const group = slot.current;
@@ -131,11 +132,13 @@ export default function ImpactEffects({ director, pose, quality, reduced }) {
       const live = !reduced && (playerAttack || enemyHit) && age >= 0 && age < 620;
       group.visible = live;
       if (!live) return;
-      const power = current.plan.hitInfo[hitIndex].power;
+      const hit = current.plan.hitInfo[hitIndex];
+      const power = hit.power * (hit.blocked ? .6 : 1);
+      color.set(hit.blocked ? 0x9aebdc : type === 'twin' && hitIndex === 1 ? CARD_MOTIONS.twin.accent : current.plan.color);
       shake = Math.max(shake, (1 - clamp01(age / 320)) ** 2 * power);
       const p = pose();
       const targetX = enemyHit ? p.heroX + .25 : p.enemyX - .3;
-      const height = type === 'heavy' ? 1.05 : .95;
+      const height = type === 'heavy' ? .35 : .95;
       group.position.set(targetX, 0, .45);
       const facing = group.getObjectByName('facing');
       facing.position.set(0, height, 0);
@@ -207,11 +210,15 @@ export default function ImpactEffects({ director, pose, quality, reduced }) {
 
     // 카메라 흔들림 + 살짝 당겨 보기(펀치 줌). 기준 위치는 CameraFit이 정한 값이다.
     const base = camera.userData.base;
-    if (base && shake > .001) {
+    const nova = type === 'nova' && current && !reduced;
+    const chargeZoom = nova && current.elapsed < current.hits[0]
+      ? .52 * Math.sin(Math.PI / 2 * clamp01(current.elapsed / current.hits[0])) : 0;
+    if (base && (shake > .001 || chargeZoom > 0)) {
       const t = (current?.clock ?? 0) / 1000;
       shakeOffset.set(Math.sin(t * 91) + Math.sin(t * 53) * .5, Math.cos(t * 77) * .8, 0).multiplyScalar(.055 * shake);
+      if (type === 'heavy') shakeOffset.y -= .05 * shake;
       camera.position.copy(base).add(shakeOffset);
-      camera.fov = camera.userData.baseFov - 1.6 * shake;
+      camera.fov = camera.userData.baseFov - 1.6 * shake - chargeZoom;
       camera.updateProjectionMatrix();
       shaken.current = true;
       invalidate();

@@ -222,3 +222,17 @@ test('playback preserves the exact results across a renderer handoff and emits c
   assert.deepEqual(moments, [13]);
   assert.deepEqual(busy, [[true, 12], [false, 12], [true, 13], [false, 13]]);
 });
+
+test('the first hit can finish an enemy before a second animation beat with zero damage', () => {
+  const hits = [];
+  const playback = new CombatPlayback({ onImpact: (_, __, hit) => hits.push(hit) });
+  playback.start({ id: 1, kind: 'attack', cardType: 'twin', amount: 2, impacts: [2, 0] }, { lethal: true });
+  const plan = playback.active.plan;
+  assert.equal(plan.killAt, ATTACK_HITS.twin[0]);
+  playback.advance(ATTACK_HITS.twin[0]);
+  assert.equal(hits[0].lethal, true);
+  playback.advance(3000);
+  assert.equal(hits.length, 2);
+  assert.equal(hits[1].blocked, false);
+  assert.equal(hits[1].lethal, false);
+});
