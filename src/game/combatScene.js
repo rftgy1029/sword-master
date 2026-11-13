@@ -10,6 +10,9 @@ import { createHeroRig, drawHeroRig, HERO_SURFACE_SCALE, HERO_ART_SIZE } from '.
 import { CombatPlayback, combatMotionMode, impactAges } from './three/playback.js';
 import { paintEnemyAttack } from './enemyAttackEffects.js';
 
+// 용사 그림은 캔버스 위쪽에 여백이 있어 원점 위 높이의 이 비율이 실제 머리 끝이다(머리 위 표시 위치).
+const HERO_HEAD = .48;
+
 function monster(ctx, art) {
   const rect = (x, y, w, h, color) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
   if (art === 'crawler') {
@@ -446,6 +449,19 @@ export function startCombatScene(parent, monsterType, { playback, initialEffectI
       scene.playerFalling = false;
       scene.adventurer?.setAlpha(1).setPosition(scene.heroHome.x, scene.floor).setAngle(0);
       scene.heroShadow?.setAlpha(.7);
+    },
+    // 머리 위 표시용: 용사·적이 제자리에 섰을 때 머리 위 지점을 화면 좌표로 돌려준다.
+    anchors() {
+      if (disposed || !scene.heroHome || !game.canvas) return null;
+      const rect = game.canvas.getBoundingClientRect();
+      const sx = rect.width / (game.scale.width || 1), sy = rect.height / (game.scale.height || 1);
+      const stage = scene.stage, k = scene.actorScale;
+      const height = (figure, fallback) => figure?.displayHeight ? figure.displayHeight * figure.originY : fallback;
+      const point = (x, y) => ({ x: rect.left + (stage.x + x * stage.scaleX) * sx, y: rect.top + (stage.y + y * stage.scaleY) * sy });
+      return {
+        hero: point(scene.heroHome.x, scene.floor - height(scene.heroSprite, 96) * HERO_HEAD * k),
+        enemy: point(scene.enemyHome.x, scene.floor - height(scene.enemyFigure, 96) * k),
+      };
     },
     setState(next) { state = next; scene.sync(); },
     destroy() { if (disposed) return; disposed = true; if (!playback) director.dispose(); observer.disconnect(); game.destroy(true); },

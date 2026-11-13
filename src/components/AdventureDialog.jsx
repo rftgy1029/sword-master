@@ -223,6 +223,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, on
       </div>
     <div className="battlefield">
       <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} cue={cue} motionPreference={motionPreference}
+        overhead={{ battle: b, intent: shownIntent, busy: skillBusy, answering: locked, enemyDown: shownEnemyHP <= 0, playerDown: shownPlayerHP <= 0 }}
         onReady={() => setVisualStatus('ready')} onError={() => setVisualStatus('fallback')}
         onImpact={(_, target, hit) => {
           if (target === 'player') setShownPlayerHP((hp) => Math.max(fatal ? 0 : run.hp, hp - hit.amount));
