@@ -109,29 +109,28 @@ try{
     const view=await other.newPage();view.on('pageerror',e=>errors.push(e.message));
     await view.goto(BASE_URL);await view.getByRole('button',{name:/^이어하기/}).click();
     if(kind==='map'){
-      await view.locator('.map-overview .scene-view[aria-busy="false"]').waitFor({timeout:20000});
-      const visible=await view.locator('.map-overview canvas').evaluate(canvas=>{
-        const api=canvas.__sword3d,group=api.scene.getObjectByName('route-map'),rect=canvas.getBoundingClientRect();
-        const nodes=JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress.run.map.flat();
-        return nodes.every(node=>[-.94,.94].every(dx=>[-.4,1.15].every(y=>[-.65,.65].every(dz=>{
-          const p=group.position.clone().set((node.lane-1)*3+dx,y,-(node.floor-3.5)*1.55+dz);
-          group.localToWorld(p);const point=api.project(p.toArray());
-          return point.x>=rect.left&&point.x<=rect.right&&point.y>=rect.top&&point.y<=rect.bottom;
-        }))));
+      await view.locator('.map-overview .route-map').waitFor({timeout:20000});
+      const layout=await view.locator('.map-overview').evaluate(board=>{
+        const box=board.getBoundingClientRect();
+        const tiles=[...board.querySelectorAll('.route-node, .route-entrance')].map(tile=>tile.getBoundingClientRect());
+        const inside=tiles.every(r=>r.left>=box.left&&r.right<=box.right&&r.top>=box.top&&r.bottom<=box.bottom);
+        const overlap=tiles.some((a,i)=>tiles.slice(i+1).some(b=>a.left<b.right-1&&b.left<a.right-1&&a.top<b.bottom-1&&b.top<a.bottom-1));
+        return {inside,overlap,count:board.querySelectorAll('.route-node').length};
       });
-      assert.equal(visible,true,'All dungeon rooms fit inside the 3D overview');
+      assert.equal(layout.count,progress.run.map.flat().length,'Every dungeon room is drawn on the route map');
+      assert.equal(layout.inside,true,'All dungeon rooms fit inside the route map');
+      assert.equal(layout.overlap,false,'Route map rooms never overlap each other');
+      const glowing=await view.locator('.route-node.is-reachable').evaluateAll(nodes=>nodes.map(node=>node.dataset.routeNode).sort());
+      assert.deepEqual(glowing,reachableNodes(progress.run).map(node=>node.id).sort(),'Only engine-reachable rooms are orange');
       assert.equal(await view.locator('.map-route-options button:not(:disabled)').count(),reachableNodes(progress.run).length);
       assert.equal(await view.locator('.game-body').evaluate(body=>body.scrollHeight<=body.clientHeight+1),true,'Map and next routes fit without page scrolling');
-      await view.screenshot({path:`${artifactRoot}3d-map.png`});
-      const point=await view.locator('.map-overview canvas').evaluate(canvas=>{
-        const api=canvas.__sword3d,group=api.scene.getObjectByName('route-map');
-        const local=group.position.clone().set(.68,.2,5.825);group.localToWorld(local);return api.project(local.toArray());
-      });
-      await view.mouse.click(point.x,point.y);
+      assert.equal(await view.locator('.map-selection').evaluate(panel=>panel.scrollHeight<=panel.clientHeight+1),true,'Route panel fits without its own scrolling');
+      await view.screenshot({path:`${artifactRoot}route-map.png`});
+      await view.locator(`.route-node[data-route-node="${reachableNodes(progress.run)[0].id}"]`).click();
       await view.locator('.battle-screen').waitFor();
       const saved=await view.evaluate(()=>JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress);
       assert.equal(saved.run.floor,0);assert.equal(saved.run.phase,'battle');
-      console.log('3D room edge selects the real dungeon node; next routes fit without scrolling');
+      console.log('route map room selects the real dungeon node; rooms and next routes fit without overlap or scrolling');
     }else{
       await view.locator('.location-scene .scene-view[aria-busy="false"]').waitFor({timeout:20000});
       const oldGold=progress.run.gold;

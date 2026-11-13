@@ -36,7 +36,7 @@ try{
   await page.locator('.dungeon-entrance canvas[data-renderer="three"]').waitFor();
   await capture('entrance');
   await page.locator('.dungeon-map').waitFor({timeout:25000});
-  await page.locator('.map-overview .scene-view[aria-busy="false"]').waitFor();
+  await page.locator('.map-overview .route-map').waitFor();
   await capture('map');
   let restored=false,realAttack=false,rewardShot=false,battleShot=false;
   for(let step=0;step<650;step++){

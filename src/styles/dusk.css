@@ -192,13 +192,7 @@ dialog::backdrop, .game-dialog::backdrop, .settings-dialog::backdrop, .vocabular
 .answer-verdict.is-wrong { background: #5c2f33; border-color: var(--rose); }
 
 /* 경로·보상·대장간·학습 화면 */
-.map-overview, .location-scene { border: 3px solid var(--edge); }
-.living-map .map-scroll { background: var(--plum-deep); border: 3px solid var(--edge); }
-.living-map .map-node { background: var(--plum-raised); border: 2px solid var(--edge); }
-.living-map .map-node.is-reachable { background: #5a3d2a; border-color: var(--sun); }
-.living-map .map-node.is-visited { background: #2a2034; }
-.map-place-summary { background: #2e2338cc; border-left: 4px solid var(--sun); }
-.map-place-summary span { color: var(--muted); }
+.location-scene { border: 3px solid var(--edge); }
 .relic-item, .deck-item, .upgrade-item, .learning-summary, .review-empty { border: 3px solid var(--edge); background: linear-gradient(180deg, #2e2338, #221a2b); box-shadow: 0 4px 0 var(--edge); }
 .relic-icon { border: 2px solid #5a2f15; background: #3a2416; color: var(--sun); }
 .upgrade-item strong, .deck-item strong { color: var(--ivory); }

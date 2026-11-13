@@ -14,9 +14,10 @@ import { navigateTiers } from '../game/tierNavigation.js';
 import { cardShortcutIndex, confirmShortcut, cancelShortcut } from '../game/combatShortcuts.js';
 import StatusBadges from './StatusBadges.jsx';
 import { CombatEnergy, CombatHealthBar, EnemyIntent } from './CombatIndicators.jsx';
-import { heroImage } from '../game/spriteAssets.js';
 import SceneView from './SceneView.jsx';
 import GameIcon from './ui/GameIcon.jsx';
+import RouteMap, { ROUTE_STATUS_TEXT, RouteLegend } from './RouteMap.jsx';
+import { ROUTE_LOOK, routeMapState } from '../game/routeMap.js';
 import './adventure.css';
 
 const tierLabel = (id) => TIERS.find((t) => t.id === id)?.label;
@@ -56,70 +57,72 @@ function Relic({ relic, children }) {
   </div></div>;
 }
 
-function MapHero() {
-  return <img className="map-hero-art" src={heroImage} alt="" aria-hidden="true" />;
-}
-
 function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'normal' }) {
+  const section = useRef(null);
   const routes = inspecting ? [] : reachableNodes(run);
   const reachable = new Set(routes.map((n) => n.id));
+  const map = useMemo(() => routeMapState(run, { inspecting }), [run, inspecting]);
   const [destination, setDestination] = useState(null);
   const [highlight, setHighlight] = useState(null);
   const timer = useRef(null);
   const selecting = useRef(false);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const player = destination ?? { lane: run.lane, floor: Math.max(0, run.floor) };
+  const shortcut = useRef(null);
+  useEffect(() => () => { clearTimeout(timer.current); cancelShortcut(shortcut); }, []);
   const choose = (node) => {
     if (selecting.current || inspecting || !reachable.has(node.id)) return;
     selecting.current = true;
     setDestination(node);
     const still = motionPreference !== 'normal' || matchMedia('(prefers-reduced-motion: reduce)').matches;
-    timer.current = setTimeout(() => onSelect(node.id), still ? 0 : 360);
+    timer.current = setTimeout(() => onSelect(node.id), still ? 0 : 420);
   };
-  const highlighted = run.map.flat().find((node) => node.id === highlight) ?? run.map.flat().find((node) => reachable.has(node.id));
-  return <section className="dungeon-map living-map" aria-label="던전 경로">
-    <div className="map-intro"><div><p className="game-eyebrow">살아 있는 던전</p><h3>황혼의 석문</h3></div>
-      <p>{inspecting ? '지나온 길과 앞으로의 장소를 확인하세요.' : '빛나는 방을 누르거나 다음 경로를 선택하세요.'}</p></div>
+  // 전투 카드와 같은 방식: 숫자 키를 한 번 누르면 그 길을 고르고, 같은 키를 한 번 더 누르면 이동한다.
+  useEffect(() => {
+    if (inspecting) return undefined;
+    const onKeyDown = (event) => {
+      const index = cardShortcutIndex(event);
+      const root = section.current;
+      if (index === null || selecting.current || document.hidden || !root) return;
+      const target = event.target;
+      if (!(root.contains(target) || target === root.closest('dialog') || target === document.body)) return;
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
+      const node = routes[index];
+      const button = root.querySelectorAll('.map-route-options .map-route-option')[index];
+      if (!node || !button) return;
+      event.preventDefault();
+      confirmShortcut(shortcut, `route:${node.id}`, button, () => choose(node));
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  });
+  // 갈 수 있는 곳은 오른쪽 버튼이 이미 보여 주므로, 아래 안내 칸은 그 밖의 장소를 살펴볼 때만 바뀐다.
+  const shown = map.nodes.find((node) => node.id === highlight && node.status !== 'reachable');
+  const floorLabel = (floor) => floor < 0 ? '입구' : `${floor + 1}층`;
+  return <section ref={section} className="dungeon-map living-map" aria-label="던전 경로">
     <div className="map-layout">
-      <div className="map-overview"><SceneView mode="map" run={run} inspecting={inspecting || !!destination} highlightedNodeId={highlight} onHighlight={setHighlight}
-        onSelect={(id)=>{const node=run.map.flat().find(item=>item.id===id);if(node)choose(node);}}/></div>
+      <div className="map-overview"><RouteMap map={map} routes={routes} highlight={highlight} destination={destination}
+        onHighlight={setHighlight} onChoose={choose} /></div>
       <aside className="map-selection" aria-label="경로 선택">
-        {!inspecting && <><h4>다음 경로 선택 <span>{Math.min(run.floor + 2, 8)}층 / 8</span></h4>
-          <div className="map-route-options" data-keyboard-group style={{ '--route-count': Math.max(1, routes.length) }}>
-            {routes.map((node, index) => <button key={node.id} data-node-id={node.id} className={`game-secondary map-node map-route-option is-reachable${destination?.id === node.id ? ' is-destination' : ''}`}
-              onFocus={() => setHighlight(node.id)} onMouseEnter={() => setHighlight(node.id)} onMouseLeave={() => setHighlight(null)}
-              disabled={!!destination} onClick={() => choose(node)} data-initial-focus={index === 0 ? '' : undefined}
-              aria-label={`${node.floor + 1}층 ${node.lane + 1}번 경로, ${NODE_TYPES[node.type].name}, ${NODE_TYPES[node.type].hint}`}>
-              <GameIcon name={{battle:'strike',elite:'oath',treasure:'spark',rest:'empower',forge:'heavy',boss:'oath'}[node.type]}/>
-              <span><strong>{NODE_TYPES[node.type].name}</strong><small>{NODE_TYPES[node.type].hint}</small></span>
-              <span className="map-route-arrow" aria-hidden="true">▸</span>
-            </button>)}
-          </div></>}
-        <div className="map-place-summary" aria-live="polite"><strong>{highlighted ? NODE_TYPES[highlighted.type].name : '지나온 여정'}</strong><span>{highlighted ? NODE_TYPES[highlighted.type].hint : '용사가 지나온 길과 앞으로의 장소를 확인하세요.'}</span></div>
-        <details className="map-details"><summary>전체 8층 경로 보기</summary>
-    <div className="map-scroll"><div className="map-fog" aria-hidden="true" /><div className="map-grid">
-      <svg className="map-lines" viewBox="0 0 600 1152" preserveAspectRatio="none" aria-hidden="true">
-        {run.map.slice(0, -1).flatMap((row, f) => row.flatMap((node) => run.map[f + 1].filter((n) => Math.abs(n.lane - node.lane) <= 1).map((to) => {
-          const traveled = run.visited.includes(node.id) && run.visited.includes(to.id);
-          const available = reachable.has(to.id) && run.visited.includes(node.id);
-          return <path key={node.id + to.id} d={`M ${100 + node.lane * 200} ${38 + f * 144} C ${100 + node.lane * 200} ${95 + f * 144}, ${100 + to.lane * 200} ${95 + f * 144}, ${100 + to.lane * 200} ${38 + (f + 1) * 144}`}
-            className={traveled ? 'path-traveled' : available ? 'path-available' : ''} />;
-        })))}
-      </svg>
-      <div className={`map-traveler${destination ? ' is-walking' : ''}`} style={{ left: `${(player.lane + .5) / 3 * 100}%`, top: player.floor * 144 + 93 }} aria-label="현재 용사 위치"><MapHero /><i /></div>
-      {run.map.map((row, f) => <div key={f} className="map-row" data-keyboard-group aria-label={`${f + 1}층`} style={{ '--floor': f }}>
-        <span className="map-floor">{String(f + 1).padStart(2, '0')}</span>
-        {row.map((node) => <button key={node.id} style={{ gridColumn: node.lane + 1 }} className={`map-node place-${node.type}${reachable.has(node.id) ? ' is-reachable' : ''}${run.visited.includes(node.id) ? ' is-visited' : ''}${destination?.id === node.id ? ' is-destination' : ''}`}
-          onFocus={() => setHighlight(node.id)} onMouseEnter={() => setHighlight(node.id)} disabled={!reachable.has(node.id) || !!destination} onClick={() => choose(node)}
-          aria-label={`${f + 1}층 ${node.lane + 1}번 경로, ${NODE_TYPES[node.type].name}, ${NODE_TYPES[node.type].hint}`}>
-          <span className="place-icon" aria-hidden="true"><GameIcon name={{battle:'strike',elite:'oath',treasure:'spark',rest:'empower',forge:'heavy',boss:'oath'}[node.type]}/></span>
-          <strong>{NODE_TYPES[node.type].name}{run.visited.includes(node.id) && ' ✓'}</strong>
-        </button>)}
-      </div>)}
-    </div></div></details>
+        <div className="map-selection-head"><h4>{inspecting ? '지나온 길' : '어디로 갈까요?'}</h4>
+          <span className="map-floor-chip">{inspecting ? `${floorLabel(run.floor)} / 8층` : `${floorLabel(run.floor + 1)} / 8층`}</span></div>
+        {!inspecting && <div className="map-route-options" data-keyboard-group style={{ '--route-count': Math.max(1, routes.length) }}>
+          {routes.map((node, index) => <button key={node.id} data-node-id={node.id}
+            className={`map-node map-route-option tone-${ROUTE_LOOK[node.type].tone}${highlight === node.id ? ' is-highlighted' : ''}${destination?.id === node.id ? ' is-destination' : ''}`}
+            onFocus={() => setHighlight(node.id)} onMouseEnter={() => setHighlight(node.id)} onMouseLeave={() => setHighlight(null)}
+            disabled={!!destination} onClick={() => choose(node)} data-initial-focus={index === 0 ? '' : undefined}
+            aria-label={`${node.floor + 1}층 ${node.lane + 1}번 경로, ${NODE_TYPES[node.type].name}, ${NODE_TYPES[node.type].hint}, 숫자 키 ${index + 1}`}>
+            <span className="route-option-tile" data-order={index + 1}><GameIcon name={ROUTE_LOOK[node.type].icon}/></span>
+            <span className="route-option-text"><strong>{NODE_TYPES[node.type].name}</strong><small>{NODE_TYPES[node.type].hint}</small></span>
+            <span className="route-option-word" aria-hidden="true">{ROUTE_LOOK[node.type].word}</span>
+          </button>)}
+        </div>}
+        <p className="map-place-summary" aria-live="polite">
+          {shown ? <><b>{floorLabel(shown.floor)} {NODE_TYPES[shown.type].name}</b> · {ROUTE_STATUS_TEXT[shown.status]}<br/><span>{NODE_TYPES[shown.type].hint}</span></>
+            : inspecting ? <><b>▸</b> 금빛 길이 지금까지 지나온 길이에요.</>
+              : <><b>▸</b> 주황색 칸만 갈 수 있어요. 숫자 키를 두 번 눌러도 돼요.</>}
+        </p>
+        <RouteLegend />
       </aside>
     </div>
-    <p className="game-help map-legend">빛나는 방: 이동 가능 · 금빛 길: 지나온 경로 · 한 층에서 한 곳을 선택합니다.</p>
   </section>;
 }
 

@@ -178,20 +178,6 @@ dialog::backdrop,.game-dialog::backdrop,.settings-dialog::backdrop,.vocabulary-d
 .answer-verdict>span { font-size:26px; }
 
 /* Route overview, services and learning screens share the same materials. */
-.map-overview { height:360px; border-radius:14px; overflow:hidden; border:1px solid #81945d50; margin:20px 0; }
-.living-map .map-scroll { max-width:none; max-height:430px; overflow:auto; padding:18px 30px 24px; border:1px solid #7283543d; border-radius:12px; background:#14271bb0; box-shadow:none; }
-.living-map .map-grid { height:640px; }
-.living-map .map-row { height:80px; }
-.living-map .map-lines,.living-map .map-traveler,.living-map .map-fog { display:none; }
-.living-map .map-floor { top:22px; left:-14px; color:#c6c49b; font-size:11px; }
-.living-map .map-node { min-height:66px; width:94%; border-radius:8px; background:#243b2b; padding:6px; border:1px solid #64754e45; }
-.living-map .map-node .place-icon { width:37px; height:30px; font-size:18px; border-radius:6px; clip-path:none; }
-.living-map .map-node .place-icon .game-icon { width:23px; height:23px; }
-.living-map .map-node strong { font-size:12px; }
-.living-map .map-node.is-reachable { background:#455333; border-color:#c3b175; }
-.living-map .map-node.is-visited { background:#283d2c; }
-.map-place-summary { background:#30462b77; border-radius:9px; border-left:2px solid #bfa263; padding:15px 19px; }
-.map-place-summary span { color:#d0d9c0; font-size:13px; }
 .reward-screen,.service-screen,.run-result { max-width:960px; margin-inline:auto; }
 .reward-cards { gap:18px; margin-block:22px; }
 .reward-cards .game-card { min-height:265px; padding:17px; }
@@ -329,13 +315,6 @@ dialog::backdrop,.game-dialog::backdrop,.settings-dialog::backdrop,.vocabulary-d
   .game-dialog .quiz-options button { min-height:48px; font-size:calc(15px * var(--text-scale)); padding:10px 12px; }
   .game-dialog .quiz-feedback p { font-size:calc(12px * var(--text-scale)); }
   .answer-verdict>small { font-size:10px; }
-  .map-overview { height:330px; margin-block:16px; }
-  .living-map .map-scroll { padding:14px 21px; max-height:340px; }
-  .living-map .map-node { width:93%; }
-  .living-map .map-node strong { font-size:10px; }
-  .map-place-summary { padding:12px; }
-  .map-place-summary span { font-size:11px; }
-  .map-intro { display:block; }
   .location-scene { height:190px; }
   .tier-scene { height:145px; }
   .adventure-tiers { gap:7px; margin:20px 0; }
