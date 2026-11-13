@@ -120,16 +120,18 @@ try{
         }))));
       });
       assert.equal(visible,true,'All dungeon rooms fit inside the 3D overview');
+      assert.equal(await view.locator('.map-route-options button:not(:disabled)').count(),reachableNodes(progress.run).length);
+      assert.equal(await view.locator('.game-body').evaluate(body=>body.scrollHeight<=body.clientHeight+1),true,'Map and next routes fit without page scrolling');
       await view.screenshot({path:`${artifactRoot}3d-map.png`});
       const point=await view.locator('.map-overview canvas').evaluate(canvas=>{
         const api=canvas.__sword3d,group=api.scene.getObjectByName('route-map');
-        const local=group.position.clone().set(0,.35,5.425);group.localToWorld(local);return api.project(local.toArray());
+        const local=group.position.clone().set(.68,.2,5.825);group.localToWorld(local);return api.project(local.toArray());
       });
       await view.mouse.click(point.x,point.y);
       await view.locator('.battle-screen').waitFor();
       const saved=await view.evaluate(()=>JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress);
       assert.equal(saved.run.floor,0);assert.equal(saved.run.phase,'battle');
-      console.log('3D room raycast selects the real dungeon node');
+      console.log('3D room edge selects the real dungeon node; next routes fit without scrolling');
     }else{
       await view.locator('.location-scene .scene-view[aria-busy="false"]').waitFor({timeout:20000});
       const oldGold=progress.run.gold;

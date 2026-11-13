@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createCombatAudio } from '../game/combatAudio.js';
 import { useGraphics } from './GraphicsContext.jsx';
 import { CombatPlayback, combatMotionMode } from '../game/three/playback.js';
@@ -7,12 +7,47 @@ import LegacyCombatScene from './LegacyCombatScene.jsx';
 
 export default function CombatScene({
   enemy, effect, playerDead = false, cue, motionPreference, onBusy, onReady, onError, onImpact, onController,
+  playerIndicators, enemyIndicators,
 }) {
   const latest = useRef(null);
   latest.current = { onBusy, onImpact };
   const timers = useRef(new Set());
   const scene = useRef(null);
   const overlay = useRef(null);
+  const overheads = useRef({});
+  const bounds = useRef({ width: 0, height: 0, player: {}, enemy: {} });
+  const anchors = useRef(null);
+  const positionIndicators = useCallback((points) => {
+    anchors.current = points;
+    const box = bounds.current;
+    if (!points || !box.width || !box.height) return;
+    for (const side of ['player', 'enemy']) {
+      const node = overheads.current[side], point = points[side], size = box[side];
+      if (!node || !point) continue;
+      const x = Math.max(size.width / 2 + 6, Math.min(box.width - size.width / 2 - 6, point.x * box.width));
+      const y = Math.max(size.height + 6, Math.min(box.height - 6, point.y * box.height));
+      node.style.left = `${x.toFixed(1)}px`;
+      node.style.top = `${y.toFixed(1)}px`;
+      node.style.visibility = point.visible === false ? 'hidden' : 'visible';
+      node.dataset.renderer = points.renderer;
+    }
+  }, []);
+  useEffect(() => {
+    const measure = () => {
+      const host = overlay.current, player = overheads.current.player, enemy = overheads.current.enemy;
+      if (!host || !player || !enemy) return;
+      bounds.current = {
+        width: host.clientWidth, height: host.clientHeight,
+        player: { width: player.offsetWidth, height: player.offsetHeight },
+        enemy: { width: enemy.offsetWidth, height: enemy.offsetHeight },
+      };
+      positionIndicators(anchors.current);
+    };
+    const observer = new ResizeObserver(measure);
+    [overlay.current, ...Object.values(overheads.current)].forEach(node => observer.observe(node));
+    measure();
+    return () => observer.disconnect();
+  }, [positionIndicators]);
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -111,13 +146,17 @@ export default function CombatScene({
 
   const state = { enemy, playerDead };
   return <div ref={overlay} className={`combat-scene effect-${effect.kind}`} data-motion={mode}>
-    <SceneView mode="battle" state={state} playback={playback} playbackBusy={busy}
+    <SceneView mode="battle" state={state} playback={playback} playbackBusy={busy} onAnchors={positionIndicators}
       callbacks={{ onReady }} motionPreference={motionPreference} onController={(controller) => {
         scene.current = controller;
         onController?.(controller);
       }}
       fallback={<LegacyCombatScene {...state} playback={playback} motionPreference={motionPreference}
-        onReady={onReady} onError={fail} />} />
+        onReady={onReady} onError={fail} onAnchors={positionIndicators} />} />
+    <div className="combat-overheads">
+      <div ref={node => { overheads.current.player = node; }} className="combat-overhead is-player">{playerIndicators}</div>
+      <div ref={node => { overheads.current.enemy = node; }} className="combat-overhead is-enemy">{enemyIndicators}</div>
+    </div>
     {results.map((result) => <span key={result.id}
       className={`combat-hit-number${result.target === 'player' ? ' is-player' : ''}${result.heavy ? ' is-heavy' : ''}${result.blocked ? ' is-blocked' : ''}`}
       style={{ left: result.left === undefined ? undefined : `${result.left}%`, top: result.top === undefined ? undefined : `${result.top}%`, '--hit-x': `${(result.index % 2 ? 1 : -1) * (result.index ? 28 : 0)}px`, '--hit-y': `${-result.index * 18}px` }}

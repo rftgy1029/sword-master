@@ -74,10 +74,17 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .battle-menu-content button { min-height: 42px; border: 1px solid #43503a; background: #263026; padding: 9px 12px; color: var(--ivory); text-align: left; font-size: calc(12px * var(--text-scale)); }
 .battle-menu-content button:hover { border-color: var(--amber); background: #343a2d; }
 .game-body:has(> .tier-selection) { display: flex; overflow: hidden; padding: 0; }
+.game-dialog:has(.tier-selection) { height: min(600px, calc(100svh - 40px)); }
 .tier-selection { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
-.tier-selection-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 24px 30px; }
+.tier-selection-scroll { display: flex; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 14px 24px; }
 .tier-selection-content, .tier-entry-content { width: 100%; max-width: 900px; margin: 0 auto; }
-.tier-selection .adventure-tiers { margin: 18px 0 22px; }
+.tier-selection-content { position: relative; display: flex; flex-direction: column; gap: 10px; margin: auto; }
+.tier-selection-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.game-dialog .tier-selection-heading h3 { margin: 0; font-size: calc(21px * var(--text-scale)); }
+.tier-heading-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tier-book-select { width: 190px; max-width: 100%; min-width: 0; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); color: var(--ivory); font: inherit; font-size: calc(12px * var(--text-scale)); }
+.game-dialog .tier-selection-help { margin: 0; font-size: calc(13px * var(--text-scale)); }
+.tier-selection .adventure-tiers { margin: 0; }
 .adventure-tiers { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; margin: 26px 0; }
 .tier-choice { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 20px 8px; min-height: 170px; border: 1px solid #4e5a46; color: #c6ccbd; background: #19231e; }
 .tier-choice[aria-pressed="true"] { border-color: var(--amber); background: #32382b; box-shadow: inset 0 3px var(--amber); }
@@ -88,39 +95,98 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .adventure-brief { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 22px 0; border-block: 1px solid var(--line); }
 .game-dialog .adventure-brief p { display: flex; flex-direction: column; gap: 10px; margin: 0; font-size: calc(11px * var(--text-scale)); }
 .adventure-brief strong { color: var(--ivory); font-weight: 400; line-height: 1.8; }
-.tier-selection .tier-choice { position: relative; gap: 12px; min-height: 176px; padding: 18px 8px; }
+.tier-selection .tier-choice { position: relative; gap: 6px; min-height: 120px; padding: 12px 8px; }
+.tier-selection .tier-choice > .tier-crest { width: 22px; height: 26px; }
 .tier-selection .tier-choice[aria-pressed="true"] { border-width: 3px; box-shadow: inset 0 0 0 1px var(--amber), 0 0 18px #ffb25e30; }
 .tier-selection .tier-choice[aria-pressed="true"] .tier-condition { color: var(--amber); font-weight: 700; }
 .tier-selection .tier-condition { font-size: calc(10px * var(--text-scale)); letter-spacing: 0; line-height: 1.6; overflow-wrap: anywhere; }
-.tier-guide { border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; }
-.tier-guide summary { padding: 14px 0; min-height: 44px; color: var(--muted); font-size: calc(12px * var(--text-scale)); cursor: pointer; }
+.tier-condition-compact { display: none; }
+.tier-guide { border: 0; padding: 0; }
+.tier-guide summary { padding: 8px 10px; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: calc(12px * var(--text-scale)); cursor: pointer; white-space: nowrap; }
+.tier-guide-content { position: absolute; z-index: 5; top: 48px; right: 0; width: min(520px, 100%); max-height: clamp(64px, calc(100svh - 380px), 240px); overflow: auto; padding: 14px; border: 1px solid var(--amber); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 28px #0e091380; }
 .tier-guide .adventure-brief { margin-top: 2px; }
-.tier-selection .tier-scene { margin: 18px 0 0; }
-.tier-entry-actions { flex-shrink: 0; padding: 18px 30px 22px; border-top: 2px solid var(--amber); background: var(--surface); box-shadow: 0 -10px 24px #0e091350; }
+.tier-entry-actions { flex-shrink: 0; padding: 14px 24px 18px; border-top: 2px solid var(--amber); background: var(--surface); box-shadow: 0 -10px 24px #0e091350; }
 .tier-entry-row { display: flex; align-items: center; justify-content: space-between; gap: 16px 24px; }
-.tier-entry-summary { min-width: 0; }
+.tier-entry-summary { flex: 1; min-width: 0; }
 .game-dialog .tier-entry-summary p { margin: 0; }
-.tier-entry-summary p[aria-live] { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
-.tier-entry-summary strong { color: var(--ivory); font-size: calc(20px * var(--text-scale)); }
-.tier-entry-summary p[aria-live] span { font-size: calc(12px * var(--text-scale)); }
-.tier-entry-actions .tier-start { width: auto; min-width: 240px; min-height: 58px; margin: 0; padding: 14px 24px; font-size: calc(16px * var(--text-scale)); }
+.tier-entry-summary p[aria-live] { display: flex; align-items: baseline; gap: 4px 14px; }
+.game-dialog .tier-entry-summary p[aria-live] { line-height: 1.4; }
+.tier-entry-summary strong { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ivory); font-size: calc(20px * var(--text-scale)); }
+.tier-entry-summary p[aria-live] span { flex-shrink: 0; font-size: calc(12px * var(--text-scale)); }
+.tier-entry-actions .tier-start { width: auto; min-width: 220px; min-height: 52px; margin: 0; padding: 10px 18px; font-size: calc(16px * var(--text-scale)); }
 .tier-entry-actions .tier-start > span { color: inherit; }
-.game-dialog .tier-entry-actions .game-notice { margin: 0 0 14px; padding: 10px 14px; font-size: calc(11px * var(--text-scale)); line-height: 1.7; }
-@media (max-width: 500px), (max-height: 500px) {
-  .tier-selection-scroll { padding: 18px 16px; }
+.game-dialog .tier-entry-actions .game-notice { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 0 0 8px; padding: 6px 10px; font-size: calc(11px * var(--text-scale)); line-height: 1.5; }
+.tier-entry-actions .game-notice strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 500px) {
+  .game-dialog:has(.tier-selection) { height: calc(100svh - 24px); }
+  .tier-selection-scroll { padding: 8px 12px; }
+  .tier-selection-content { gap: 6px; }
+  .game-dialog .tier-selection-heading h3 { font-size: calc(16px * var(--text-scale)); white-space: nowrap; }
+  .tier-heading-actions { gap: 6px; }
+  .tier-book-select { width: 110px; min-height: 36px; padding: 5px; font-size: calc(11px * var(--text-scale)); }
+  .tier-guide summary { min-height: 36px; padding: 6px; font-size: calc(11px * var(--text-scale)); }
+  .tier-guide-title, .game-dialog .tier-selection-help { display: none; }
   .tier-selection .adventure-tiers { grid-template-columns: 1fr; }
-  .tier-selection .tier-choice { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px 12px; min-height: 78px; padding: 10px 12px; text-align: left; }
-  .tier-selection .tier-choice .tier-crest { grid-row: 1 / span 2; width: 28px; height: 34px; }
+  .tier-selection .adventure-tiers { gap: 4px; }
+  .tier-selection .tier-choice { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; gap: 6px; min-height: 44px; padding: 6px; text-align: left; }
+  .tier-selection .tier-choice .tier-crest { grid-column: 1; grid-row: 1; width: 20px; height: 24px; }
   .tier-selection .tier-choice > span { align-items: flex-start; gap: 3px; }
-  .tier-selection .tier-word-count { grid-column: 3; grid-row: 1 / span 2; }
-  .tier-selection .tier-condition { grid-column: 2; }
+  .tier-selection .tier-choice strong { font-size: calc(13px * var(--text-scale)); }
+  .tier-selection .tier-word-count { grid-column: 3; grid-row: 1; font-size: calc(11px * var(--text-scale)); }
+  .tier-selection .tier-condition { grid-column: 4; grid-row: 1; font-size: calc(10px * var(--text-scale)); }
+  .tier-selection .tier-condition-full { display: none; }
+  .tier-selection .tier-condition-compact { display: inline; }
   .tier-selection .tier-choice small:not(.tier-condition) { display: none; }
+  .tier-entry-summary > .game-eyebrow { display: none; }
+}
+@media (max-width: 500px) and (max-height: 650px) {
+  .game-dialog:has(.tier-selection) .game-header { padding-block: 8px; }
+  .tier-selection-scroll { padding-block: 6px; }
+  .game-dialog .tier-entry-actions .game-notice { padding: 5px 8px; gap: 0 8px; font-size: calc(10px * var(--text-scale)); line-height: 1.4; }
+  .tier-entry-actions .tier-start { padding: 8px 12px; }
+}
+@media (max-height: 550px) and (min-width: 501px) {
+  .game-dialog:has(.tier-selection) .game-header { padding-block: 6px; }
+  .game-dialog:has(.tier-selection) .game-header h2 { font-size: calc(18px * var(--text-scale)); }
+  .game-dialog:has(.tier-selection) .game-header .game-eyebrow { display: none; }
+  .tier-selection-scroll { padding: 4px 16px; }
+  .tier-selection-content { gap: 4px; }
+  .game-dialog .tier-selection-heading h3 { font-size: calc(16px * var(--text-scale)); }
+  .game-dialog .tier-selection-help, .tier-choice .tier-crest, .tier-choice > span > small, .tier-condition-full { display: none; }
+  .tier-selection .tier-condition-compact { display: inline; }
+  .tier-selection .tier-choice { min-height: 72px; padding: 6px 4px; gap: 3px; }
+  .tier-selection .tier-choice strong { font-size: calc(12px * var(--text-scale)); }
+  .tier-guide summary, .tier-book-select { min-height: 32px; padding-block: 4px; }
+  .tier-entry-actions { padding: 8px 16px 10px; }
+  .tier-entry-summary > .game-eyebrow { display: none; }
 }
 .run-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 10px; padding: 11px 28px; border-bottom: 1px solid var(--line); background: #19211f; flex-shrink: 0; }
 .run-toolbar > div { display: flex; align-items: center; gap: 16px; font-size: calc(12px * var(--text-scale)); }
 .run-toolbar .run-inspect-buttons { gap: 7px; }
 .run-toolbar .game-secondary { min-height: 36px; padding: 7px 12px; font-size: calc(10px * var(--text-scale)); }
 .hp-text { color: #d8a88e; } .gold-text { color: var(--amber); }
+.game-body:has(.dungeon-map) { display: flex; overflow: hidden; padding: 16px 20px; }
+.inspection:has(> .dungeon-map) { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
+.dungeon-map.living-map { display: flex; flex: 1; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; max-width: none; }
+.map-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, 280px); flex: 1; gap: 16px; min-height: 0; }
+.map-layout .map-overview { height: auto; min-height: 120px; min-width: 0; margin: 0; }
+.map-selection { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; overflow: auto; padding: 2px 4px 6px; }
+.game-dialog .map-selection h4 { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; font-size: calc(14px * var(--text-scale)); }
+.map-selection h4 > span { color: var(--muted); font-size: calc(11px * var(--text-scale)); white-space: nowrap; }
+.map-route-options { display: grid; gap: 10px; }
+.living-map .map-route-options .map-route-option { display: flex; flex-direction: row; align-items: center; gap: 12px; width: 100%; min-height: 78px; margin: 0; padding: 12px; border: 2px solid var(--amber); border-radius: 8px; text-align: left; }
+.map-route-option > .game-icon { width: 28px; height: 28px; flex-shrink: 0; color: var(--amber); }
+.living-map .map-route-option > span { min-width: 0; font-size: inherit; }
+.map-route-option > span:not(.map-route-arrow) { display: grid; flex: 1; gap: 6px; }
+.living-map .map-route-option strong { font-size: calc(14px * var(--text-scale)); }
+.living-map .map-route-options .map-route-option small { position: static; display: block; width: auto; padding: 0; opacity: 1; transform: none; border: 0; background: none; font-size: calc(11px * var(--text-scale)); line-height: 1.6; text-align: left; color: var(--muted); }
+.map-route-option .map-route-arrow { flex-shrink: 0; color: var(--amber); }
+.map-selection .map-place-summary { display: grid; gap: 4px; min-height: 0; margin: 0; padding: 10px 12px; }
+.map-selection .map-place-summary span { font-size: calc(11px * var(--text-scale)); }
+.map-details { min-width: 0; }
+.map-details > summary { min-height: 44px; padding: 10px 4px; color: var(--muted); cursor: pointer; font-size: calc(12px * var(--text-scale)); }
+.map-details .map-scroll { margin: 8px 0 0; max-height: 280px; overflow: auto; }
+.game-dialog .map-legend { flex-shrink: 0; margin: 0; font-size: calc(11px * var(--text-scale)); line-height: 1.6; }
 .map-intro { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .map-intro h3 { margin: 0; }
 .game-dialog .map-intro p { margin: 0; font-size: calc(11px * var(--text-scale)); }
@@ -141,6 +207,35 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .map-node.is-reachable:hover { background: #414731; }
 .map-node.is-visited { opacity: 1; border-color: #7a7f51; background: #293124; color: #c9cbab; }
 .map-node.is-visited > span { color: var(--amber); }
+@media (max-width: 700px) {
+  .game-body:has(.dungeon-map) { padding: 10px 12px; }
+  .dungeon-map.living-map { gap: 8px; }
+  .map-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(100px, 1fr) auto; gap: 10px; }
+  .map-selection { gap: 8px; overflow: visible; padding: 0 2px 4px; }
+  .map-route-options { grid-template-columns: repeat(var(--route-count), minmax(0, 1fr)); gap: 7px; }
+  .living-map .map-route-options .map-route-option { justify-content: center; gap: 7px; min-height: 52px; padding: 9px 6px; }
+  .map-route-option > .game-icon { width: 20px; height: 20px; }
+  .living-map .map-route-option strong { font-size: calc(12px * var(--text-scale)); }
+  .living-map .map-route-options .map-route-option small, .map-route-option .map-route-arrow { display: none; }
+  .map-selection:has(.map-route-options) .map-place-summary { display: none; }
+  .map-details[open] .map-scroll { max-height: 150px; }
+  .map-intro > p { display: none; }
+  .game-dialog .map-intro h3 { font-size: calc(18px * var(--text-scale)); }
+  .game-dialog .map-selection h4 { font-size: calc(12px * var(--text-scale)); }
+  .game-dialog .map-legend { font-size: calc(10px * var(--text-scale)); }
+}
+@media (max-height: 550px) {
+  .game-body:has(.dungeon-map) { padding: 8px 12px; }
+  .living-map > .map-intro, .game-dialog .map-legend, .map-selection .map-place-summary { display: none; }
+  .map-layout, .map-layout .map-overview { min-height: 80px; }
+  .map-selection { gap: 6px; padding: 0 2px 4px; }
+  .map-route-options { grid-template-columns: repeat(var(--route-count), minmax(0, 1fr)); gap: 6px; }
+  .living-map .map-route-options .map-route-option { min-height: 48px; padding: 8px 5px; }
+  .map-route-option > .game-icon, .map-route-option .map-route-arrow, .living-map .map-route-options .map-route-option small { display: none; }
+  .living-map .map-route-option strong { font-size: calc(12px * var(--text-scale)); }
+  .game-dialog .map-selection h4 { font-size: calc(12px * var(--text-scale)); }
+  .map-details > summary { min-height: 32px; padding: 6px 2px; }
+}
 .battle-screen { display: flex; flex-direction: column; flex: 1; width: 100%; min-width: 0; }
 .battle-stage { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; }
 .battlefield { position: relative; flex: 1 0 280px; min-height: 280px; overflow: hidden; background: #17201e; }
@@ -373,8 +468,8 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .run-inspect-buttons { width: 100%; }
   .run-inspect-buttons button { flex: 1; }
   .adventure-tiers { grid-template-columns: 1fr; gap: 8px; margin: 20px 0; }
-  .tier-entry-actions { padding: 14px 16px 18px; }
-  .tier-entry-row { flex-direction: column; align-items: stretch; gap: 12px; }
+  .tier-entry-actions { padding: 10px 12px 12px; }
+  .tier-entry-row { flex-direction: column; align-items: stretch; gap: 8px; }
   .tier-entry-summary p[aria-live] { justify-content: space-between; gap: 4px 10px; }
   .tier-entry-summary strong { font-size: calc(18px * var(--text-scale)); }
   .tier-entry-actions .tier-start { width: 100%; min-width: 0; }
@@ -564,6 +659,54 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .enemy-hud .status-tooltip { left: auto; right: 0; }
 .status-tooltip small { color: #d9c591; }
 .no-status { color: #9eaf98; font-size: 10px; }
+
+/* Large HP tracks and actor-attached intent/status indicators share both renderers. */
+.combat-health-bar { position: relative; width: 100%; height: 24px; margin-top: 8px; overflow: hidden; border: 2px solid #120c19; border-radius: 7px; background: #170f20; box-shadow: 0 0 0 1px #82605280; }
+.combat-health-bar > .health-damage-trail, .combat-health-bar > .health-current { position: absolute; inset: 0 auto 0 0; }
+.combat-health-bar > .health-damage-trail { background: #ffe0a0; transition: width 450ms ease-out; }
+.combat-health-bar > .health-current { background: linear-gradient(90deg, #ba4d51, #ed9971); transition: width 100ms linear; }
+.enemy-hud .combat-health-bar > .health-current { background: linear-gradient(90deg, #7554b2, #baa1e8); }
+.health-value { position: absolute; inset: 0; display: grid; place-items: center; color: #fff5e7; font-size: calc(11px * var(--text-scale)); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 1px 1px 1px #190b22, -1px -1px 1px #190b22; }
+.combat-energy { display: grid; gap: 4px; min-width: 0; flex-shrink: 0; color: var(--ivory); }
+.energy-reserve { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: calc(12px * var(--text-scale)); }
+.energy-gems { display: flex; align-items: center; gap: 5px; }
+.energy-gem { width: 22px; height: 22px; border: 2px solid #76627e; border-radius: 50%; background: #211828; box-shadow: inset 0 2px 5px #0e0717; }
+.energy-gem.is-filled { border-color: #ffd398; background: radial-gradient(circle at 32% 25%, #fff0c9, #ffbd65 36%, #cb6f39 85%); box-shadow: 0 0 8px #ffb25e50, inset 0 -2px 2px #7b381d; }
+.energy-extra { color: var(--amber); font-size: 12px; }
+.playable-card-count { color: var(--muted); font-size: calc(11px * var(--text-scale)); line-height: 1.6; }
+.playable-card-count strong { color: #ffd39b; white-space: nowrap; }
+.combat-overheads { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.combat-overhead { position: absolute; top: 36%; left: 24%; display: grid; justify-items: center; gap: 5px; width: max-content; max-width: calc(50% - 12px); transform: translate(-50%, -100%); }
+.combat-overhead.is-enemy { left: 74%; }
+.overhead-intent { display: flex; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid #c28d65; border-radius: 9px; background: #2a1d30f5; color: #ffca8a; box-shadow: 0 3px 9px #100b16a8; }
+.overhead-intent > .game-icon { width: 26px; height: 26px; flex-shrink: 0; }
+.overhead-intent > span { display: grid; gap: 3px; }
+.overhead-intent small { color: #e0c8b2; font-size: calc(10px * var(--text-scale)); line-height: 1.2; }
+.overhead-intent strong { color: #ffe5bb; font-size: calc(13px * var(--text-scale)); line-height: 1.3; white-space: nowrap; }
+.overhead-intent.intent-block { border-color: #85c4c1; color: #b1e8de; }
+.overhead-intent:is(.intent-buff, .intent-charge) { border-color: #e5b962; color: #ffda87; }
+.overhead-intent.intent-wait { border-color: #a5a0c2; color: #d4c9ec; }
+.status-badges.is-compact { justify-content: center; gap: 4px; margin: 0; }
+.status-badges.is-compact:empty { display: none; }
+.is-compact .status-badge > button { position: relative; pointer-events: auto; display: grid; place-items: center; width: 32px; min-height: 32px; padding: 4px; border: 1px solid #8d9d89; border-radius: 6px; background: #2c2938f5; color: #e5ecdc; font-size: calc(10px * var(--text-scale)); line-height: 1.3; box-shadow: 0 2px 6px #100a16a3; }
+.is-compact .status-badge > button > strong { position: absolute; right: -4px; bottom: -5px; padding: 1px 3px; border-radius: 4px; background: #211526; color: #fff3db; white-space: nowrap; }
+.is-compact .status-badge.is-harmful > button { background: #4b2536f5; border-color: #d590a3; color: #ffd8dc; }
+.is-compact .status-symbol { display: flex; }
+.is-compact .status-symbol > .game-icon { width: 22px; height: 22px; }
+.status-tooltip.is-floating { position: absolute; z-index: 50; width: min(280px, calc(100vw - 40px)); border-radius: 8px; background: #291f33; color: #fff1df; border-color: #c7a27b; font-size: calc(12px * var(--text-scale)); }
+@media (max-width: 500px) {
+  .combat-health-bar { height: 22px; margin-top: 6px; }
+  .hand-toolbar:has(.combat-energy) { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; }
+  .hand-toolbar:has(.combat-energy) .battle-message { grid-column: 1 / -1; grid-row: 2; }
+  .hand-toolbar:has(.combat-energy) .end-turn { grid-column: 2; grid-row: 1; }
+  .combat-energy { flex-shrink: 1; }
+  .energy-gem { width: 20px; height: 20px; }
+  .playable-card-count { font-size: calc(10px * var(--text-scale)); }
+  .overhead-intent { gap: 5px; padding: 5px 6px; }
+  .overhead-intent > .game-icon { width: 22px; height: 22px; }
+  .overhead-intent strong { font-size: calc(11px * var(--text-scale)); }
+  .is-compact .status-badge > button { gap: 3px; padding: 4px; }
+}
 .answer-verdict { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 15px; grid-column: 1 / -1; padding: 10px 16px; margin-bottom: 10px; border: 2px solid; }
 .answer-verdict > span { font-size: 34px; line-height: 1; font-weight: bold; }
 .answer-verdict > strong { font-size: 24px; letter-spacing: 2px; }
