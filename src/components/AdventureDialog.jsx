@@ -111,7 +111,7 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
   </section>;
 }
 
-function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone }) {
+function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, onOpeningDone }) {
   const section = useRef(null);
   const dealCanvas = useRef(null);
   const shortcut = useRef(null);
@@ -245,7 +245,7 @@ function Battle({ run, dispatch, motionPreference, animateOpening, onOpeningDone
       <div className="pile-status"><div className="deck-pile draw-pile" aria-label={`뽑을 카드 ${b.draw.length}장`}><span>✦</span><small>뽑기 {b.draw.length}</small></div>
         <span className="draw-status" role="status">{deal.busy ? '덱에서 카드를 뽑고 있습니다…' : skillBusy ? combatEffect.kind === 'hurt' ? '몬스터가 공격하고 있습니다' : combatEffect.kind === 'enemy' ? '몬스터가 행동하고 있습니다' : '단어의 힘이 펼쳐집니다' : '숫자 키 2번으로 카드 선택 · Enter 2번으로 턴 종료'}</span>
         <div className="deck-pile discard-pile" aria-label={`버린 카드 ${b.discard.length}장`}><span>◇</span><small>버림 {b.discard.length} · 소멸 {b.exhaust.length}</small></div></div>
-      {locked ? <QuizPanel compact busy={loading || skillBusy} question={pending?.question ?? feedback.question} feedback={feedback}
+      {locked ? <QuizPanel compact busy={loading || skillBusy} question={pending?.question ?? feedback.question} feedback={feedback} wordbooks={wordbooks}
         cardName={selectedCard ? CARDS[selectedCard.type].name : feedback.cardName}
         onAnswer={(answer) => { if (!loading && dispatch({ type: 'ANSWER', id: pending.question.id, answer }) && canAnimate) setSkillBusy(true); }}
         onContinue={() => { if (loading || skillBusy) return; if (b.enemy.hp <= 0) transition(() => dispatch({ type: 'ACK' })); else dispatch({ type: 'ACK' }); }} /> : <div className="card-hand" data-keyboard-group aria-label="손에 든 카드">
@@ -334,7 +334,9 @@ function TierSelection({ progress, dispatch, onStarted }) {
   const startButton = useRef(null);
   const [tier, setTier] = useState('bronze');
   const ongoing = progress.run && progress.run.phase !== 'result';
-  const pool = questionPool(tier);
+  const wordbooks = progress.wordbooks ?? [];
+  const personal = wordbooks.some((book) => book.id === tier);
+  const pool = questionPool(tier, wordbooks);
   const unlocked = unlockedTierIds(progress);
   return <section ref={selection} className="tier-selection" onKeyDown={(event) => navigateTiers(event, {
     tiers: [...selection.current.querySelectorAll('[data-tier]:not(:disabled)')], start: startButton.current, select: setTier,
@@ -347,19 +349,30 @@ function TierSelection({ progress, dispatch, onStarted }) {
         <small className="tier-condition">{!unlocked.includes(t.id) ? `🔒 ${TIERS[i - 1].label} 클리어 후 해금` : progress.learning.clears[t.id] ? '클리어' : '도전 가능'}</small>
       </button>)}
     </div>
+    <div className="adventure-wordbooks">
+      <h4>내 단어장</h4>
+      {wordbooks.length ? <div className="adventure-tiers" role="group" aria-label="내 단어장" data-keyboard-group>
+        {wordbooks.map(({ id, name, words }) => <button key={id} data-tier={id} className="tier-choice"
+          aria-pressed={tier === id} onClick={() => setTier(id)}>
+          <TierCrest tier="personal" /><span><strong>{name}</strong><small>{words.length}개</small></span>
+          <small className="tier-condition">{progress.learning.bookClears?.[id] ? `클리어 ${progress.learning.bookClears[id]}회` : '도전 가능'}</small>
+        </button>)}
+      </div> : <p className="game-muted">단어장 메뉴에서 CSV나 엑셀 파일을 추가할 수 있어요.</p>}
+    </div>
     <div className="adventure-brief"><p><span>시작 덱</span><strong>12장 · 에너지 3 · HP 72</strong></p><p><span>던전</span><strong>8층 · 갈림길 · 보스 1체</strong></p><p><span>출제 범위</span><strong>검수 단어 {new Set(pool.map((q) => q.wordId)).size}개 · 문제 {pool.length}개</strong></p></div>
-    <p className="game-help">단어장 전체는 그대로 열람할 수 있어요. 뜻·유의어·반의어 문제는 선택지까지 확인한 항목에서 출제하며, 부족하면 모든 문제를 소진한 뒤 다시 섞습니다. 전투 난도는 티어와 무관합니다.</p>
-    {ongoing && <p className="game-notice">진행 중인 {tierLabel(progress.run.tier)} 모험이 있습니다. 아래 버튼을 누르면 임시 덱과 유물을 새로 시작합니다. 학습·오답·클리어 기록은 유지됩니다.</p>}
+    <p className="game-help">{personal ? '선택한 단어장에서 뜻 문제가 나옵니다. 클리어 기록은 내 단어장에 쌓입니다.' :
+      '뜻·유의어·반의어 문제는 선택지까지 확인한 항목에서 출제합니다. 전투 난도는 티어와 무관합니다.'}</p>
+    {ongoing && <p className="game-notice">진행 중인 {tierLabel(progress.run.tier) ?? wordbooks.find((book) => book.id === progress.run.tier)?.name} 모험이 있습니다. 아래 버튼을 누르면 임시 덱과 유물을 새로 시작합니다. 학습·오답·클리어 기록은 유지됩니다.</p>}
     <button ref={startButton} className="game-primary tier-start" onClick={() => transition(() => { if (dispatch({ type: 'START', tier, seed: seed() })) onStarted(); })}>{ongoing ? '기존 모험을 교체하고 시작' : '던전 입장'} <span aria-hidden="true">▸</span></button>
   </section>;
 }
 
-function Result({ run, progress, onClose }) {
+function Result({ run, scopeLabel, progress, onClose }) {
   const nextTier = TIERS.find((tier) => tier.id === run.result.unlockedTier);
   return <section className="run-result"><span className="result-sigil" aria-hidden="true">{run.result.won ? '♛' : '◇'}</span><p className="game-eyebrow">{run.result.won ? '석문 돌파' : '모험의 끝'}</p>
     <div className="location-scene"><SceneView mode="result" won={run.result.won}/></div>
     <h3>{run.result.won ? '석문을 돌파했습니다' : '다음 도전을 준비하세요'}</h3>
-    <p>{tierLabel(run.tier)} · {run.fights}회 전투 승리 · 정답 {run.correct}/{run.answers}</p>
+    <p>{scopeLabel} · {run.fights}회 전투 승리 · 정답 {run.correct}/{run.answers}</p>
     <p>이번 덱 {run.result.cards}장 · 유물 {run.result.relics}개</p>
     {run.result.won && nextTier && <div className="unlock-notice tier-unlock">{nextTier.label} 던전의 문이 열렸습니다.<br /><small>다음 새 모험에서 선택할 수 있어요.</small></div>}
     {run.result.unlocked && <div className="unlock-notice">전설 카드 ‘불멸의 서약’ 해금<br /><small>다음 모험부터 카드 보상과 상점에 등장합니다.</small></div>}
@@ -379,6 +392,10 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
   const [inspect, setInspect] = useState(null);
   const previousPhase = useRef(null);
   const run = progress.run;
+  const wordbooks = progress.wordbooks ?? [];
+  const book = wordbooks.find(({ id }) => id === run?.tier);
+  const scopeLabel = book?.name ?? tierLabel(run?.tier);
+  const entranceScope = book ? { id: 'personal', label: book.name, count: book.words.length } : TIERS.find(({ id }) => id === run?.tier);
   const phase = choosing ? 'tier' : entering ? 'entry' : run?.phase;
   const inCombat = phase === 'battle' && !inspect;
   const titles = { tier: '새 모험', entry: '던전 입장', map: '던전 경로', battle: '카드 전투', reward: '모험의 보상', rest: '휴식', forge: '강화와 구입', result: '도전 결과' };
@@ -396,7 +413,7 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
   return <dialog ref={dialog} className={`game-dialog${inCombat ? ' is-battle' : ''}${phase === 'entry' ? ' is-entering' : ''}`} aria-labelledby="adventure-title" onClose={onClose} onKeyDown={navigateGameButtons}
     onPointerDown={(event) => { if (battleMenu.current?.open && !battleMenu.current.contains(event.target)) battleMenu.current.open = false; }}
     onCancel={(event) => { if (battleMenu.current?.open) { event.preventDefault(); battleMenu.current.open = false; battleMenu.current.querySelector('summary').focus(); } else { event.preventDefault(); requestClose(); } }}>
-    <header className="game-header"><div><p className="game-eyebrow">{phase === 'tier' ? '새 모험' : tierLabel(run?.tier)}</p>
+    <header className="game-header"><div><p className="game-eyebrow">{phase === 'tier' ? '새 모험' : scopeLabel}</p>
       <h2 id="adventure-title" className="adventure-title" tabIndex={-1}>{inspect === 'deck' ? '나의 덱' : inspect === 'relics' ? '보유 유물' : inspect === 'map' ? '던전 경로' : inspect === 'log' ? '전투 기록' : inCombat ? `${run.floor + 1}층 · 카드 전투` : titles[phase]}</h2></div>
       <div className="game-header-actions">{inCombat && <>
         <span className="battle-save-status" title={error || '선택할 때마다 자동 저장'}>{error ? '저장 확인' : '자동 저장'}</span>
@@ -411,19 +428,19 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
         <button className="settings-close" aria-label="모험 닫고 타이틀로" onClick={requestClose}>×</button>
       </div></header>
     {error && <p role="alert" className="game-save-error">{error}</p>}
-    {!choosing && run && !['result', 'entry'].includes(phase) && !inCombat && <div className="run-toolbar"><div><TierCrest tier={run.tier} small /><span>{run.floor < 0 ? '입구' : `${run.floor + 1}층 / 8`}</span><span className="hp-text">HP {run.hp}/{run.maxHp}</span><span className="gold-text">◈ {run.gold}</span></div>
+    {!choosing && run && !['result', 'entry'].includes(phase) && !inCombat && <div className="run-toolbar"><div><TierCrest tier={book ? 'personal' : run.tier} small /><span>{run.floor < 0 ? '입구' : `${run.floor + 1}층 / 8`}</span><span className="hp-text">HP {run.hp}/{run.maxHp}</span><span className="gold-text">◈ {run.gold}</span></div>
       <div className="run-inspect-buttons">{[['deck', `덱 ${run.deck.length}`], ['relics', `유물 ${run.relics.length}`], ['map', '경로']].map(([id, label]) => <button key={id} className="game-secondary" aria-pressed={inspect === id} onClick={() => transition(() => { setAnimateBattle(false); setInspect(inspect === id ? null : id); })}>{label}</button>)}</div></div>}
     <div className="game-body">
       {inspect ? <section className="inspection"><button className="game-secondary inspect-back" data-initial-focus onClick={() => transition(() => setInspect(null))}>← 모험으로 돌아가기</button>
         {inspect === 'deck' ? <div className="deck-inspection">{run.deck.map((card) => <div className="deck-item" key={card.uid}><strong>{CARDS[card.type].name}{card.upgraded && '+'}</strong><span>에너지 {CARDS[card.type].cost} · {CARDS[card.type].rarity}</span><p>{describeCard(card)}</p></div>)}</div>
           : inspect === 'relics' ? run.relics.map((relic) => <Relic key={relic.id} relic={relic} />) : inspect === 'log' ? <BattleLog battle={run.battle} /> : <DungeonMap run={run} inspecting motionPreference={motionPreference} />}
       </section> : choosing ? <TierSelection progress={progress} dispatch={dispatch} onStarted={() => { setChoosing(false); setEntering(true); }} />
-        : phase === 'entry' ? <DungeonEntrance tier={TIERS.find((tier) => tier.id === run.tier)} motionPreference={motionPreference} onComplete={() => transition(() => setEntering(false))} />
+        : phase === 'entry' ? <DungeonEntrance tier={entranceScope} motionPreference={motionPreference} onComplete={() => transition(() => setEntering(false))} />
         : phase === 'map' ? <DungeonMap key={run.floor} run={run} motionPreference={motionPreference} onSelect={(id) => transition(() => { if (dispatch({ type: 'SELECT_NODE', id })) setAnimateBattle(true); })} />
-          : phase === 'battle' ? <Battle key={run.floor} run={run} dispatch={dispatch} motionPreference={motionPreference} animateOpening={animateBattle} onOpeningDone={() => setAnimateBattle(false)} />
+          : phase === 'battle' ? <Battle key={run.floor} run={run} wordbooks={wordbooks} dispatch={dispatch} motionPreference={motionPreference} animateOpening={animateBattle} onOpeningDone={() => setAnimateBattle(false)} />
             : phase === 'reward' ? <Reward run={run} dispatch={(action) => action.type === 'LEAVE_REWARD' ? transition(() => dispatch(action)) : dispatch(action)} />
               : ['rest', 'forge'].includes(phase) ? <Services key={`${phase}-${run.floor}`} run={run} dispatch={(action) => action.type === 'LEAVE_FORGE' || phase === 'rest' ? transition(() => dispatch(action)) : dispatch(action)} />
-                : phase === 'result' ? <Result run={run} progress={progress} onClose={requestClose} /> : <p>이어서 진행할 모험이 없습니다.</p>}
+                : phase === 'result' ? <Result run={run} scopeLabel={scopeLabel} progress={progress} onClose={requestClose} /> : <p>이어서 진행할 모험이 없습니다.</p>}
     </div>
     {!inCombat && phase !== 'entry' && <footer className="game-footer"><span><kbd>방향키</kbd> 항목 이동 <kbd>Enter</kbd> 선택 <kbd>Esc</kbd> 타이틀</span><span>{error ? '저장 상태를 확인하세요' : '선택할 때마다 자동 저장'}</span></footer>}
     <TransitionVeil />

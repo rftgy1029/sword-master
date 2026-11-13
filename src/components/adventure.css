@@ -548,3 +548,76 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 @keyframes shortcut-confirm { 0% { filter: brightness(1); transform: scale(1); } 45% { filter: brightness(1.8); transform: scale(.96); } 100% { filter: brightness(1.2); transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .shortcut-confirming { animation: none !important; } }
 .app[data-background-motion="off"] .shortcut-confirming { animation: none !important; }
+
+.review-body { display: grid; align-content: start; gap: 16px; }
+.review-controls, .review-status-filters, .wordbook-view-tabs {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.review-toolbar, .review-filters, .review-list-heading { justify-content: space-between; }
+.review-controls p { margin: 0; }
+.review-dialog .learning-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 16px;
+}
+.review-dialog .learning-summary dt { font-size: calc(13px * var(--text-scale)); }
+.review-dialog .learning-summary dd {
+  margin: 5px 0; color: var(--sun, var(--amber)); font-size: calc(30px * var(--text-scale));
+}
+.review-dialog .learning-summary small, .review-list-heading p, .wordbook-drop small { color: var(--muted); line-height: 1.55; }
+.review-field, .wordbook-fields label {
+  min-width: 0; display: grid; gap: 5px; font-size: calc(12px * var(--text-scale));
+}
+.review-field select, .review-field input, .wordbook-fields select, .wordbook-fields input, .quiz-typing input {
+  width: 100%; min-width: 0; min-height: 40px; padding: 7px 10px; font: inherit; color: var(--ivory);
+  background: var(--plum-deep, #221a2b); border: 1px solid #8b7898; border-radius: 6px; color-scheme: dark;
+}
+.review-field select { max-width: 240px; }
+.review-search { flex: 1 1 200px; max-width: 280px; }
+.review-controls button[aria-pressed="true"], .wordbook-view-tabs button[aria-pressed="true"] {
+  color: var(--sun, var(--amber)); border-color: var(--sun, var(--amber)); background: #3d2e47;
+}
+.review-body .weakness-list { display: grid; gap: 8px; border-top: 0; }
+.review-word, .review-item { min-width: 0; overflow-wrap: anywhere; }
+.review-item .review-state { font-size: calc(11px * var(--text-scale)); white-space: nowrap; color: #f2c883; }
+.review-item .review-state.is-complete { color: #b4dfb6; }
+.review-session { display: grid; gap: 12px; }
+.wordbook-view-tabs { padding: 10px clamp(14px, 3vw, 26px); border-bottom: 1px solid #4d3b5b; }
+.personal-wordbooks {
+  flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
+  padding: 20px clamp(14px, 3vw, 26px); display: grid; align-content: start; gap: 24px;
+  font-size: calc(14px * var(--text-scale));
+}
+.wordbook-import, .wordbook-preview { display: grid; gap: 12px; }
+.wordbook-import h3, .wordbook-import p { margin: 0; }
+.wordbook-preview > button { justify-self: start; }
+.wordbook-drop {
+  display: grid; gap: 8px; justify-items: start; min-width: 0;
+  padding: 20px; border: 1px dashed #9b82aa; border-radius: 8px; background: #2f2539;
+}
+.wordbook-drop.is-dragging { border-color: var(--sun, var(--amber)); background: #473253; }
+.wordbook-drop input { max-width: 100%; font: inherit; }
+.wordbook-drop input::file-selector-button { margin-inline-end: 8px; cursor: pointer; }
+.wordbook-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 8px; }
+.wordbook-sample { display: grid; gap: 0; margin: 0; }
+.wordbook-sample > div {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 10px; padding: 8px 6px; border-top: 1px solid #513d60; overflow-wrap: anywhere;
+}
+.wordbook-sample dd { margin: 0; }
+.adventure-wordbooks h4 { margin: 0 0 10px; }
+.adventure-wordbooks .tier-choice { overflow-wrap: anywhere; }
+.adventure-wordbooks .tier-choice > span, .game-header > div:first-child { min-width: 0; }
+.game-header .game-eyebrow, .title-panel .continue-button small { overflow-wrap: anywhere; }
+.quiz-typing { grid-template-columns: minmax(0, 1fr); }
+.quiz-typing button { justify-content: center; }
+.quiz-panel h3, .quiz-feedback { overflow-wrap: anywhere; }
+@media (max-width: 650px) {
+  .review-dialog .learning-summary { grid-template-columns: 1fr; gap: 0; }
+  .review-dialog .learning-summary > div {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 8px; padding: 6px 0;
+  }
+  .review-dialog .learning-summary > div + div { border-top: 1px solid #513d60; }
+  .review-dialog .learning-summary dd { font-size: calc(22px * var(--text-scale)); }
+  .review-dialog .learning-summary small { grid-column: 1 / -1; }
+  .review-field select { max-width: 100%; }
+  .review-search { max-width: none; }
+}

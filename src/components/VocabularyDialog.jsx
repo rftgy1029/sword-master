@@ -1,6 +1,8 @@
 import { TransitionVeil, useSceneTransition } from './SceneTransition.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { findVocabulary, PAGE_SIZE, TIERS } from '../vocabulary.js';
+import { normalizeText } from '../game/wordbooks.js';
+import WordbookImport from './WordbookImport.jsx';
 
 export function TierCrest({ tier, small = false }) {
   return (
@@ -12,7 +14,47 @@ export function TierCrest({ tier, small = false }) {
   );
 }
 
-export default function VocabularyDialog({ onClose }) {
+function PersonalWordbooks({ wordbooks, onSaveBook, error }) {
+  const body = useRef(null);
+  const [selected, setSelected] = useState('');
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const book = wordbooks.find(({ id }) => id === selected) ?? wordbooks[0];
+  const search = normalizeText(query);
+  const words = book?.words.filter(({ term, meaning }) => normalizeText(`${term} ${meaning}`).includes(search)) ?? [];
+  const pageCount = Math.max(1, Math.ceil(words.length / PAGE_SIZE));
+  useEffect(() => { body.current.scrollTop = 0; }, [wordbooks.length]);
+  return <div ref={body} className="personal-wordbooks">
+    {error && <p className="game-save-error" role="alert">{error}</p>}
+    <WordbookImport wordbooks={wordbooks} onSave={(newBook) => {
+      if (!onSaveBook(newBook)) return false;
+      setSelected(newBook.id);
+      setQuery('');
+      setPage(1);
+      return true;
+    }} />
+    {book && <section aria-label="저장한 단어장">
+      <div className="wordbook-fields">
+        <label>저장한 단어장<select value={book.id} onChange={(event) => { setSelected(event.target.value); setPage(1); }}>
+          {wordbooks.map(({ id, name, words }) => <option key={id} value={id}>{name} · {words.length}개</option>)}
+        </select></label>
+        <label>단어·뜻 검색<input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} /></label>
+      </div>
+      <p role="status">단어 {words.length.toLocaleString()}개</p>
+      <dl className="wordbook-sample">
+        {words.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(({ term, meaning }, index) =>
+          <div key={index}><dt lang="en">{term}</dt><dd>{meaning}</dd></div>)}
+      </dl>
+      {pageCount > 1 && <div className="review-controls">
+        <button className="game-secondary" disabled={page === 1} onClick={() => setPage(page - 1)}>이전</button>
+        <span>{page} / {pageCount}</span>
+        <button className="game-secondary" disabled={page === pageCount} onClick={() => setPage(page + 1)}>다음</button>
+      </div>}
+    </section>}
+  </div>;
+}
+
+export default function VocabularyDialog({ onClose, wordbooks = [], onSaveBook, error }) {
   const dialog = useRef(null);
   const transition = useSceneTransition();
   const requestClose = () => transition(() => dialog.current.close());
@@ -24,6 +66,7 @@ export default function VocabularyDialog({ onClose }) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 650px)').matches);
+  const [personal, setPersonal] = useState(false);
   const tierIndex = TIERS.findIndex(({ id }) => id === tier);
   const currentTier = TIERS[tierIndex];
   const newCount = currentTier.count - (TIERS[tierIndex - 1]?.count ?? 0);
@@ -89,13 +132,18 @@ export default function VocabularyDialog({ onClose }) {
         <div>
           <p className="vocabulary-eyebrow">단어 서고</p>
           <h2 id="vocabulary-title">단어장</h2>
-          <p className="vocabulary-intro">모험에 필요한 단어를, 티어별로 차근차근.</p>
+          <p className="vocabulary-intro">{personal ? '추가한 단어장으로 모험을 시작할 수 있어요.' : '모험에 필요한 단어를, 티어별로 차근차근.'}</p>
         </div>
         <button className="settings-close" aria-label="단어장 닫기" onClick={requestClose}>
           <span aria-hidden="true">×</span>
         </button>
       </header>
 
+      <div className="wordbook-view-tabs" role="group" aria-label="단어장 종류">
+        <button className="game-secondary" aria-pressed={!personal} onClick={() => setPersonal(false)}>학교 단어장</button>
+        <button className="game-secondary" aria-pressed={personal} onClick={() => setPersonal(true)}>내 단어장</button>
+      </div>
+      {personal ? <PersonalWordbooks wordbooks={wordbooks} onSaveBook={onSaveBook} error={error} /> :
       <div ref={body} className="vocabulary-body">
         <aside className="vocabulary-sidebar">
           <p className="tier-list-label">학습 범위 <span>TIER</span></p>
@@ -182,10 +230,10 @@ export default function VocabularyDialog({ onClose }) {
             )}
           </div>
         </section>
-      </div>
+      </div>}
 
       <footer className="vocabulary-footer">
-        <p><kbd>↑ ↓</kbd> 티어 이동 <span><kbd>Esc</kbd> 닫기</span></p>
+        <p>{!personal && <span><kbd>↑ ↓</kbd> 티어 이동</span>}<span><kbd>Esc</kbd> 닫기</span></p>
         <button className="return-button" onClick={requestClose}>타이틀로 돌아가기 <span aria-hidden="true">↵</span></button>
       </footer>
     <TransitionVeil /></dialog>

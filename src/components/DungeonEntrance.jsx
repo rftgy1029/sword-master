@@ -29,7 +29,7 @@ export default function DungeonEntrance({ tier, motionPreference, onComplete }) 
 
   return <section className="dungeon-entrance" aria-label="용사의 던전 입장">
     <div className="entrance-heading"><TierCrest tier={tier.id} />
-      <div><p className="game-eyebrow">{tier.label} · 누적 {tier.count.toLocaleString()}개</p><h3>황혼의 석문</h3></div>
+      <div><p className="game-eyebrow">{tier.label} · {tier.id !== 'personal' && '누적 '}{tier.count.toLocaleString()}개</p><h3>황혼의 석문</h3></div>
     </div>
     <div className="entrance-viewport"><SceneView mode="entry" motionPreference={motionPreference} onComplete={finish}
       fallback={<LegacyEntranceCanvas motionPreference={motionPreference} onComplete={finish} onFailure={fail}/>} /></div>
