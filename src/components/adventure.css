@@ -690,6 +690,8 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .status-badges.is-compact:empty { display: none; }
 .is-compact .status-badge > button { position: relative; pointer-events: auto; display: grid; place-items: center; width: 32px; min-height: 32px; padding: 4px; border: 1px solid #8d9d89; border-radius: 6px; background: #2c2938f5; color: #e5ecdc; font-size: calc(10px * var(--text-scale)); line-height: 1.3; box-shadow: 0 2px 6px #100a16a3; }
 .is-compact .status-badge > button > strong { position: absolute; right: -4px; bottom: -5px; padding: 1px 3px; border-radius: 4px; background: #211526; color: #fff3db; white-space: nowrap; }
+.status-gain { position: absolute; z-index: 2; right: -6px; top: -17px; color: #ffe0a0; font-size: calc(11px * var(--text-scale)); font-style: normal; font-weight: 700; pointer-events: none; text-shadow: 1px 2px #160c1d; animation: status-gain-rise 1.6s ease-out both; }
+@keyframes status-gain-rise { 0% { opacity: 0; transform: translateY(5px); } 15%, 75% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-9px); } }
 .is-compact .status-badge.is-harmful > button { background: #4b2536f5; border-color: #d590a3; color: #ffd8dc; }
 .is-compact .status-symbol { display: flex; }
 .is-compact .status-symbol > .game-icon { width: 22px; height: 22px; }
