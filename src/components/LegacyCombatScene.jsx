@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
-export default function LegacyCombatScene({ enemy, playback, motionPreference = 'normal', onReady, onError, onController, playerDead = false }) {
+export default function LegacyCombatScene({ enemy, playback, motionPreference = 'normal', onReady, onError, onAnchors, onController, playerDead = false }) {
   const host = useRef(null);
   const renderer = useRef(null);
   const latest = useRef(null);
-  latest.current = { enemy, playerDead, motion: motionPreference, onReady, onError, onController };
+  latest.current = { enemy, playerDead, motion: motionPreference, onReady, onError, onAnchors, onController };
   const [error, setError] = useState(false);
   const monsterType = enemy.type;
 
@@ -29,6 +29,7 @@ export default function LegacyCombatScene({ enemy, playback, motionPreference = 
       if (cancelled) return;
       controller = startCombatScene(host.current, monsterType, {
         playback,
+        onAnchors: points => latest.current.onAnchors?.(points),
         onReady: () => {
           if (cancelled) return;
           clearTimeout(timeout);

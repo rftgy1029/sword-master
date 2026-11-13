@@ -1,31 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
 import GameIcon from './ui/GameIcon.jsx';
-import { overheadIntent, overheadStatuses, statusGains } from '../game/overhead.js';
+import { overheadIntent } from '../game/overhead.js';
+import { useHeldStatuses } from './useHeldStatuses.js';
 import './overhead.css';
 
 // 장면 위치를 아직 재지 못했을 때 쓰는 자리. 2D 전투 화면의 용사(24%)·적(74%) 위치와 같다.
 const FALLBACK = { hero: { left: 24, top: 46 }, enemy: { left: 74, top: 46 } };
-
-// 연출이 진행되는 동안에는 이전 상태를 유지하고, 연출이 끝난 뒤 새 상태와 증가량을 보여 준다.
-// 표시 체력·적 의도와 같은 시점(skillBusy 해제)에 맞춰 바뀐다.
-function useHeldStatuses(battle, side, busy) {
-  const next = overheadStatuses(battle, side);
-  const key = next.map(({ id, value }) => `${id}:${value}`).join('|');
-  const latest = useRef(next);
-  latest.current = next;
-  const [shown, setShown] = useState(() => ({ key, list: next, gains: {}, token: 0 }));
-  useEffect(() => {
-    if (busy) return;
-    setShown((previous) => previous.key === key ? previous
-      : { key, list: latest.current, gains: statusGains(previous.list, latest.current), token: previous.token + 1 });
-  }, [busy, key]);
-  useEffect(() => {
-    if (!Object.keys(shown.gains).length) return undefined;
-    const timer = setTimeout(() => setShown((previous) => previous.token === shown.token ? { ...previous, gains: {} } : previous), 1600);
-    return () => clearTimeout(timer);
-  }, [shown]);
-  return shown;
-}
 
 function StatusRow({ items, gains }) {
   if (!items.length) return null;

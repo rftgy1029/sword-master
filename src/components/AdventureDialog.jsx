@@ -13,6 +13,7 @@ import { useCardDeal } from './useCardDeal.js';
 import { navigateTiers } from '../game/tierNavigation.js';
 import { cardShortcutIndex, confirmShortcut, cancelShortcut } from '../game/combatShortcuts.js';
 import StatusBadges from './StatusBadges.jsx';
+import { CombatEnergy, CombatHealthBar, EnemyIntent } from './CombatIndicators.jsx';
 import { heroImage } from '../game/spriteAssets.js';
 import SceneView from './SceneView.jsx';
 import GameIcon from './ui/GameIcon.jsx';
@@ -60,34 +61,42 @@ function MapHero() {
 }
 
 function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'normal' }) {
-  const map = useRef(null);
-  const reachable = new Set(inspecting ? [] : reachableNodes(run).map((n) => n.id));
+  const routes = inspecting ? [] : reachableNodes(run);
+  const reachable = new Set(routes.map((n) => n.id));
   const [destination, setDestination] = useState(null);
   const [highlight, setHighlight] = useState(null);
   const timer = useRef(null);
+  const selecting = useRef(false);
   useEffect(() => () => clearTimeout(timer.current), []);
-  useEffect(() => {
-    if (inspecting || run.floor < 0) return;
-    const frame = requestAnimationFrame(() => {
-      const place = map.current?.querySelector('.is-reachable');
-      const body = map.current?.closest('.game-body');
-      if (place && body) body.scrollTop += place.getBoundingClientRect().top - body.getBoundingClientRect().top - body.clientHeight * .35;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [run.floor, inspecting]);
   const player = destination ?? { lane: run.lane, floor: Math.max(0, run.floor) };
   const choose = (node) => {
-    if (destination) return;
+    if (selecting.current || inspecting || !reachable.has(node.id)) return;
+    selecting.current = true;
     setDestination(node);
     const still = motionPreference !== 'normal' || matchMedia('(prefers-reduced-motion: reduce)').matches;
     timer.current = setTimeout(() => onSelect(node.id), still ? 0 : 360);
   };
   const highlighted = run.map.flat().find((node) => node.id === highlight) ?? run.map.flat().find((node) => reachable.has(node.id));
-  return <section ref={map} className="dungeon-map living-map" aria-label="던전 경로">
+  return <section className="dungeon-map living-map" aria-label="던전 경로">
     <div className="map-intro"><div><p className="game-eyebrow">살아 있는 던전</p><h3>황혼의 석문</h3></div>
-      <p>빛이 흐르는 길을 따라가세요.<br /><span className="game-muted">휴식과 보물, 석문 너머의 보스가 기다리고 있습니다.</span></p></div>
-    <div className="map-overview"><SceneView mode="map" run={run} inspecting={inspecting} onSelect={(id)=>{const node=run.map.flat().find(item=>item.id===id);if(node&&reachable.has(id))choose(node);}}/></div>
-    <div className="map-place-summary" aria-live="polite"><strong>{highlighted ? NODE_TYPES[highlighted.type].name : '지나온 여정'}</strong><span>{highlighted ? NODE_TYPES[highlighted.type].hint : '용사가 지나온 길과 앞으로의 장소를 확인하세요.'}</span></div>
+      <p>{inspecting ? '지나온 길과 앞으로의 장소를 확인하세요.' : '빛나는 방을 누르거나 다음 경로를 선택하세요.'}</p></div>
+    <div className="map-layout">
+      <div className="map-overview"><SceneView mode="map" run={run} inspecting={inspecting || !!destination} highlightedNodeId={highlight} onHighlight={setHighlight}
+        onSelect={(id)=>{const node=run.map.flat().find(item=>item.id===id);if(node)choose(node);}}/></div>
+      <aside className="map-selection" aria-label="경로 선택">
+        {!inspecting && <><h4>다음 경로 선택 <span>{Math.min(run.floor + 2, 8)}층 / 8</span></h4>
+          <div className="map-route-options" data-keyboard-group style={{ '--route-count': Math.max(1, routes.length) }}>
+            {routes.map((node, index) => <button key={node.id} data-node-id={node.id} className={`game-secondary map-node map-route-option is-reachable${destination?.id === node.id ? ' is-destination' : ''}`}
+              onFocus={() => setHighlight(node.id)} onMouseEnter={() => setHighlight(node.id)} onMouseLeave={() => setHighlight(null)}
+              disabled={!!destination} onClick={() => choose(node)} data-initial-focus={index === 0 ? '' : undefined}
+              aria-label={`${node.floor + 1}층 ${node.lane + 1}번 경로, ${NODE_TYPES[node.type].name}, ${NODE_TYPES[node.type].hint}`}>
+              <GameIcon name={{battle:'strike',elite:'oath',treasure:'spark',rest:'empower',forge:'heavy',boss:'oath'}[node.type]}/>
+              <span><strong>{NODE_TYPES[node.type].name}</strong><small>{NODE_TYPES[node.type].hint}</small></span>
+              <span className="map-route-arrow" aria-hidden="true">▸</span>
+            </button>)}
+          </div></>}
+        <div className="map-place-summary" aria-live="polite"><strong>{highlighted ? NODE_TYPES[highlighted.type].name : '지나온 여정'}</strong><span>{highlighted ? NODE_TYPES[highlighted.type].hint : '용사가 지나온 길과 앞으로의 장소를 확인하세요.'}</span></div>
+        <details className="map-details"><summary>전체 8층 경로 보기</summary>
     <div className="map-scroll"><div className="map-fog" aria-hidden="true" /><div className="map-grid">
       <svg className="map-lines" viewBox="0 0 600 1152" preserveAspectRatio="none" aria-hidden="true">
         {run.map.slice(0, -1).flatMap((row, f) => row.flatMap((node) => run.map[f + 1].filter((n) => Math.abs(n.lane - node.lane) <= 1).map((to) => {
@@ -101,14 +110,16 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
       {run.map.map((row, f) => <div key={f} className="map-row" data-keyboard-group aria-label={`${f + 1}층`} style={{ '--floor': f }}>
         <span className="map-floor">{String(f + 1).padStart(2, '0')}</span>
         {row.map((node) => <button key={node.id} style={{ gridColumn: node.lane + 1 }} className={`map-node place-${node.type}${reachable.has(node.id) ? ' is-reachable' : ''}${run.visited.includes(node.id) ? ' is-visited' : ''}${destination?.id === node.id ? ' is-destination' : ''}`}
-          onFocus={() => setHighlight(node.id)} onMouseEnter={() => setHighlight(node.id)} disabled={!reachable.has(node.id) || !!destination} onClick={() => choose(node)} data-initial-focus={reachable.has(node.id) ? '' : undefined}
+          onFocus={() => setHighlight(node.id)} onMouseEnter={() => setHighlight(node.id)} disabled={!reachable.has(node.id) || !!destination} onClick={() => choose(node)}
           aria-label={`${f + 1}층 ${node.lane + 1}번 경로, ${NODE_TYPES[node.type].name}, ${NODE_TYPES[node.type].hint}`}>
           <span className="place-icon" aria-hidden="true"><GameIcon name={{battle:'strike',elite:'oath',treasure:'spark',rest:'empower',forge:'heavy',boss:'oath'}[node.type]}/></span>
           <strong>{NODE_TYPES[node.type].name}{run.visited.includes(node.id) && ' ✓'}</strong>
         </button>)}
       </div>)}
-    </div></div>
-    <p className="game-help">빛나는 장소: 선택 가능한 경로 · 발자국: 지나온 길 · 한 층에서 한 곳을 방문합니다.</p>
+    </div></div></details>
+      </aside>
+    </div>
+    <p className="game-help map-legend">빛나는 방: 이동 가능 · 금빛 길: 지나온 경로 · 한 층에서 한 곳을 선택합니다.</p>
   </section>;
 }
 
@@ -208,22 +219,21 @@ function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, on
       <span>전투를 불러오는 중…</span>
     </div>}
     <section ref={section} className={`battle-screen${busy ? ' is-animating' : ''}`} aria-label="턴제 카드 전투" aria-busy={busy} inert={loading}>
+      <div className="battle-stage">
       <div className="combat-hud">
         <section className="combatant-hud player-hud" aria-label="모험가 상태">
-          <div className="combatant-heading"><h3>모험가</h3><span>HP {shownPlayerHP} / {run.maxHp}</span></div>
-          <meter min="0" max={run.maxHp} value={shownPlayerHP} aria-label="모험가 체력" />
-          <StatusBadges battle={b} />
+          <div className="combatant-heading"><h3>모험가</h3></div>
+          <CombatHealthBar value={shownPlayerHP} max={run.maxHp} label="모험가 체력" motionPreference={motionPreference} />
         </section>
         <section className="combatant-hud enemy-hud" aria-label="적 상태">
-          <div className="combatant-heading"><h3>{MONSTERS[b.enemy.type].name}</h3><span>HP {shownEnemyHP} / {b.enemy.maxHp}</span></div>
-          <meter min="0" max={b.enemy.maxHp} value={shownEnemyHP} aria-label="적 체력" />
-          <p className={`enemy-intent intent-${shownIntent.kind}`} aria-live="polite"><small>{skillBusy && ['hurt', 'enemy'].includes(combatEffect.kind) ? '진행 중' : '다음 행동'}</small><strong>{shownIntent.label}</strong></p>
-          <StatusBadges battle={b} enemy />
+          <div className="combatant-heading"><h3>{MONSTERS[b.enemy.type].name}</h3></div>
+          <CombatHealthBar value={shownEnemyHP} max={b.enemy.maxHp} label="적 체력" motionPreference={motionPreference} />
         </section>
       </div>
     <div className="battlefield">
       <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} cue={cue} motionPreference={motionPreference}
-        overhead={{ battle: b, intent: shownIntent, busy: skillBusy, answering: locked, enemyDown: shownEnemyHP <= 0, playerDown: shownPlayerHP <= 0 }}
+        playerIndicators={shownPlayerHP > 0 && <StatusBadges battle={b} compact busy={skillBusy} />}
+        enemyIndicators={shownEnemyHP > 0 && <><EnemyIntent intent={shownIntent} acting={skillBusy && ['hurt', 'enemy'].includes(combatEffect.kind)} /><StatusBadges battle={b} enemy compact busy={skillBusy} /></>}
         onReady={() => setVisualStatus('ready')} onError={() => setVisualStatus('fallback')}
         onImpact={(_, target, hit) => {
           if (target === 'player') setShownPlayerHP((hp) => Math.max(fatal ? 0 : run.hp, hp - hit.amount));
@@ -239,14 +249,15 @@ function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, on
 
       <span className="battle-turn">TURN <strong>{String(b.turn).padStart(2, '0')}</strong></span>
     </div>
+    </div>
     <div className={`battle-controls${locked ? ' is-answering' : ''}`}>
-      <div className="hand-toolbar"><div className="energy-orb" aria-label={`에너지 ${b.energy}`} title="매 턴 에너지 3으로 시작합니다"><span>{b.energy}</span><small>에너지</small></div>
+      {!locked && <><div className="hand-toolbar"><CombatEnergy energy={b.energy} playable={hand.filter(card => CARDS[card.type].cost <= b.energy).length} />
         <p className="battle-message" aria-live="polite">{pending ? '단어 문제를 풀어 카드의 효과를 발동하세요.' : b.log[0]}</p>
         <button className="game-primary end-turn" disabled={locked || busy} data-initial-focus={!locked && !hand.some((card) => CARDS[card.type].cost <= b.energy) ? '' : undefined}
           onClick={endTurn}>턴 종료</button></div>
       <div className="pile-status"><div className="deck-pile draw-pile" aria-label={`뽑을 카드 ${b.draw.length}장`}><span>✦</span><small>뽑기 {b.draw.length}</small></div>
         <span className="draw-status" role="status">{deal.busy ? '덱에서 카드를 뽑고 있습니다…' : skillBusy ? combatEffect.kind === 'hurt' ? '몬스터가 공격하고 있습니다' : combatEffect.kind === 'enemy' ? '몬스터가 행동하고 있습니다' : '단어의 힘이 펼쳐집니다' : '숫자 키 2번으로 카드 선택 · Enter 2번으로 턴 종료'}</span>
-        <div className="deck-pile discard-pile" aria-label={`버린 카드 ${b.discard.length}장`}><span>◇</span><small>버림 {b.discard.length} · 소멸 {b.exhaust.length}</small></div></div>
+        <div className="deck-pile discard-pile" aria-label={`버린 카드 ${b.discard.length}장`}><span>◇</span><small>버림 {b.discard.length} · 소멸 {b.exhaust.length}</small></div></div></>}
       {locked ? <QuizPanel compact busy={loading || skillBusy} question={pending?.question ?? feedback.question} feedback={feedback} wordbooks={wordbooks}
         cardName={selectedCard ? CARDS[selectedCard.type].name : feedback.cardName}
         onAnswer={(answer) => { if (!loading && dispatch({ type: 'ANSWER', id: pending.question.id, answer }) && canAnimate) setSkillBusy(true); }}
@@ -340,32 +351,40 @@ function TierSelection({ progress, dispatch, onStarted }) {
   const personal = wordbooks.some((book) => book.id === tier);
   const pool = questionPool(tier, wordbooks);
   const unlocked = unlockedTierIds(progress);
+  const selectedTier = TIERS.find((t) => t.id === tier) ?? { label: wordbooks.find((book) => book.id === tier)?.name, count: pool.length };
   return <section ref={selection} className="tier-selection" onKeyDown={(event) => navigateTiers(event, {
     tiers: [...selection.current.querySelectorAll('[data-tier]:not(:disabled)')], start: startButton.current, select: setTier,
-  })}><p className="game-eyebrow">CHOOSE YOUR WORDS</p><h3>이번 모험의 학습 범위</h3>
-    <p>브론즈부터 석문의 보스를 쓰러뜨리고 다음 티어의 문을 여세요. 티어마다 누적 학습 범위가 넓어집니다.</p>
-    <div className="location-scene tier-scene"><SceneView mode="title"/></div>
-    <div className="adventure-tiers" role="group" aria-label="모험 티어" data-keyboard-group>
-      {TIERS.map((t, i) => <button key={t.id} data-tier={t.id} className={`tier-choice tier-${t.id}${!unlocked.includes(t.id) ? ' is-locked' : ''}`} disabled={!unlocked.includes(t.id)} aria-pressed={t.id === tier} data-initial-focus={i === 0 ? '' : undefined} onClick={() => setTier(t.id)}>
-        <TierCrest tier={t.id} /><span><strong>{t.label}</strong><small>{t.english}</small></span><span>{t.count.toLocaleString()}개</span>
-        <small className="tier-condition">{!unlocked.includes(t.id) ? `🔒 ${TIERS[i - 1].label} 클리어 후 해금` : progress.learning.clears[t.id] ? '클리어' : '도전 가능'}</small>
-      </button>)}
-    </div>
-    <div className="adventure-wordbooks">
-      <h4>내 단어장</h4>
-      {wordbooks.length ? <div className="adventure-tiers" role="group" aria-label="내 단어장" data-keyboard-group>
-        {wordbooks.map(({ id, name, words }) => <button key={id} data-tier={id} className="tier-choice"
-          aria-pressed={tier === id} onClick={() => setTier(id)}>
-          <TierCrest tier="personal" /><span><strong>{name}</strong><small>{words.length}개</small></span>
-          <small className="tier-condition">{progress.learning.bookClears?.[id] ? `클리어 ${progress.learning.bookClears[id]}회` : '도전 가능'}</small>
+  })}>
+    <div className="tier-selection-scroll"><div className="tier-selection-content">
+      <div className="tier-selection-heading"><h3>학습 범위</h3>
+        <div className="tier-heading-actions">
+          {wordbooks.length > 0 && <select className="tier-book-select" aria-label="내 단어장 선택" value={personal ? tier : ''} onChange={(event) => setTier(event.target.value || 'bronze')}>
+            <option value="">내 단어장</option>
+            {wordbooks.map((book) => <option key={book.id} value={book.id}>{book.name} · {book.words.length}개</option>)}
+          </select>}
+          <details className="tier-guide"><summary aria-label="모험 정보와 출제 안내"><span className="tier-guide-title">모험 </span>안내</summary><div className="tier-guide-content">
+            <div className="adventure-brief"><p><span>시작 덱</span><strong>12장 · 에너지 3 · HP 72</strong></p><p><span>던전</span><strong>8층 · 갈림길 · 보스 1체</strong></p><p><span>출제 범위</span><strong>단어 {new Set(pool.map((q) => q.wordId)).size}개 · 문제 {pool.length}개</strong></p></div>
+            <p className="game-help">{personal ? '선택한 단어장에서 뜻 문제가 나옵니다. 클리어 기록은 내 단어장에 쌓입니다.' : '브론즈부터 보스를 쓰러뜨리면 다음 티어가 열립니다. 티어 범위의 모든 단어가 뜻 문제로 나오고, 일부 단어는 유의어·반의어 문제도 나옵니다. 전투 난도는 티어와 무관합니다.'}</p>
+          </div></details>
+        </div>
+      </div>
+      <p className="tier-selection-help">{personal ? '내 단어장이 선택되어 있어요. 아래 버튼으로 입장하세요.' : unlocked.length === 1 ? '브론즈가 선택되어 있어 바로 입장할 수 있어요.' : '티어는 누적 학습 범위예요. 범위를 고르고 입장하세요.'}</p>
+      <div className="adventure-tiers" role="group" aria-label="모험 티어" data-keyboard-group>
+        {TIERS.map((t, i) => <button key={t.id} data-tier={t.id} className={`tier-choice tier-${t.id}${!unlocked.includes(t.id) ? ' is-locked' : ''}`} disabled={!unlocked.includes(t.id)} aria-pressed={t.id === tier} data-initial-focus={i === 0 ? '' : undefined} onClick={() => setTier(t.id)}
+          aria-label={`${t.label}, 누적 ${t.count.toLocaleString()}개 단어, ${!unlocked.includes(t.id) ? `${TIERS[i - 1].label} 클리어 후 해금` : t.id === tier ? '선택됨' : '선택 가능'}`}>
+          <TierCrest tier={t.id} /><span><strong>{t.label}</strong><small>{t.english}</small></span><span className="tier-word-count">누적 {t.count.toLocaleString()}개</span>
+          <small className="tier-condition"><span className="tier-condition-full">{!unlocked.includes(t.id) ? `🔒 ${TIERS[i - 1].label} 클리어 후 해금` : t.id === tier ? '✓ 선택됨' : progress.learning.clears[t.id] ? '클리어 · 선택 가능' : '선택 가능'}</span>
+            <span className="tier-condition-compact" aria-hidden="true">{!unlocked.includes(t.id) ? '🔒' : t.id === tier ? '✓ 선택됨' : '선택 가능'}</span></small>
         </button>)}
-      </div> : <p className="game-muted">단어장 메뉴에서 CSV나 엑셀 파일을 추가할 수 있어요.</p>}
-    </div>
-    <div className="adventure-brief"><p><span>시작 덱</span><strong>12장 · 에너지 3 · HP 72</strong></p><p><span>던전</span><strong>8층 · 갈림길 · 보스 1체</strong></p><p><span>출제 범위</span><strong>단어 {new Set(pool.map((q) => q.wordId)).size}개 · 문제 {pool.length}개</strong></p></div>
-    <p className="game-help">{personal ? '선택한 단어장에서 뜻 문제가 나옵니다. 클리어 기록은 내 단어장에 쌓입니다.' :
-      '티어 범위의 모든 단어가 뜻 문제로 나오고, 일부 단어는 유의어·반의어 문제도 나옵니다. 전투 난도는 티어와 무관합니다.'}</p>
-    {ongoing && <p className="game-notice">진행 중인 {tierLabel(progress.run.tier) ?? wordbooks.find((book) => book.id === progress.run.tier)?.name} 모험이 있습니다. 아래 버튼을 누르면 임시 덱과 유물을 새로 시작합니다. 학습·오답·클리어 기록은 유지됩니다.</p>}
-    <button ref={startButton} className="game-primary tier-start" onClick={() => transition(() => { if (dispatch({ type: 'START', tier, seed: seed() })) onStarted(); })}>{ongoing ? '기존 모험을 교체하고 시작' : '던전 입장'} <span aria-hidden="true">▸</span></button>
+      </div>
+    </div></div>
+    <div className="tier-entry-actions"><div className="tier-entry-content">
+      {ongoing && <p id="tier-restart-notice" className="game-notice"><strong>{tierLabel(progress.run.tier) ?? wordbooks.find((book) => book.id === progress.run.tier)?.name} 모험 교체</strong><span>덱·유물 초기화 · 학습 기록 유지</span></p>}
+      <div className="tier-entry-row">
+        <div className="tier-entry-summary"><p className="game-eyebrow">선택한 범위로 입장</p><p aria-live="polite" aria-atomic="true"><strong>{selectedTier.label}</strong><span>{personal ? '단어' : '누적'} {selectedTier.count.toLocaleString()}개{!personal && ' 단어'}</span></p></div>
+        <button ref={startButton} className="game-primary tier-start" aria-describedby={ongoing ? 'tier-restart-notice' : undefined} onClick={() => transition(() => { if (dispatch({ type: 'START', tier, seed: seed() })) onStarted(); })}>{ongoing ? '모험 교체 후 입장' : '던전 입장하기'} <span aria-hidden="true">▸</span></button>
+      </div>
+    </div></div>
   </section>;
 }
 
@@ -400,6 +419,7 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
   const book = wordbooks.find(({ id }) => id === run?.tier);
   const scopeLabel = book?.name ?? tierLabel(run?.tier);
   const entranceScope = book ? { id: 'personal', label: book.name, count: book.words.length } : TIERS.find(({ id }) => id === run?.tier);
+  const returnToTitle = () => transition(() => dialog.current.close(run?.tier === 'bronze' && run.result?.won ? 'bronze-clear' : ''));
   const phase = choosing ? 'tier' : entering ? 'entry' : run?.phase;
   const inCombat = phase === 'battle' && !inspect;
   const titles = { tier: '새 모험', entry: '던전 입장', map: '던전 경로', battle: '카드 전투', reward: '모험의 보상', rest: '휴식', forge: '강화와 구입', result: '도전 결과' };
@@ -414,7 +434,7 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
     previousPhase.current = phase;
   }, [phase, inspect, quizId, feedback, inCombat]);
 
-  return <dialog ref={dialog} className={`game-dialog${inCombat ? ' is-battle' : ''}${phase === 'entry' ? ' is-entering' : ''}`} aria-labelledby="adventure-title" onClose={onClose} onKeyDown={navigateGameButtons}
+  return <dialog ref={dialog} className={`game-dialog${inCombat ? ' is-battle' : ''}${phase === 'entry' ? ' is-entering' : ''}`} aria-labelledby="adventure-title" onClose={(event) => onClose(event.currentTarget.returnValue)} onKeyDown={navigateGameButtons}
     onPointerDown={(event) => { if (battleMenu.current?.open && !battleMenu.current.contains(event.target)) battleMenu.current.open = false; }}
     onCancel={(event) => { if (battleMenu.current?.open) { event.preventDefault(); battleMenu.current.open = false; battleMenu.current.querySelector('summary').focus(); } else { event.preventDefault(); requestClose(); } }}>
     <header className="game-header"><div><p className="game-eyebrow">{phase === 'tier' ? '새 모험' : scopeLabel}</p>
@@ -444,9 +464,9 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
           : phase === 'battle' ? <Battle key={run.floor} run={run} wordbooks={wordbooks} dispatch={dispatch} motionPreference={motionPreference} animateOpening={animateBattle} onOpeningDone={() => setAnimateBattle(false)} />
             : phase === 'reward' ? <Reward run={run} dispatch={(action) => action.type === 'LEAVE_REWARD' ? transition(() => dispatch(action)) : dispatch(action)} />
               : ['rest', 'forge'].includes(phase) ? <Services key={`${phase}-${run.floor}`} run={run} dispatch={(action) => action.type === 'LEAVE_FORGE' || phase === 'rest' ? transition(() => dispatch(action)) : dispatch(action)} />
-                : phase === 'result' ? <Result run={run} scopeLabel={scopeLabel} progress={progress} onClose={requestClose} /> : <p>이어서 진행할 모험이 없습니다.</p>}
+                : phase === 'result' ? <Result run={run} scopeLabel={scopeLabel} progress={progress} onClose={returnToTitle} /> : <p>이어서 진행할 모험이 없습니다.</p>}
     </div>
-    {!inCombat && phase !== 'entry' && <footer className="game-footer"><span><kbd>방향키</kbd> 항목 이동 <kbd>Enter</kbd> 선택 <kbd>Esc</kbd> 타이틀</span><span>{error ? '저장 상태를 확인하세요' : '선택할 때마다 자동 저장'}</span></footer>}
+    {!inCombat && !['tier', 'entry', 'map'].includes(phase) && <footer className="game-footer"><span><kbd>방향키</kbd> 항목 이동 <kbd>Enter</kbd> 선택 <kbd>Esc</kbd> 타이틀</span><span>{error ? '저장 상태를 확인하세요' : '선택할 때마다 자동 저장'}</span></footer>}
     <TransitionVeil />
   </dialog>;
 }

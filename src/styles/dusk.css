@@ -149,7 +149,7 @@ dialog::backdrop, .game-dialog::backdrop, .settings-dialog::backdrop, .vocabular
 .battle-save-status { color: #ffe1b8; }
 .battle-menu summary { border: 3px solid var(--wood-edge); background: #3a2416; color: var(--ivory); box-shadow: 0 3px 0 var(--wood-edge); }
 .battle-menu-content { border: 3px solid var(--edge); background: var(--plum); }
-.battle-screen > .combat-hud { background: linear-gradient(180deg, #2a2034, #221a2b); border-bottom: 3px solid var(--edge); }
+.battle-stage > .combat-hud { background: linear-gradient(180deg, #2a2034, #221a2b); border-bottom: 3px solid var(--edge); }
 .game-dialog .combatant-heading h3 { color: var(--ivory); }
 .combatant-heading > span { color: var(--muted); }
 .combatant-hud meter::-webkit-meter-bar { background: var(--edge); border-radius: 8px; }
@@ -183,7 +183,7 @@ dialog::backdrop, .game-dialog::backdrop, .settings-dialog::backdrop, .vocabular
 
 .quiz-panel { border: 3px solid var(--edge); background: linear-gradient(180deg, #2e2338, #221a2b); box-shadow: 0 5px 0 var(--edge); }
 .game-dialog .quiz-panel h3 > span { color: #fff2dc; }
-.game-dialog .quiz-panel h3 small, .quiz-heading-row > span, .quiz-word-details { color: var(--muted); }
+.game-dialog .quiz-panel h3 small, .quiz-word-details { color: var(--muted); }
 .quiz-options button { border: 3px solid var(--edge); background: var(--plum-raised); color: var(--ivory); box-shadow: 0 3px 0 var(--edge); }
 .quiz-options button > span { color: var(--sun); border-color: #4d3b5b; }
 .quiz-options button:hover { background: var(--plum-hover); border-color: var(--sun); }
@@ -240,7 +240,7 @@ kbd { border: 2px solid #4d3b5b; border-bottom-width: 3px; background: var(--plu
   accent-color: #e8b875;
 }
 
-.game-dialog .battle-screen > .combat-hud {
+.game-dialog .battle-stage > .combat-hud {
   gap: clamp(8px, 1.8vw, 24px);
   background: radial-gradient(ellipse at 50% 100%, #47303e 0, transparent 62%), linear-gradient(#281d32, #1b1422);
   border-bottom: 1px solid #7c5847;

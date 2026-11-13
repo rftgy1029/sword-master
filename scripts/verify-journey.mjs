@@ -54,7 +54,7 @@ try{
     if(r.phase==='map'){
       const priority={rest:10,treasure:9,battle:5,forge:3,elite:0,boss:10};
       const node=reachableNodes(r).sort((a,b)=>priority[b.type]-priority[a.type])[0];
-      await page.locator(`.map-node[aria-label^="${node.floor+1}층 ${node.lane+1}번"]`).click();
+      await page.locator(`.map-route-options .map-node[aria-label^="${node.floor+1}층 ${node.lane+1}번"]`).click();
     }else if(r.phase==='reward'){
       if(!rewardShot){await page.locator('.reward-screen').waitFor();await capture('reward');rewardShot=true;}
       if(!r.reward.cardTaken){const type=r.reward.cards.find(t=>['nova','twin','heal'].includes(t))??r.reward.cards[0];await page.locator('.reward-cards .game-card').filter({hasText:CARDS[type].name}).click();}

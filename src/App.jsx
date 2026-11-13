@@ -99,6 +99,11 @@ function GameApp({ settings, setSettings }) {
     else opener.current?.focus({ preventScroll: true });
   }
 
+  function closeAdventure(reason) {
+    if (reason === 'bronze-clear') setOpenedMenu('설문 참여');
+    else closeMenu();
+  }
+
   function menuButton(index) {
     const isContinue = index === CONTINUE;
     const isSurvey = index === SURVEY;
@@ -128,7 +133,7 @@ function GameApp({ settings, setSettings }) {
     <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect} data-background-motion={settings.backgroundMotion}>
       <main className="start-screen">
         <div className="title-backdrop">
-          <TitleScene active={openedMenu === null} motionPreference={settings.backgroundMotion} heroAction={heroAction} />
+          <TitleScene active={openedMenu === null || openedMenu === '설문 참여'} motionPreference={settings.backgroundMotion} heroAction={heroAction} />
         </div>
         <section className="title-panel" aria-label="S’word Master 시작">
           <SwordLogo />
@@ -159,7 +164,7 @@ function GameApp({ settings, setSettings }) {
         : openedMenu === '오답 복습' ? <ReviewDialog progress={progress} dispatch={dispatch} error={error} onClose={closeMenu} />
         : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
           : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
-            newAdventure={openedMenu === '새 모험'} onClose={closeMenu} /> : null}
+            newAdventure={openedMenu === '새 모험'} onClose={closeAdventure} /> : null}
     </div>
   );
 }

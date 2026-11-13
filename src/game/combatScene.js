@@ -64,10 +64,11 @@ function drawArena(ctx, w, h) {
 }
 
 // The background, actors, shadows and skill effects have independent transforms.
-export function startCombatScene(parent, monsterType, { playback, initialEffectId = 0, onBusy = () => {}, onReady = () => {}, onImpact = () => {} } = {}) {
+export function startCombatScene(parent, monsterType, { playback, initialEffectId = 0, onBusy = () => {}, onReady = () => {}, onImpact = () => {}, onAnchors = () => {} } = {}) {
   let disposed = false;
   const backgroundAsset = battleMapForMonster(monsterType);
   let state = null;
+  const anchors = { renderer: '2d', player: {}, enemy: {} };
   const director = playback ?? new CombatPlayback({ initialEffectId, onBusy, onImpact });
   const media = matchMedia('(prefers-reduced-motion: reduce)');
   const motionMode = () => combatMotionMode(state?.motion, media.matches);
@@ -222,6 +223,14 @@ export function startCombatScene(parent, monsterType, { playback, initialEffectI
         this.pendingLayout = null;
         this.redraw(layout);
       }
+      // Use the same stage transform during attacks and deferred canvas resizes.
+      for (const [side, actor, head] of [['player', this.adventurer, 68], ['enemy', this.foe, 88]]) {
+        const point = anchors[side];
+        point.x = (this.stage.x + actor.x * this.stage.scaleX) / this.scale.width;
+        point.y = (this.stage.y + (actor.y - head * actor.scaleY) * this.stage.scaleY) / this.scale.height;
+        point.visible = actor.alpha > .1;
+      }
+      onAnchors(anchors);
     }
 
     paintEffect(current) {

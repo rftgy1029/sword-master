@@ -176,18 +176,32 @@ function Dungeon({ variant = 'hall', mode = 'battle' }) {
   </group>;
 }
 
-export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false, procedural = false, weaponRef }) {
+export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false, procedural = false, weaponRef, anchorRef }) {
   const source = useLoader(GLTFLoader, modelUrl(type));
   const root = useRef(null);
   const actor = useMemo(() => {
     const object = clone(source.scene);
+    const head = object.getObjectByName('head') ?? object;
+    // The knight's skinned mesh includes its sword; attach to the helmet joint instead.
+    const headPoint = new THREE.Vector3(0, .52, 0);
+    if (type !== 'hero') {
+      const headBounds = new THREE.Box3().setFromObject(head);
+      head.getWorldPosition(headPoint);
+      headPoint.y = headBounds.isEmpty() ? headPoint.y + .4 : headBounds.max.y + .12;
+      head.worldToLocal(headPoint);
+    }
     object.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
     const outline = stylizeActor(object);
     const mixer = new THREE.AnimationMixer(object);
     const actions = Object.fromEntries(source.animations.map(clip => [clip.name, mixer.clipAction(clip)]));
     const rig = procedural ? createKnightRig(object) : null;
-    return { object, mixer, actions, outline, rig, name: null, action: null };
+    return { object, mixer, actions, outline, rig, head, headPoint, name: null, action: null };
   }, [source, procedural]);
+  useLayoutEffect(() => {
+    if (!anchorRef) return;
+    anchorRef.current = { root: root.current, head: actor.head, point: actor.headPoint };
+    return () => { anchorRef.current = null; };
+  }, [actor, anchorRef]);
   useLayoutEffect(() => {
     if (!weaponRef) return;
     const base = actor.object.getObjectByName('weapon'), tip = actor.object.getObjectByName('weapon_tip');
@@ -249,12 +263,15 @@ function Motes({ count, still }) {
   return <points ref={points}><bufferGeometry><bufferAttribute attach="attributes-position" args={[values,3]} /></bufferGeometry><pointsMaterial color="#e6d39b" size={.025} transparent opacity={.5} sizeAttenuation depthWrite={false} /></points>;
 }
 
-function BattleActors({ state, director, quality, reduced }) {
+function BattleActors({ state, director, quality, reduced, onAnchors }) {
   const pose = useRef({});
   const sword = useRef(null);
   const ages = useRef([]);
   const foe = useRef({ position: [ENEMY_HOME, 0, 0] });
   const impact = useRef({ heroX: -2.3, enemyX: ENEMY_HOME });
+  const heroAnchor = useRef(null), enemyAnchor = useRef(null);
+  const projected = useRef(new THREE.Vector3());
+  const anchors = useRef({ renderer: '3d', player: {}, enemy: {} });
   useFrame(({ clock }, delta) => {
     if (!document.hidden && !director.active?.manual) director.advance(delta * 1000);
     const current = director.active;
@@ -289,12 +306,21 @@ function BattleActors({ state, director, quality, reduced }) {
     impact.current.heroX = pose.current.x;
     impact.current.enemyX = enemy.position[0];
   }, -2);
+  useFrame(({ camera }) => {
+    if (!onAnchors || !heroAnchor.current || !enemyAnchor.current) return;
+    for (const [side, anchor] of [['player', heroAnchor.current], ['enemy', enemyAnchor.current]]) {
+      anchor.head.updateWorldMatrix(true, false);
+      const point = projected.current.copy(anchor.point).applyMatrix4(anchor.head.matrixWorld).project(camera);
+      Object.assign(anchors.current[side], { x: (point.x + 1) / 2, y: (1 - point.y) / 2, visible: anchor.root.visible });
+    }
+    onAnchors(anchors.current);
+  });
 
   return <>
-    <Actor type="hero" rotation={Math.PI / 2} procedural weaponRef={sword} still={reduced} control={() => ({
+    <Actor type="hero" rotation={Math.PI / 2} procedural weaponRef={sword} anchorRef={heroAnchor} still={reduced} control={() => ({
       pose: pose.current, flash: reduced ? 0 : hitFlashAmount(director.active, 'hero'), flashColor: '#ffd2c4',
     })} />
-    <Actor type={state.enemy.type} rotation={-Math.PI / 2} still={reduced} control={() => foe.current} />
+    <Actor type={state.enemy.type} rotation={-Math.PI / 2} anchorRef={enemyAnchor} still={reduced} control={() => foe.current} />
     <CombatAtmosphere director={director} quality={quality} pose={pose} sword={sword} />
     <SwordTrail director={director} quality={quality} sword={sword} />
     <SkillEffects director={director} quality={quality} sword={sword} />
@@ -316,8 +342,10 @@ function Camp({ forge = false }) {
   </group>;
 }
 
-function MapRooms({ run, onSelect, inspecting }) {
+function MapRooms({ run, onSelect, inspecting, onHighlight, highlightedNodeId }) {
   const horizontal=useThree(state=>state.size.width>state.size.height*1.5);
+  const canvas=useThree(state=>state.gl.domElement);
+  useEffect(() => () => { canvas.style.cursor = ''; }, [canvas]);
   const possible = run.map.flat().filter(node => node.floor === run.floor + 1 && Math.abs(node.lane - run.lane) <= 1);
   const blocks = useMemo(() => run.map.flat().flatMap(node => {
     const x=(node.lane-1)*3,z=-(node.floor-3.5)*1.55;
@@ -342,11 +370,20 @@ function MapRooms({ run, onSelect, inspecting }) {
     })))}
     {run.map.flat().map(node => {
       const reachable=possible.some(n=>n.id===node.id) && !inspecting;
+      const highlighted=highlightedNodeId===node.id;
       return <group key={node.id} position={[(node.lane-1)*3,0,-(node.floor-3.5)*1.55]}>
-        <mesh position={[0,.35,0]} onClick={event=>{event.stopPropagation();if(reachable)onSelect?.(node.id);}} onPointerOver={event=>{if(reachable)event.object.scale.setScalar(1.13);}} onPointerOut={event=>event.object.scale.setScalar(1)}>
-          {node.type==='boss'||node.type==='elite'?<octahedronGeometry args={[.32,0]} />:node.type==='treasure'?<boxGeometry args={[.6,.35,.4]}/>:node.type==='rest'?<coneGeometry args={[.22,.6,7]}/>:<cylinderGeometry args={[.15,.23,.5,6]} />}
-          <meshStandardMaterial color={node.type==='rest'?'#e98567':node.type==='treasure'?'#ffc477':reachable?'#f3dcc0':'#7d7090'} metalness={.45} roughness={.38} emissive={reachable?'#a05a2a':'#000000'} emissiveIntensity={.35} />
+        <mesh name={`map-room-hit-${node.id}`} position={[0,.4,0]}
+          onClick={event=>{event.stopPropagation();if(reachable)onSelect?.(node.id);}}
+          onPointerOver={event=>{event.stopPropagation();onHighlight?.(node.id);canvas.style.cursor=reachable?'pointer':'';}}
+          onPointerOut={()=>{onHighlight?.(null);canvas.style.cursor='';}}>
+          <boxGeometry args={[1.95,1.15,1.3]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
+        <mesh position={[0,.35,0]} scale={highlighted && reachable ? 1.13 : 1}>
+          {node.type==='boss'||node.type==='elite'?<octahedronGeometry args={[.32,0]} />:node.type==='treasure'?<boxGeometry args={[.6,.35,.4]}/>:node.type==='rest'?<coneGeometry args={[.22,.6,7]}/>:<cylinderGeometry args={[.15,.23,.5,6]} />}
+          <meshStandardMaterial color={node.type==='rest'?'#e98567':node.type==='treasure'?'#ffc477':reachable?'#f3dcc0':'#7d7090'} metalness={.45} roughness={.38} emissive={reachable?'#a05a2a':'#000000'} emissiveIntensity={highlighted ? .8 : .35} />
+        </mesh>
+        {reachable && <mesh position={[0,.015,0]}><boxGeometry args={[1.86,.03,1.22]}/><meshBasicMaterial color="#ffb25e" transparent opacity={highlighted ? .45 : .25}/></mesh>}
         {reachable && <mesh rotation={[-Math.PI/2,0,0]} position={[0,.012,0]}><ringGeometry args={[.5,.54,32]} /><meshBasicMaterial color="#ffb25e" /></mesh>}
       </group>;
     })}
@@ -370,16 +407,16 @@ function SceneReady({ callback }) {
   return null;
 }
 
-export default function World({ mode='battle', state, playback, quality, reduced=false, run, onSelect, inspecting, onComplete, won=true, onSceneReady, heroAction='idle' }) {
+export default function World({ mode='battle', state, playback, quality, reduced=false, run, onSelect, inspecting, onHighlight, highlightedNodeId, onComplete, won=true, onSceneReady, heroAction='idle', onAnchors }) {
   const variant=mode==='forge'||['ember','scarab','ravager','boss'].includes(state?.enemy.type)?'forge':['bat','wisp','watcher','mushroom'].includes(state?.enemy.type)?'library':'hall';
   return <>
     <color attach="background" args={[DUSK.background]} />
     <fog attach="fog" args={[DUSK.background,12,30]} />
     <CameraFit mode={mode} /><EnvironmentLight quality={quality} />
-    {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} />}
+    {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} onHighlight={onHighlight} highlightedNodeId={highlightedNodeId} />}
     <Suspense fallback={null}>
       {mode!=='map'&&<Dungeon variant={variant} mode={mode} />}
-      {mode==='battle'?<BattleActors state={state} director={playback} quality={quality} reduced={reduced} />
+      {mode==='battle'?<BattleActors state={state} director={playback} quality={quality} reduced={reduced} onAnchors={onAnchors} />
         :mode==='entry'?<EntranceActor reduced={reduced} onComplete={onComplete} />
           :mode==='map'?null:mode==='title'?<Actor position={[.9,0,.9]} rotation={-.38} action={heroAction} still={reduced} />
             :<Actor position={[-1.3,0,0]} rotation={Math.PI/3} action={mode==='result'?won?'victory':'death':'idle'} still={reduced} />}
