@@ -8,6 +8,8 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { modelUrl } from './quality.js';
 import { impactAges } from './playback.js';
 import { ENEMY_HOME, heroPose, impulse } from './heroMotion.js';
+import { BATTLE_FOG, battleCameraPose } from './battleCamera.js';
+import BattleCamera from './BattleCamera.jsx';
 import { createKnightRig } from './knightRig.js';
 import { enemyAttackPose } from '../enemyAttackTimeline.js';
 import SkillEffects from './SkillEffects.jsx';
@@ -64,8 +66,8 @@ function EnvironmentLight({ quality }) {
   </>;
 }
 
-function CameraFit({ mode }) {
-  const { camera, size } = useThree();
+function CameraFit({ mode, view }) {
+  const { camera, size, scene } = useThree();
   useLayoutEffect(() => {
     const aspect = size.width / Math.max(1, size.height);
     const vertical = Math.max(4.25, 7.8 / aspect);
@@ -94,15 +96,23 @@ function CameraFit({ mode }) {
       const target = wide ? new THREE.Vector3(-1.2, 1.15, 0) : new THREE.Vector3(.75, -1.75, 0);
       camera.position.set(target.x + reach * .1, target.y + reach * .3 + .3, reach * .95);
       camera.lookAt(target);
+    } else if (mode === 'battle') {
+      // 전투는 비스듬한 사선 구도. 화면 비율에 맞춰 두 캐릭터가 잘리지 않는 거리를 계산한다.
+      const pose = battleCameraPose(aspect, view);
+      camera.fov = pose.fov;
+      camera.position.set(...pose.position);
+      camera.lookAt(...pose.target);
+      if (scene.fog) [scene.fog.near, scene.fog.far] = pose.fog;
     } else {
       camera.position.set(distance * .12, distance * .32 + 1.3, distance * .95);
       camera.lookAt(0,1.1,0);
     }
+    if (mode !== 'battle' && scene.fog) [scene.fog.near, scene.fog.far] = BATTLE_FOG;
     camera.updateProjectionMatrix();
     // 타격 연출의 카메라 흔들림은 이 위치를 기준으로 잠깐 움직였다가 돌아온다.
     camera.userData.base = camera.position.clone();
     camera.userData.baseFov = camera.fov;
-  }, [camera, size.width, size.height, mode]);
+  }, [camera, scene, size.width, size.height, mode, view]);
   return null;
 }
 
@@ -161,7 +171,7 @@ function Dungeon({ variant = 'hall', mode = 'battle' }) {
         ? items.map((item, i) => <KitClone key={`${piece}-${i}`} source={source} item={item} />)
         : <KitInstances key={piece} source={source} items={items} />;
     })}
-    <mesh position={[0, -.3, 2]} receiveShadow><boxGeometry args={[30, .3, 14]} /><meshStandardMaterial color="#111e19" roughness={1} /></mesh>
+    <mesh position={[0, -.3, 9]} receiveShadow><boxGeometry args={[60, .3, 28]} /><meshStandardMaterial color="#111e19" roughness={1} /></mesh>
     <mesh position={[0, 1.15, WALL_FRONT - TILE - .02]}><planeGeometry args={[2.6, 2.3]} /><meshBasicMaterial color="#070f0d" /></mesh>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .012, 0]}><ringGeometry args={[1.55, 1.57, 64]} /><meshStandardMaterial color="#a78e53" metalness={.5} roughness={.5} /></mesh>
     <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, .016, 0]}><ringGeometry args={[1.03, 1.045, 4]} /><meshStandardMaterial color="#8e8152" metalness={.5} roughness={.5} /></mesh>
@@ -407,12 +417,13 @@ function SceneReady({ callback }) {
   return null;
 }
 
-export default function World({ mode='battle', state, playback, quality, reduced=false, run, onSelect, inspecting, onHighlight, highlightedNodeId, onComplete, won=true, onSceneReady, heroAction='idle', onAnchors }) {
+export default function World({ mode='battle', state, playback, quality, reduced=false, run, onSelect, inspecting, onHighlight, highlightedNodeId, onComplete, won=true, onSceneReady, heroAction='idle', onAnchors, cameraView, studying=false, danger=false }) {
   const variant=mode==='forge'||['ember','scarab','ravager','boss'].includes(state?.enemy.type)?'forge':['bat','wisp','watcher','mushroom'].includes(state?.enemy.type)?'library':'hall';
   return <>
     <color attach="background" args={[DUSK.background]} />
-    <fog attach="fog" args={[DUSK.background,12,30]} />
-    <CameraFit mode={mode} /><EnvironmentLight quality={quality} />
+    <fog attach="fog" args={[DUSK.background,...BATTLE_FOG]} />
+    <CameraFit mode={mode} view={cameraView} /><EnvironmentLight quality={quality} />
+    {mode==='battle'&&<BattleCamera director={playback} view={cameraView} studying={studying} danger={danger} reduced={reduced} />}
     {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} onHighlight={onHighlight} highlightedNodeId={highlightedNodeId} />}
     <Suspense fallback={null}>
       {mode!=='map'&&<Dungeon variant={variant} mode={mode} />}

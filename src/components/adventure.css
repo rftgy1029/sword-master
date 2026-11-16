@@ -14,6 +14,8 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .game-dialog button { border-radius: 0; }
 .game-dialog button:focus-visible, .game-dialog summary:focus-visible { outline: 2px solid var(--amber); outline-offset: -3px; }
 .game-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 28px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+/* 메뉴를 펼치면 아래 본문(체력 패널·전투 화면·머리 위 표시)보다 위에 그린다. 본문 로딩 막(z-index 30)은 본문 안에 있어 겹치지 않는다. */
+.game-header { position: relative; z-index: 20; }
 .game-dialog .game-eyebrow { color: var(--amber); font-size: 9px; letter-spacing: 2px; margin: 0 0 6px; line-height: 1.6; }
 .game-body { flex: 1; min-height: 0; overflow: auto; padding: 26px 30px; overscroll-behavior: contain; scroll-behavior: auto; }
 .game-body:has(.battle-screen) { display: flex; padding: 0; overflow-anchor: none; }

@@ -34,17 +34,20 @@ const place = (piece, x, z, { y = 0, rotate = 0, scale = 1 } = {}) => ({ piece, 
  */
 export function dungeonLayout(variant = 'hall', mode = 'battle') {
   const items = [];
-  const columns = 11;
+  // 전투는 비스듬한 카메라로 넓은 띠를 비추므로 뒷벽과 바닥을 양옆으로 네 칸씩 더 이어, 끝이 화면 밖이나 안개 속에 있게 한다.
+  const columns = mode === 'battle' ? 19 : 11, center = (columns - 1) / 2;
+  // 전투 카메라는 낮게 내려가거나 옆으로 돌 때 앞쪽 바닥까지 비추므로, 세로 화면에서 물러난 카메라 아래까지 바닥을 다섯 줄 더 깐다.
+  const floorRows = mode === 'battle' ? [-1.25, 1.25, 3.75, 6.25, 8.75, 11.25, 13.75, 16.25, 18.75] : [-1.25, 1.25, 3.75, 6.25];
   // 바닥: 가운데 줄(용사와 적이 서는 곳)은 평평한 바닥, 앞뒤 가장자리에만 돌 장식 바닥을 섞는다.
   for (let col = 0; col < columns; col += 1) {
-    const x = (col - (columns - 1) / 2) * TILE;
-    for (const z of [-1.25, 1.25, 3.75, 6.25]) {
+    const x = (col - center) * TILE;
+    for (const z of floorRows) {
       const edge = z < 0 || z > 4;
       items.push(place(edge && Math.abs(x) > 3 && hash(x, z) > .55 ? 'floor-detail' : 'floor', x, z, { rotate: Math.floor(hash(z, x) * 4) * Math.PI / 2 }));
     }
     // 뒷벽은 한 줄만 둔다. 가운데 칸은 출입구, 몇 칸마다 장식이 있는 좁은 벽을 섞어 반복이 덜 보이게 한다.
     // (벽 위로 한 줄을 더 쌓으면 앞 벽과 떨어져 떠 보여서, 벽 위는 어두운 배경으로 남긴다.)
-    const wall = x === 0 ? 'wall-opening' : Math.abs(col - 5) % 3 === 2 ? 'wall-narrow' : 'wall';
+    const wall = x === 0 ? 'wall-opening' : Math.abs(col - center) % 3 === 2 ? 'wall-narrow' : 'wall';
     items.push(place(wall, x, WALL_FRONT - TILE / 2));
   }
 

@@ -237,6 +237,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, on
       <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} cue={cue} motionPreference={motionPreference}
         playerIndicators={shownPlayerHP > 0 && <StatusBadges battle={b} compact busy={skillBusy} />}
         enemyIndicators={shownEnemyHP > 0 && <><EnemyIntent intent={shownIntent} acting={skillBusy && ['hurt', 'enemy'].includes(combatEffect.kind)} /><StatusBadges battle={b} enemy compact busy={skillBusy} /></>}
+        studying={!!b.pending} playerHealth={shownPlayerHP / run.maxHp}
         onReady={() => setVisualStatus('ready')} onError={() => setVisualStatus('fallback')}
         onImpact={(_, target, hit) => {
           if (target === 'player') setShownPlayerHP((hp) => Math.max(fatal ? 0 : run.hp, hp - hit.amount));
