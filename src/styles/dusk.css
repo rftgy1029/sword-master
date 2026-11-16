@@ -173,7 +173,11 @@ dialog::backdrop, .game-dialog::backdrop, .settings-dialog::backdrop, .vocabular
 .game-card.rarity-희귀 { --card-accent: #b9a6f0; background: linear-gradient(180deg, #3b2f55, #2a2140); }
 .game-card.rarity-전설 { --card-accent: #ffd27a; background: linear-gradient(180deg, #5a3d2a, #3a281c); }
 .game-card:hover:not(:disabled), .card-hand .game-card:hover:not(:disabled), .card-hand .game-card:focus-visible { border-color: var(--card-accent)!important; background: linear-gradient(180deg, #44344f, #2f2439); box-shadow: 0 9px 0 var(--edge); }
-.card-cost { border: 2px solid #5a2f15; background: linear-gradient(180deg, #ffc477, #f08e44); color: #2a1608; }
+/* Galmuri11 숫자 글리프의 오른쪽 여백·하단 디센더 때문에 숫자가 왼쪽 아래로 치우치지 않게 줄 높이와 안쪽 여백으로 원 정중앙에 맞춘다. */
+.card-cost { flex-shrink: 0; border: 2px solid #5a2f15; background: linear-gradient(180deg, #ffc477, #f08e44); color: #2a1608; font-size: 16px; font-weight: 700; line-height: 1; padding: 2px 0 0 2px; font-variant-numeric: tabular-nums; }
+@media (max-width: 650px) {
+  .card-cost { width: 26px; height: 26px; font-size: 15px; padding: 2px 0 0 1.5px; }
+}
 .card-top small, .card-description { color: var(--muted); }
 .card-shortcut { border: 2px solid #4d3b5b; color: var(--muted); }
 .card-art { background: radial-gradient(ellipse at 50% 70%, #ffb25e22, transparent 70%); border-color: #3e2f4b; }
