@@ -218,7 +218,8 @@ export default function ImpactEffects({ director, pose, quality, reduced }) {
       shakeOffset.set(Math.sin(t * 91) + Math.sin(t * 53) * .5, Math.cos(t * 77) * .8, 0).multiplyScalar(.055 * shake);
       if (type === 'heavy') shakeOffset.y -= .05 * shake;
       camera.position.copy(base).add(shakeOffset);
-      camera.fov = camera.userData.baseFov - 1.6 * shake - chargeZoom;
+      // 줌 폭은 기본 시야각(37°) 기준 값이다. 넓은 화면에서 시야각을 좁힌 경우에도 같은 비율로 당긴다.
+      camera.fov = camera.userData.baseFov * (1 - (1.6 * shake + chargeZoom) / 37);
       camera.updateProjectionMatrix();
       shaken.current = true;
       invalidate();

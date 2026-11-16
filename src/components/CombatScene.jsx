@@ -2,12 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createCombatAudio } from '../game/combatAudio.js';
 import { useGraphics } from './GraphicsContext.jsx';
 import { CombatPlayback, combatMotionMode } from '../game/three/playback.js';
+import { LOW_HEALTH } from '../game/three/cameraDirector.js';
 import SceneView from './SceneView.jsx';
 import LegacyCombatScene from './LegacyCombatScene.jsx';
 
 export default function CombatScene({
   enemy, effect, playerDead = false, cue, motionPreference, onBusy, onReady, onError, onImpact, onController,
-  playerIndicators, enemyIndicators,
+  playerIndicators, enemyIndicators, cameraView, studying = false, playerHealth = 1,
 }) {
   const latest = useRef(null);
   latest.current = { onBusy, onImpact };
@@ -146,7 +147,8 @@ export default function CombatScene({
 
   const state = { enemy, playerDead };
   return <div ref={overlay} className={`combat-scene effect-${effect.kind}`} data-motion={mode}>
-    <SceneView mode="battle" state={state} playback={playback} playbackBusy={busy} onAnchors={positionIndicators}
+    <SceneView mode="battle" state={state} playback={playback} playbackBusy={busy} onAnchors={positionIndicators} cameraView={cameraView}
+      studying={studying} danger={!playerDead && playerHealth <= LOW_HEALTH}
       callbacks={{ onReady }} motionPreference={motionPreference} onController={(controller) => {
         scene.current = controller;
         onController?.(controller);
