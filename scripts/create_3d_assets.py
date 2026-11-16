@@ -12,6 +12,32 @@ import sys
 from pathlib import Path
 from mathutils import Vector
 
+SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from monsters_wild import (
+    build_bat, build_crawler, build_hound, build_mushroom, build_scarab, build_slime,
+)
+from monsters_guardian import (
+    build_boss, build_ember, build_ravager, build_sentinel, build_watcher, build_wisp,
+)
+
+MONSTER_BUILDERS = {
+    'crawler': build_crawler,
+    'sentinel': build_sentinel,
+    'ember': build_ember,
+    'bat': build_bat,
+    'slime': build_slime,
+    'mushroom': build_mushroom,
+    'scarab': build_scarab,
+    'wisp': build_wisp,
+    'hound': build_hound,
+    'ravager': build_ravager,
+    'watcher': build_watcher,
+    'boss': build_boss,
+}
+
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'public/models'
 OUT.mkdir(parents=True, exist_ok=True)
@@ -423,43 +449,94 @@ def odd(root, kind):
             curve('wing leading edge',points[:3],.026,violet,wing)
 
 def animate():
-    # Rigid articulated joints retain complete meshes; all clips are in the GLB.
+    # Rigid articulated joints retain complete meshes; all 7 clips are exported in the GLB.
     bases=[(obj,role,tuple(obj.location),tuple(obj.rotation_euler),tuple(obj.scale)) for obj,role,*_ in JOINTS]
     for clip in ['idle','walk','attack','hit','guard','victory','death']:
-        length=48 if clip in ['idle','walk'] else 30
+        length=49 if clip in ['idle','walk'] else 31
+        frames=list(range(1,length+1,3))
+        if frames[-1]!=length: frames.append(length)
         for obj,role,loc,rot,scale in bases:
             action=bpy.data.actions.new(clip+'_'+obj.name)
             obj.animation_data_create(); obj.animation_data.action=action
-            for frame in range(1,length+1,3):
-                t=(frame-1)/(length-1); wave=math.sin(t*math.tau)
+            for frame in frames:
+                t=(frame-1)/(length-1); wave=math.sin(t*math.tau); pulse=math.sin(math.pi*t)
                 obj.location=loc; obj.rotation_euler=rot; obj.scale=scale
                 if clip=='idle':
-                    if role in ['torso','spirit']: obj.location.z+=math.sin(t*math.tau)*(.045 if role=='spirit' else .012)
-                    if role=='cape': obj.rotation_euler.x+=wave*.045
-                    if role=='slime': obj.scale.z=1+wave*.04
-                    if role in ['wingL','wingR']: obj.rotation_euler.y=wave*(.34 if role=='wingL' else -.34)
-                if clip=='walk':
+                    if role=='torso': obj.location.z+=wave*.014
+                    elif role=='beast_body': obj.scale.z*=(1+wave*.025); obj.location.z+=wave*.008
+                    elif role=='head': obj.rotation_euler.x+=wave*.04
+                    elif role=='spirit': obj.location.z+=wave*.065
+                    elif role=='crystals': obj.rotation_euler.z+=t*math.tau
+                    elif role=='cape': obj.rotation_euler.x+=wave*.045
+                    elif role=='tail': obj.rotation_euler.z+=wave*.14
+                    elif role=='slime': obj.scale=(scale[0]*(1-wave*.03),scale[1]*(1-wave*.03),scale[2]*(1+wave*.055))
+                    elif role in ['wingL','wingR']: obj.rotation_euler.y+=wave*(.38 if role=='wingL' else -.38)
+                elif clip=='walk':
                     if role in ['legL','armR']: obj.rotation_euler.x+=wave*.38
-                    if role in ['legR','armL']: obj.rotation_euler.x-=wave*.38
-                    if role=='torso': obj.location.z+=abs(wave)*.025
-                    if role=='cape': obj.rotation_euler.x=-.15+wave*.05
-                pulse=math.sin(math.pi*t)
-                if clip=='attack':
+                    elif role in ['legR','armL']: obj.rotation_euler.x-=wave*.38
+                    elif role in ['legFL','legBR','legML']: obj.rotation_euler.x+=wave*.32
+                    elif role in ['legFR','legBL','legMR']: obj.rotation_euler.x-=wave*.32
+                    elif role in ['torso','beast_body']: obj.location.z+=abs(wave)*.028
+                    elif role=='head': obj.rotation_euler.x+=wave*.045
+                    elif role=='spirit': obj.location.z+=wave*.055; obj.rotation_euler.x-=.12
+                    elif role=='crystals': obj.rotation_euler.z+=t*math.tau
+                    elif role=='cape': obj.rotation_euler.x-=.15-wave*.05
+                    elif role=='tail': obj.rotation_euler.z+=wave*.22
+                    elif role=='slime': obj.location.z+=abs(wave)*.06; obj.scale=(scale[0]*(1-wave*.04),scale[1]*(1-wave*.04),scale[2]*(1+wave*.08))
+                    elif role in ['wingL','wingR']: obj.rotation_euler.y+=wave*(.48 if role=='wingL' else -.48)
+                elif clip=='attack':
                     if role=='armR':
-                        # Anticipation, forward contact, then follow-through.
                         swing=-1.25*math.sin(t/.3*math.pi/2) if t<.3 else -1.25+(t-.3)/.28*2.15 if t<.58 else .9*(1-(t-.58)/.42)
                         obj.rotation_euler.x+=swing
-                    if role=='armL': obj.rotation_euler.x-=pulse*.35
-                    if role in ['torso','head']: obj.rotation_euler.z+=pulse*.25
-                    if role=='slime': obj.scale=(1+pulse*.15,1+pulse*.15,1-pulse*.18)
-                    if role=='spirit': obj.location.z+=pulse*.17
-                    if role in ['wingL','wingR']: obj.rotation_euler.y=wave*(.6 if role=='wingL' else -.6)
-                if clip=='hit':
-                    if role=='torso': obj.rotation_euler.x+=pulse*.25
-                    if role=='head': obj.rotation_euler.x+=pulse*.18
-                if clip=='guard' and role in ['armL','armR']: obj.rotation_euler.x-=pulse*1.1
-                if clip=='victory' and role=='armR': obj.rotation_euler.x-=pulse*2.3
-                if clip=='death' and role=='torso': obj.rotation_euler.x+=t*1.35; obj.location.z-=t*.20
+                    elif role=='armL': obj.rotation_euler.x-=pulse*.38
+                    elif role=='torso': obj.rotation_euler.z+=pulse*.22; obj.rotation_euler.x-=pulse*.12
+                    elif role=='beast_body':
+                        lunge=-.16*math.sin(t/.35*math.pi/2) if t<.35 else -.16+(t-.35)/.25*.34 if t<.6 else .18*(1-(t-.6)/.4)
+                        obj.rotation_euler.x+=lunge; obj.location.y-=pulse*.08
+                    elif role=='head':
+                        snap=.18*math.sin(t/.32*math.pi/2) if t<.32 else .18-(t-.32)/.28*.40 if t<.6 else -.22*(1-(t-.6)/.4)
+                        obj.rotation_euler.x+=snap; obj.rotation_euler.z+=pulse*.12
+                    elif role=='slime': obj.scale=(scale[0]*(1+pulse*.16),scale[1]*(1+pulse*.16),scale[2]*(1-pulse*.20)); obj.location.y-=pulse*.12
+                    elif role=='spirit': obj.location.z+=pulse*.18; obj.location.y-=pulse*.14; obj.rotation_euler.x-=pulse*.18
+                    elif role=='crystals': obj.rotation_euler.z+=t*math.tau*2
+                    elif role=='tail': obj.rotation_euler.x-=pulse*.42
+                    elif role=='cape': obj.rotation_euler.x-=.22*pulse
+                    elif role in ['wingL','wingR']: obj.rotation_euler.y+=wave*(.65 if role=='wingL' else -.65)
+                elif clip=='hit':
+                    if role in ['torso','beast_body']: obj.rotation_euler.x+=pulse*.26; obj.location.y+=pulse*.06
+                    elif role=='spirit': obj.rotation_euler.x+=pulse*.28; obj.location.y+=pulse*.10
+                    elif role=='head': obj.rotation_euler.x+=pulse*.24
+                    elif role=='armL': obj.rotation_euler.y-=.35*pulse
+                    elif role=='armR': obj.rotation_euler.y+=.35*pulse
+                    elif role=='slime': obj.scale=(scale[0]*(1+pulse*.20),scale[1]*(1+pulse*.20),scale[2]*(1-pulse*.22))
+                    elif role=='crystals': obj.rotation_euler.z+=t*math.tau; obj.rotation_euler.x+=pulse*.20
+                    elif role in ['wingL','wingR']: obj.rotation_euler.y+=pulse*(.42 if role=='wingL' else -.42)
+                elif clip=='guard':
+                    if role in ['armL','armR']: obj.rotation_euler.x-=pulse*1.12
+                    elif role in ['torso','beast_body']: obj.location.z-=pulse*.06; obj.rotation_euler.x-=pulse*.12
+                    elif role=='head': obj.rotation_euler.x-=pulse*.16
+                    elif role=='spirit': obj.scale=(scale[0]*(1-pulse*.08),scale[1]*(1-pulse*.08),scale[2]*(1-pulse*.08))
+                    elif role=='crystals': obj.rotation_euler.z+=t*math.tau; obj.scale=(scale[0]*(1-pulse*.15),scale[1]*(1-pulse*.15),scale[2]*(1-pulse*.15))
+                    elif role=='slime': obj.scale=(scale[0]*(1+pulse*.14),scale[1]*(1+pulse*.14),scale[2]*(1-pulse*.18))
+                    elif role in ['wingL','wingR']: obj.rotation_euler.z+=pulse*(.45 if role=='wingL' else -.45)
+                elif clip=='victory':
+                    if role=='armR': obj.rotation_euler.x-=pulse*2.25
+                    elif role=='armL': obj.rotation_euler.x-=pulse*.95
+                    elif role in ['torso','beast_body']: obj.rotation_euler.x+=pulse*.16; obj.location.z+=pulse*.05
+                    elif role=='head': obj.rotation_euler.x+=pulse*.24
+                    elif role=='spirit': obj.location.z+=pulse*.22; obj.scale=(scale[0]*(1+pulse*.10),scale[1]*(1+pulse*.10),scale[2]*(1+pulse*.10))
+                    elif role=='crystals': obj.rotation_euler.z+=t*math.tau*2; obj.scale=(scale[0]*(1+pulse*.16),scale[1]*(1+pulse*.16),scale[2]*(1+pulse*.16))
+                    elif role=='slime': obj.scale=(scale[0]*(1-pulse*.12),scale[1]*(1-pulse*.12),scale[2]*(1+pulse*.26)); obj.location.z+=pulse*.12
+                    elif role in ['wingL','wingR']: obj.rotation_euler.y+=pulse*(-.38 if role=='wingL' else .38)
+                elif clip=='death':
+                    if role=='torso': obj.rotation_euler.x+=t*1.32; obj.location.z-=t*.22
+                    elif role=='beast_body': obj.rotation_euler.x+=t*.55; obj.location.z-=t*.16
+                    elif role=='spirit': obj.location.z-=t*.42; obj.rotation_euler.z+=t*1.8; obj.scale=(scale[0]*(1-t*.45),scale[1]*(1-t*.45),scale[2]*(1-t*.45))
+                    elif role=='crystals': obj.location.z-=t*.42; obj.scale=(scale[0]*(1-t*.55),scale[1]*(1-t*.55),scale[2]*(1-t*.55))
+                    elif role=='head': obj.rotation_euler.x-=t*.42
+                    elif role in ['armL','armR']: obj.rotation_euler.x+=t*.60
+                    elif role=='slime': obj.scale=(scale[0]*(1+t*.34),scale[1]*(1+t*.34),scale[2]*max(.22,1-t*.78))
+                    elif role in ['wingL','wingR']: obj.rotation_euler.y+=t*(.82 if role=='wingL' else -.82)
                 for prop in ['location','rotation_euler','scale']: obj.keyframe_insert(data_path=prop,frame=frame)
             track=obj.animation_data.nla_tracks.new(); track.name=clip
             strip=track.strips.new(clip,1,action); strip.name=clip
@@ -467,6 +544,7 @@ def animate():
             obj.location=loc; obj.rotation_euler=rot; obj.scale=scale
 
 def optimize_meshes():
+    bpy.context.view_layer.update()
     groups={}
     for obj in list(bpy.context.scene.objects):
         if obj.type=='MESH' and len(obj.data.materials)==1:
@@ -488,19 +566,18 @@ manifest={'source':'scripts/create_3d_assets.py, scripts/import_kenney_hero.py',
 # `-- sentinel boss` 처럼 이름을 넘기면 해당 모델만 다시 만든다. 만들지 않은 모델의 manifest 항목은 항상 유지한다.
 selected=[name for name in (sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []) if name in catalog]
 if (OUT/'manifest.json').exists():
-    manifest['models']=json.loads((OUT/'manifest.json').read_text())['models']
+    existing=json.loads((OUT/'manifest.json').read_text())
+    manifest['models']=existing.get('models',{})
+    if 'dungeon' in existing: manifest['dungeon']=existing['dungeon']
 for kind in (selected or default):
     bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
     MATS={}; JOINTS=[]
     root=bpy.data.objects.new(kind,None); bpy.context.collection.objects.link(root)
     if kind=='hero': hero(root)
-    elif kind in ['sentinel','ravager','boss']: humanoid(root,kind)
-    elif kind in ['crawler','hound','scarab']: beast(root,kind)
-    elif kind in ['ember','wisp','watcher']: spirit(root,kind)
-    else: odd(root,kind)
+    else: MONSTER_BUILDERS[kind](root,JOINTS)
     optimize_meshes()
     animate()
-    bpy.context.scene.frame_start=1; bpy.context.scene.frame_end=48; bpy.context.scene.render.fps=24
+    bpy.context.scene.frame_start=1; bpy.context.scene.frame_end=49; bpy.context.scene.render.fps=24
     bpy.context.scene.frame_set(1)
     bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_OUT/(kind+'.blend')),copy=True,compress=True)
     bpy.ops.object.select_all(action='SELECT')

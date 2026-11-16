@@ -28,160 +28,193 @@
     },
     "crawler": {
       "file": "crawler.glb",
-      "bytes": 227252,
+      "bytes": 540144,
       "clips": [
         "idle",
         "walk",
         "attack",
         "hit",
+        "guard",
+        "victory",
         "death"
       ],
-      "meshes": 16,
+      "meshes": 37,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "sentinel": {
       "file": "sentinel.glb",
-      "bytes": 283648,
+      "bytes": 243072,
       "clips": [
         "walk",
         "idle",
         "attack",
         "hit",
-        "death",
         "guard",
-        "victory"
+        "victory",
+        "death"
       ],
-      "meshes": 31,
+      "meshes": 29,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "ember": {
       "file": "ember.glb",
-      "bytes": 134296,
+      "bytes": 110392,
       "clips": [
         "idle",
-        "attack"
+        "walk",
+        "attack",
+        "hit",
+        "guard",
+        "victory",
+        "death"
       ],
-      "meshes": 5,
+      "meshes": 10,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "bat": {
       "file": "bat.glb",
-      "bytes": 89800,
+      "bytes": 169156,
       "clips": [
         "idle",
-        "attack"
+        "walk",
+        "attack",
+        "hit",
+        "guard",
+        "victory",
+        "death"
       ],
-      "meshes": 7,
+      "meshes": 18,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "slime": {
       "file": "slime.glb",
-      "bytes": 135076,
+      "bytes": 104256,
       "clips": [
         "idle",
-        "attack"
+        "walk",
+        "attack",
+        "hit",
+        "guard",
+        "victory",
+        "death"
       ],
-      "meshes": 5,
+      "meshes": 7,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "mushroom": {
       "file": "mushroom.glb",
-      "bytes": 157588,
+      "bytes": 219816,
       "clips": [
         "idle",
         "walk",
         "attack",
         "hit",
+        "guard",
+        "victory",
         "death"
       ],
-      "meshes": 5,
+      "meshes": 17,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "scarab": {
       "file": "scarab.glb",
-      "bytes": 149296,
+      "bytes": 160044,
       "clips": [
         "idle",
         "walk",
         "attack",
         "hit",
+        "guard",
+        "victory",
         "death"
       ],
-      "meshes": 14,
+      "meshes": 22,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "wisp": {
       "file": "wisp.glb",
-      "bytes": 134312,
+      "bytes": 108356,
       "clips": [
         "idle",
-        "attack"
+        "walk",
+        "attack",
+        "hit",
+        "guard",
+        "victory",
+        "death"
       ],
-      "meshes": 5,
+      "meshes": 10,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "hound": {
       "file": "hound.glb",
-      "bytes": 150112,
+      "bytes": 226696,
       "clips": [
         "idle",
         "walk",
         "attack",
         "hit",
+        "guard",
+        "victory",
         "death"
       ],
-      "meshes": 14,
+      "meshes": 21,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "ravager": {
       "file": "ravager.glb",
-      "bytes": 305572,
+      "bytes": 292236,
       "clips": [
         "walk",
         "idle",
         "attack",
         "hit",
-        "death",
         "guard",
-        "victory"
+        "victory",
+        "death"
       ],
-      "meshes": 33,
+      "meshes": 26,
       "rig": "articulated transform hierarchy",
       "ground": 0
     },
     "watcher": {
       "file": "watcher.glb",
-      "bytes": 151304,
-      "clips": [
-        "idle",
-        "attack"
-      ],
-      "meshes": 5,
-      "rig": "articulated transform hierarchy",
-      "ground": 0
-    },
-    "boss": {
-      "file": "boss.glb",
-      "bytes": 374624,
+      "bytes": 102532,
       "clips": [
         "idle",
         "walk",
         "attack",
         "hit",
-        "death",
         "guard",
-        "victory"
+        "victory",
+        "death"
       ],
-      "meshes": 35,
+      "meshes": 9,
+      "rig": "articulated transform hierarchy",
+      "ground": 0
+    },
+    "boss": {
+      "file": "boss.glb",
+      "bytes": 310904,
+      "clips": [
+        "walk",
+        "idle",
+        "attack",
+        "hit",
+        "guard",
+        "victory",
+        "death"
+      ],
+      "meshes": 32,
       "rig": "articulated transform hierarchy",
       "ground": 0
     }

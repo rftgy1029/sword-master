@@ -34,9 +34,8 @@ test('all 13 GLBs have complete meshes, materials, matching manifests and usable
     }
     const clips=gltf.animations.map(a=>a.name);
     assert.deepEqual(clips,manifest.models[name].clips);
-    assert.ok(clips.includes('idle')&&clips.includes('attack'));
+    for(const clip of ['idle','walk','attack','hit','guard','victory','death'])assert.ok(clips.includes(clip),`${name} includes ${clip}`);
     for(const clip of gltf.animations){assert.ok(clip.channels.length);assert.ok(clip.samplers.length);}
-    if(['hero','sentinel'].includes(name))for(const clip of ['walk','hit','guard','victory','death'])assert.ok(clips.includes(clip));
     total+=bytes.length;
   }
   assert.ok(total<12*1024*1024,'All models fit inside the first-scene model budget');
