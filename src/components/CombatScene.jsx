@@ -155,7 +155,7 @@ export default function CombatScene({
       }}
       fallback={<LegacyCombatScene {...state} playback={playback} motionPreference={motionPreference}
         onReady={onReady} onError={fail} onAnchors={positionIndicators} />} />
-    <div className="combat-overheads">
+    <div className={`combat-overheads${busy ? ' is-busy' : ''}`}>
       <div ref={node => { overheads.current.player = node; }} className="combat-overhead is-player">{playerIndicators}</div>
       <div ref={node => { overheads.current.enemy = node; }} className="combat-overhead is-enemy">{enemyIndicators}</div>
     </div>
