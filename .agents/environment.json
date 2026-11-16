@@ -1,0 +1,3 @@
+{
+  "install": "npm ci && if [ -x /usr/bin/chromium ]; then touch \"$HOME/.bashrc\"; sed -i '/case \\$- in/,/esac/d' \"$HOME/.bashrc\" 2>/dev/null || true; grep -qxF 'export CHROMIUM_PATH=/usr/bin/chromium' \"$HOME/.bashrc\" || echo 'export CHROMIUM_PATH=/usr/bin/chromium' >> \"$HOME/.bashrc\"; elif [ -z \"${CHROMIUM_PATH:-}\" ]; then npx playwright install chromium; fi"
+}
