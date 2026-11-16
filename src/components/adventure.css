@@ -519,8 +519,8 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .service-burst.healing { color: #b1ffdb; }
 .service-burst.healing > i { background: #a0ffca; box-shadow: 0 0 8px #70ffc0; }
 .game-dialog .loot-toast { color: #ecd496; text-align: center; margin: 15px auto; width: fit-content; }
-.scene-transition.motion-reduced.transition-cover { animation: curtain-fade-in 100ms both !important; }
-.scene-transition.motion-reduced.transition-reveal { animation: curtain-fade-out 100ms both !important; }
+.scene-transition.motion-reduced.transition-cover i { animation: curtain-fade-in 100ms both !important; }
+.scene-transition.motion-reduced.transition-reveal i { animation: curtain-fade-out 100ms both !important; }
 @keyframes fire-flicker { to { transform: scale(1.07,.95); filter: brightness(1.25); } }
 @keyframes fire-ember { from { opacity: 0; transform: translate(0,0); } 20% { opacity: 1; } to { opacity: 0; transform: translate(12px,-75px); } }
 @keyframes forge-burst { from { opacity: 1; transform: translate(0,0) scale(1.5); } to { opacity: 0; transform: translate(calc((var(--spark) - 9) * 15px),-85px) rotate(140deg) scale(.1); } }

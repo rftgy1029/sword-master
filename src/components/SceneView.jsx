@@ -29,7 +29,7 @@ function SceneChoice({ mode='battle', fallback, onFailure, onLoaded, motionPrefe
   const use3d=graphics.renderer!=='2d' && !graphics.unavailable && !failed;
   useEffect(()=>{
     if(!active||!use3d||ready)return;
-    const timer=setTimeout(fail,15000);
+    const timer=setTimeout(fail,25000);
     return()=>clearTimeout(timer);
   },[active,use3d,ready,fail]);
   if(!active)return <div className={`scene-view ${className}`} />;

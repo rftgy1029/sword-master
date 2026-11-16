@@ -297,3 +297,104 @@ kbd { border: 2px solid #4d3b5b; border-bottom-width: 3px; background: var(--plu
   gap: 5px; padding: 3px 8px; font-size: 8px; letter-spacing: 1px;
 }
 .battlefield .battle-turn strong { font-size: 12px; }
+
+/* ---------- 첫 접속 3D 에셋 다운로드 창 ---------- */
+.asset-download-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: radial-gradient(ellipse at 70% 25%, #3d2444cc, #0d0914f2 70%);
+}
+.asset-download-card {
+  width: min(460px, 100%);
+  padding: 26px 24px 22px;
+  border: 9px solid transparent;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #2e2338fa, #1f1828fa) padding-box, var(--wood-grain) border-box;
+  box-shadow: 0 0 0 3px var(--wood-edge), inset 0 0 0 3px var(--wood-edge), 0 9px 0 #0b0710, 0 28px 70px #000c;
+  color: var(--ivory);
+}
+.asset-download-eyebrow {
+  margin: 0 0 6px;
+  color: var(--sun);
+  font-size: 11px;
+  letter-spacing: 2.4px;
+}
+.asset-download-card h2 {
+  margin: 0 0 10px;
+  font-size: calc(22px * var(--text-scale));
+  color: var(--ivory);
+  text-shadow: 0 2px 0 var(--wood-edge);
+}
+.asset-download-status {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.65;
+}
+.asset-download-track {
+  height: 18px;
+  padding: 2px;
+  border: 3px solid var(--edge);
+  border-radius: 999px;
+  background: var(--plum-deep);
+  overflow: hidden;
+}
+.asset-download-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--sun-deep), #ffc477);
+  transition: width 160ms ease-out;
+}
+.asset-download-fill.is-error {
+  background: linear-gradient(90deg, #a8484c, var(--rose));
+}
+.asset-download-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: calc(12px * var(--text-scale));
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.asset-download-meta strong {
+  color: var(--sun);
+  white-space: nowrap;
+}
+.asset-download-error {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 2px solid #8a4449;
+  border-radius: 10px;
+  background: #3d1f25;
+  color: #ffd5cc;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.asset-download-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+.asset-download-actions button {
+  min-height: 44px;
+  padding: 10px 16px;
+}
+@media (max-width: 520px) {
+  .asset-download-card { padding: 20px 18px 18px; }
+  .asset-download-meta { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .asset-download-actions { flex-direction: column; }
+  .asset-download-actions button { width: 100%; }
+}
+.app[data-background-motion="off"] .asset-download-fill { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .asset-download-fill { transition: none; }
+}

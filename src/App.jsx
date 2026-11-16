@@ -11,7 +11,9 @@ import { listenForMenuNavigation } from './menuNavigation.js';
 import { useProgress } from './game/useProgress.js';
 import { TIERS } from './vocabulary.js';
 import { SceneTransitionProvider, useSceneTransition } from './components/SceneTransition.jsx';
-import { GraphicsProvider } from './components/GraphicsContext.jsx';
+import { GraphicsProvider, useGraphics } from './components/GraphicsContext.jsx';
+import AssetDownloadOverlay from './components/AssetDownloadOverlay.jsx';
+import { isEmbeddedAssetBundle, isTitlePreloadReady, preloadCombatAssets, preloadTitleAssets } from './game/assetPreload.js';
 import { version } from '../package.json';
 import SwordLogo from './components/ui/SwordLogo.jsx';
 import { MENU_REACTIONS, MENU_WORDS, matchTyped, typeKey } from './titleWords.js';
@@ -31,6 +33,7 @@ const TYPED_SWING = 650; // 단어를 끝까지 치면 기사가 칼을 휘두�
 
 function GameApp({ settings, setSettings }) {
   const transition = useSceneTransition();
+  const graphics = useGraphics();
   const [selected, setSelected] = useState(0);
   const [openedMenu, setOpenedMenu] = useState(null);
   const [settingsSaved, setSettingsSaved] = useState(null);
@@ -49,20 +52,87 @@ function GameApp({ settings, setSettings }) {
   const swing = useRef(null);
   const reducedMotion = settings.backgroundMotion !== 'normal';
 
+  const needsPreload = settings.renderer !== '2d' && !graphics.unavailable && !isEmbeddedAssetBundle();
+  const [preloadAttempt, setPreloadAttempt] = useState(0);
+  const [preloadState, setPreloadState] = useState(() => ({
+    ready: !needsPreload || isTitlePreloadReady(),
+    status: 'idle',
+    progress: { percent: 0, loadedBytes: 0, totalBytes: 0, label: '3D 자산 확인 중…' },
+    error: '',
+  }));
+  const [showDownloadCard, setShowDownloadCard] = useState(false);
+  const wasDownloading = useRef(false);
+  const titleAssetsReady = !needsPreload || preloadState.ready;
+  const downloadVisible = needsPreload && !preloadState.ready && showDownloadCard && openedMenu === null;
+
+  useEffect(() => {
+    if (!needsPreload) {
+      setShowDownloadCard(false);
+      return undefined;
+    }
+    if (isTitlePreloadReady()) {
+      setShowDownloadCard(false);
+      setPreloadState((prev) => (prev.ready ? prev : { ...prev, ready: true, status: 'ready', error: '' }));
+      preloadCombatAssets();
+      return undefined;
+    }
+    let cancelled = false;
+    const revealTimer = setTimeout(() => { if (!cancelled) setShowDownloadCard(true); }, 200);
+    setPreloadState((prev) => ({ ...prev, ready: false, status: 'loading', error: '' }));
+    const task = preloadTitleAssets({
+      onProgress: (nextProgress) => {
+        if (!cancelled) setPreloadState((prev) => ({ ...prev, progress: nextProgress }));
+      },
+    });
+    task.promise
+      .then(() => {
+        if (cancelled) return;
+        clearTimeout(revealTimer);
+        setShowDownloadCard(false);
+        setPreloadState((prev) => ({ ...prev, ready: true, status: 'ready', error: '' }));
+        preloadCombatAssets();
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        clearTimeout(revealTimer);
+        setShowDownloadCard(true);
+        setPreloadState((prev) => ({
+          ...prev,
+          ready: false,
+          status: 'error',
+          error: err?.message ?? '자산을 불러오지 못했습니다.',
+        }));
+      });
+    return () => {
+      cancelled = true;
+      clearTimeout(revealTimer);
+      task.unsubscribe();
+    };
+  }, [needsPreload, preloadAttempt]);
+
+  useEffect(() => {
+    if (downloadVisible) {
+      wasDownloading.current = true;
+    } else if (wasDownloading.current) {
+      wasDownloading.current = false;
+      if (openedMenu === null) buttons.current[selected]?.focus({ preventScroll: true });
+    }
+  }, [downloadVisible, openedMenu, selected]);
+
   useEffect(() => { buttons.current[0]?.focus({ preventScroll: true }); }, []);
   useEffect(() => { setSettingsSaved(saveSettings(settings)); }, [settings]);
   useEffect(() => {
-    if (openedMenu !== null) return;
+    if (openedMenu !== null || downloadVisible) return;
     const indices = MENU.map((_, i) => i).filter(isEnabled);
     return listenForMenuNavigation(document, {
       menu: menu.current, buttons: indices.map((i) => buttons.current[i]), selected: Math.max(0, indices.indexOf(selected)),
       onSelect: (i) => setSelected(indices[i]),
     });
-  }, [openedMenu, selected, canContinue, canSurvey]);
+  }, [openedMenu, downloadVisible, selected, canContinue, canSurvey]);
 
   useEffect(() => () => clearTimeout(swing.current), []);
   useEffect(() => {
-    if (openedMenu !== null) { typedRef.current = ''; setTyped(''); return; }
+    if (openedMenu !== null || downloadVisible) { typedRef.current = ''; setTyped(''); return; }
     const enabled = MENU.map((_, i) => isEnabled(i));
     function onKey(event) {
       if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || swing.current) return;
@@ -133,7 +203,7 @@ function GameApp({ settings, setSettings }) {
     <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect} data-background-motion={settings.backgroundMotion}>
       <main className="start-screen">
         <div className="title-backdrop">
-          <TitleScene active={openedMenu === null || openedMenu === '설문 참여'} motionPreference={settings.backgroundMotion} heroAction={heroAction} />
+          <TitleScene active={titleAssetsReady && (openedMenu === null || openedMenu === '설문 참여')} motionPreference={settings.backgroundMotion} heroAction={heroAction} />
         </div>
         <section className="title-panel" aria-label="S’word Master 시작">
           <SwordLogo />
@@ -165,6 +235,18 @@ function GameApp({ settings, setSettings }) {
         : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
           : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
             newAdventure={openedMenu === '새 모험'} onClose={closeAdventure} /> : null}
+      {downloadVisible && (
+        <AssetDownloadOverlay
+          progress={preloadState.progress}
+          status={preloadState.status}
+          error={preloadState.error}
+          onRetry={() => setPreloadAttempt((n) => n + 1)}
+          onUse2d={() => {
+            setShowDownloadCard(false);
+            graphics.reportFailure();
+          }}
+        />
+      )}
     </div>
   );
 }

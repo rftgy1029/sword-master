@@ -447,14 +447,14 @@ html:has(.vocabulary-dialog[open]) { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .menu-button.is-selected, .selection-sample { animation: none; } }
 
 /* One directional curtain is shared by the title and every native dialog. */
-.scene-transition { position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 2147483647; background: #030606; pointer-events: auto; cursor: progress; }
-.scene-transition i { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, #22332944, transparent 65%); }
-.transition-cover { animation: curtain-cover 280ms cubic-bezier(.4,0,.2,1) both; }
-.transition-covered { clip-path: inset(0); }
-.transition-reveal { animation: curtain-reveal 280ms cubic-bezier(.4,0,.2,1) both; }
-.scene-transition.motion-reduced { clip-path: none; }
-.motion-reduced.transition-cover { animation: curtain-fade-in 100ms both; }
-.motion-reduced.transition-reveal { animation: curtain-fade-out 100ms both; }
+.scene-transition { position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 2147483647; background: transparent; pointer-events: auto; cursor: progress; }
+.scene-transition i { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, #22332944, transparent 65%), #030606; }
+.transition-cover i { animation: curtain-cover 280ms cubic-bezier(.4,0,.2,1) both; }
+.transition-covered i { clip-path: inset(0); }
+.transition-reveal i { animation: curtain-reveal 280ms cubic-bezier(.4,0,.2,1) both; }
+.scene-transition.motion-reduced i { clip-path: none; }
+.motion-reduced.transition-cover i { animation: curtain-fade-in 100ms both; }
+.motion-reduced.transition-reveal i { animation: curtain-fade-out 100ms both; }
 @keyframes curtain-cover { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
 @keyframes curtain-reveal { from { clip-path: inset(0); } to { clip-path: inset(0 0 0 100%); } }
 @keyframes curtain-fade-in { from { opacity: 0; } to { opacity: 1; } }
