@@ -15,6 +15,8 @@ import { cardShortcutIndex, confirmShortcut, cancelShortcut } from '../game/comb
 import StatusBadges from './StatusBadges.jsx';
 import { CombatEnergy, CombatHealthBar, EnemyIntent } from './CombatIndicators.jsx';
 import SceneView from './SceneView.jsx';
+import { useGraphics } from './GraphicsContext.jsx';
+import { preloadCombatAssets } from '../game/assetPreload.js';
 import GameIcon from './ui/GameIcon.jsx';
 import RouteMap, { ROUTE_STATUS_TEXT, RouteLegend } from './RouteMap.jsx';
 import { ROUTE_LOOK, routeMapState } from '../game/routeMap.js';
@@ -144,6 +146,10 @@ function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, on
   const [shownIntent, setShownIntent] = useState(() => intentFor(run.battle.enemy));
   const transition = useSceneTransition();
   const b = run.battle;
+  const graphics = useGraphics();
+  useEffect(() => {
+    if (graphics.renderer !== '2d' && !graphics.unavailable) preloadCombatAssets({ priorityType: b.enemy.type });
+  }, [b.enemy.type, graphics.renderer, graphics.unavailable]);
   const pending = b.pending;
   const feedback = b.feedback;
   const locked = !!(pending || feedback);

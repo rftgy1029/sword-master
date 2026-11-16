@@ -1,9 +1,31 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import World from './World.jsx';
 import BattleBloom from './BattleBloom.jsx';
 import { qualityProfile } from './quality.js';
+
+/** Seed Three.js FileLoader cache without blocking the main thread with eager GLTF parsing. */
+export function seedModelCache(entries) {
+  THREE.Cache.enabled = true;
+  for (const [url, buffer] of entries) {
+    const key = `file:${THREE.DefaultLoadingManager.resolveURL(url)}`;
+    if (buffer && !THREE.Cache.get(key)) THREE.Cache.add(key, buffer);
+  }
+}
+
+/** Seed Three.js FileLoader cache and warm R3F GLTFLoader entries before 3D scenes mount. */
+export function primeModelCache(entries) {
+  seedModelCache(entries);
+  for (const [url] of entries) useLoader.preload(GLTFLoader, url);
+}
+
+/** Warm Three.js texture cache and R3F TextureLoader entries for combat effects. */
+export function primeTextureCache(urls) {
+  THREE.Cache.enabled = true;
+  for (const url of urls) useLoader.preload(THREE.TextureLoader, url);
+}
 
 function RenderLoop({ fps, animate, onFailure, directorRef, onController, onSlow, bloom }) {
   const { gl, invalidate, scene, camera, clock } = useThree();
