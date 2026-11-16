@@ -143,6 +143,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, on
   const fatal = !!fatalEffect;
   const [shownEnemyHP, setShownEnemyHP] = useState(run.battle.enemy.hp);
   const [shownPlayerHP, setShownPlayerHP] = useState(run.hp);
+  const [shownBlock, setShownBlock] = useState(run.battle.block);
   const [shownIntent, setShownIntent] = useState(() => intentFor(run.battle.enemy));
   const transition = useSceneTransition();
   const b = run.battle;
@@ -164,6 +165,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, on
   const busy = loading || skillBusy || deal.busy || fatal;
   useEffect(() => { if (!skillBusy) setShownEnemyHP(b.enemy.hp); }, [skillBusy, b.enemy.hp]);
   useEffect(() => { if (!skillBusy) setShownPlayerHP(fatal ? 0 : run.hp); }, [skillBusy, run.hp, fatal]);
+  useEffect(() => { if (!skillBusy) setShownBlock(b.block); }, [skillBusy, b.block]);
   useEffect(() => { if (!skillBusy) setShownIntent(intentFor(b.enemy)); }, [skillBusy, b.enemy]);
   useEffect(() => {
     const active = document.activeElement;
@@ -242,7 +244,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, on
     <div className="battlefield">
       <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} cue={cue} motionPreference={motionPreference}
         playerIndicators={shownPlayerHP > 0 && <StatusBadges battle={b} compact busy={skillBusy} />}
-        enemyIndicators={shownEnemyHP > 0 && <><EnemyIntent intent={shownIntent} acting={skillBusy && ['hurt', 'enemy'].includes(combatEffect.kind)} /><StatusBadges battle={b} enemy compact busy={skillBusy} /></>}
+        enemyIndicators={shownEnemyHP > 0 && <><EnemyIntent intent={shownIntent} acting={skillBusy && ['hurt', 'enemy'].includes(combatEffect.kind)} playerBlock={shownBlock} playerHp={shownPlayerHP} locked={locked} /><StatusBadges battle={b} enemy compact busy={skillBusy} /></>}
         studying={!!b.pending} playerHealth={shownPlayerHP / run.maxHp}
         onReady={() => setVisualStatus('ready')} onError={() => setVisualStatus('fallback')}
         onImpact={(_, target, hit) => {
@@ -266,7 +268,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, animateOpening, on
         <button className="game-primary end-turn" disabled={locked || busy} data-initial-focus={!locked && !hand.some((card) => CARDS[card.type].cost <= b.energy) ? '' : undefined}
           onClick={endTurn}>턴 종료</button></div>
       <div className="pile-status"><div className="deck-pile draw-pile" aria-label={`뽑을 카드 ${b.draw.length}장`}><span>✦</span><small>뽑기 {b.draw.length}</small></div>
-        <span className="draw-status" role="status">{deal.busy ? '덱에서 카드를 뽑고 있습니다…' : skillBusy ? combatEffect.kind === 'hurt' ? '몬스터가 공격하고 있습니다' : combatEffect.kind === 'enemy' ? '몬스터가 행동하고 있습니다' : '단어의 힘이 펼쳐집니다' : '숫자 키 2번으로 카드 선택 · Enter 2번으로 턴 종료'}</span>
+        <span className={`draw-status${deal.busy || skillBusy ? ' is-active' : ''}`} role="status">{deal.busy ? '덱에서 카드를 뽑고 있습니다…' : skillBusy ? combatEffect.kind === 'hurt' ? '몬스터가 공격하고 있습니다' : combatEffect.kind === 'enemy' ? '몬스터가 행동하고 있습니다' : '단어의 힘이 펼쳐집니다' : '숫자 키 2번으로 카드 선택 · Enter 2번으로 턴 종료'}</span>
         <div className="deck-pile discard-pile" aria-label={`버린 카드 ${b.discard.length}장`}><span>◇</span><small>버림 {b.discard.length} · 소멸 {b.exhaust.length}</small></div></div></>}
       {locked ? <QuizPanel compact busy={loading || skillBusy} question={pending?.question ?? feedback.question} feedback={feedback} wordbooks={wordbooks}
         cardName={selectedCard ? CARDS[selectedCard.type].name : feedback.cardName}

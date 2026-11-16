@@ -1,50 +1,25 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect } from 'react';
 import GameIcon from './ui/GameIcon.jsx';
+import FloatingTooltip, { useTooltipTrigger } from './ui/FloatingTooltip.jsx';
 import { useHeldStatuses } from './useHeldStatuses.js';
-
-function StatusTooltip({ anchor, id, name, value, description, duration }) {
-  const tooltip = useRef(null);
-  const dialog = anchor.current?.closest('dialog');
-  useLayoutEffect(() => {
-    if (!dialog) return;
-    const position = () => {
-      if (!anchor.current || !tooltip.current) return;
-      const box = dialog.getBoundingClientRect(), button = anchor.current.getBoundingClientRect(), popup = tooltip.current;
-      const left = Math.max(10, Math.min(dialog.clientWidth - popup.offsetWidth - 10, button.left - box.left));
-      const below = button.bottom - box.top + 8;
-      const top = below + popup.offsetHeight < dialog.clientHeight - 10 ? below : Math.max(10, button.top - box.top - popup.offsetHeight - 8);
-      popup.style.left = `${left}px`;
-      popup.style.top = `${top}px`;
-    };
-    position();
-    window.addEventListener('resize', position);
-    dialog.addEventListener('scroll', position, true);
-    return () => { window.removeEventListener('resize', position); dialog.removeEventListener('scroll', position, true); };
-  }, [anchor, dialog]);
-  if (!dialog) return null;
-  return createPortal(<span ref={tooltip} className="status-tooltip is-floating" id={id} role="tooltip"><strong>{name} {value}</strong><span>{description}</span><small>지속: {duration}</small></span>, dialog);
-}
 
 function Badge({ name, value, duration, description, harmful = false, compact = false, gain = 0, gainToken = 0 }) {
   const symbol = { '방어': 'guard', '힘': 'strike', '집중': 'focus', '약화': 'weaken', '연속 정답': 'spark' }[name] ?? 'spark';
-  const [open, setOpen] = useState(false);
-  const host = useRef(null);
-  const id = useId();
+  const { open, setOpen, host, id, hostProps, buttonProps } = useTooltipTrigger(true);
   useEffect(() => {
-    if (!open) return;
+    if (!open || compact) return undefined;
     const outside = (event) => { if (!host.current?.contains(event.target)) setOpen(false); };
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
-  }, [open]);
-  return <span ref={host} className={`status-badge ${harmful ? 'is-harmful' : 'is-helpful'}`} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-    <button type="button" aria-label={`${name} ${value}, ${duration}`} aria-expanded={open} aria-describedby={open ? id : undefined}
-      onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} onClick={() => setOpen(true)}
-      onKeyDown={(event) => { if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); } }}>
+  }, [open, compact, host, setOpen]);
+  return <span {...hostProps} className={`status-badge ${harmful ? 'is-harmful' : 'is-helpful'}`}>
+    <button type="button" aria-label={`${name} ${value}, ${duration}`} {...buttonProps}>
       <span className="status-symbol" aria-hidden="true"><GameIcon name={symbol}/></span><strong>{!compact && `${name} `}{value}</strong>{!compact && <small>{duration}</small>}
     </button>
     {compact && gain > 0 && <em key={gainToken} className="status-gain" aria-hidden="true">+{gain}</em>}
-    {open && (compact ? <StatusTooltip anchor={host} id={id} name={name} value={value} description={description} duration={duration} /> : <span className="status-tooltip" id={id} role="tooltip"><strong>{name} {value}</strong><span>{description}</span><small>지속: {duration}</small></span>)}
+    {open && (compact
+      ? <FloatingTooltip anchor={host} id={id} onDismiss={() => setOpen(false)}><strong>{name} {value}</strong><span>{description}</span><small>지속: {duration}</small></FloatingTooltip>
+      : <span className="status-tooltip" id={id} role="tooltip"><strong>{name} {value}</strong><span>{description}</span><small>지속: {duration}</small></span>)}
   </span>;
 }
 

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import GameIcon from './ui/GameIcon.jsx';
+import FloatingTooltip, { useTooltipTrigger } from './ui/FloatingTooltip.jsx';
+import { describeEnemyIntent } from '../game/enemyIntent.js';
 
 export function CombatHealthBar({ value, max, label, motionPreference = 'normal' }) {
   const [trail, setTrail] = useState(value);
@@ -39,10 +41,34 @@ export function CombatEnergy({ energy, playable }) {
   </div>;
 }
 
-export function EnemyIntent({ intent, acting }) {
-  const icon = { attack: 'strike', block: 'guard', buff: 'empower', charge: 'heavy', wait: 'flow' }[intent.kind];
-  const label = { attack: `공격 ${intent.value}${intent.hits ? ` × ${intent.hits}` : ''}`, block: `방어 +${intent.value}`, buff: `힘 +${intent.value}`, charge: `강타 준비 ${intent.value}`, wait: '숨 고르기' }[intent.kind];
-  return <div className={`overhead-intent intent-${intent.kind}`} role="status" aria-label={`${acting ? '진행 중' : '다음 행동'}: ${intent.label}`} title={intent.label}>
-    <GameIcon name={icon} /><span><small>{acting ? '진행 중' : '다음 행동'}</small><strong>{label}</strong></span>
-  </div>;
+export function EnemyIntent({ intent, acting = false, playerBlock = 0, playerHp = 0, locked = false }) {
+  const interactive = !acting && !locked;
+  const { open, setOpen, host, id, hostProps, buttonProps } = useTooltipTrigger(interactive);
+  const view = describeEnemyIntent(intent, { playerBlock, playerHp, acting });
+
+  if (!view) return null;
+  const { tooltip } = view;
+
+  return <span {...hostProps} className="overhead-intent-host">
+    <button type="button" className={`overhead-intent intent-${view.kind} tone-${view.tone}`} aria-label={view.ariaLabel} {...buttonProps}>
+      <GameIcon name={view.icon} />
+      <span className="intent-body">
+        <span className="intent-head">
+          <small>{view.timing}</small>
+          <em className={`intent-stance tone-${view.tone}`}>{view.stance}</em>
+          <i className="intent-help-dot" aria-hidden="true">?</i>
+        </span>
+        <strong>{view.title}</strong>
+        <span className={`intent-summary tone-${view.tone}`}>{view.summary}</span>
+      </span>
+    </button>
+    {open && <FloatingTooltip anchor={host} id={id} className={`intent-tooltip tone-${view.tone}`} onDismiss={() => setOpen(false)}>
+      <span className="intent-tooltip-head">
+        <strong>{tooltip.title}</strong>
+        <em className={`intent-stance tone-${view.tone}`}>{view.stance}</em>
+      </span>
+      <span className="intent-tooltip-verdict">{tooltip.verdict}</span>
+      <small>{tooltip.tip}</small>
+    </FloatingTooltip>}
+  </span>;
 }
