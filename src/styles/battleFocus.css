@@ -1,0 +1,1182 @@
+/*
+ * 전투 집중 UI/UX (Slay the Spire 참고 + 황혼 팔레트).
+ * 핵심: 시선을 화면 중앙 1축에 모으고, 카드 Hover 미리보기로 암산을 없애며,
+ * 퀴즈를 중앙 집중 세로 카드로 띄우고 정답은 자동 진행해 전투 템포를 살린다.
+ */
+
+/* ---------- 전투 전체 골격: 퀴즈 중에도 전장 높이가 튀지 않게 고정 ---------- */
+.game-dialog.is-battle .battle-screen,
+.game-dialog.is-battle .battle-screen:has(.battle-controls.is-answering) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.game-dialog.is-battle .battle-stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 180px;
+}
+
+.game-dialog.is-battle .battlefield,
+.game-dialog.is-battle .battle-screen:has(.battle-controls.is-answering) .battlefield {
+  flex: 1 1 0;
+  min-height: 150px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ---------- 슬림 상단 전황 스트립: [모험가 HP]  TURN  [적 HP] ---------- */
+.game-dialog .battle-stage > .combat-hud.is-slim {
+  position: relative;
+  inset: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(8px, 1.5vw, 18px);
+  padding: 7px clamp(10px, 2vw, 22px);
+  background: radial-gradient(ellipse at 50% 100%, #412b3d 0, transparent 62%), linear-gradient(#261c30, #191221);
+  border-bottom: 2px solid #594154;
+  box-shadow: 0 4px 16px #0f0a17b8;
+  z-index: 2;
+}
+
+.game-dialog .combat-hud.is-slim .combatant-hud {
+  width: auto;
+  max-width: none;
+  padding: 6px 11px 7px;
+  border-radius: 10px;
+  border: 1.5px solid #5c4657;
+  background: linear-gradient(120deg, #332541e0, #1f1729eb 68%);
+  box-shadow: inset 0 0 0 1px #140e1cb0, 0 2px 6px #0e091499;
+}
+
+.game-dialog .combat-hud.is-slim .enemy-hud {
+  border-color: #6b4958;
+  background: linear-gradient(240deg, #40263ae0, #221626eb 68%);
+}
+
+.game-dialog .combat-hud.is-slim .combatant-heading {
+  margin-bottom: 4px;
+}
+
+.game-dialog .combat-hud.is-slim .combatant-heading h3 {
+  font-size: calc(13.5px * var(--text-scale));
+  line-height: 1.25;
+}
+
+.game-dialog .combat-hud.is-slim .enemy-hud .combatant-heading {
+  justify-content: flex-end;
+}
+
+.combat-hud.is-slim .battle-turn {
+  position: static;
+  transform: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 58px;
+  padding: 5px 10px;
+  border: 2px solid #8a6449;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #2d2038, #1a1222);
+  color: #d7be8f;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  line-height: 1.1;
+  box-shadow: 0 3px 0 #0e0913;
+}
+
+.combat-hud.is-slim .battle-turn strong {
+  color: var(--sun);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+/* ---------- 체력바 + 방어 칩 + 카드 Hover 미리보기 ---------- */
+.combat-health-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+}
+
+.enemy-hud .combat-health-wrap {
+  flex-direction: row-reverse;
+}
+
+.combat-health-wrap .combat-health-bar {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  height: 23px;
+}
+
+.health-shield-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 7px 0 5px;
+  border: 1.5px solid #63c5e0;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #204558, #142c3b);
+  color: #dcf8ff;
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 0 #0c1721;
+  white-space: nowrap;
+}
+
+.health-shield-chip .game-icon {
+  width: 14px;
+  height: 14px;
+  color: #7ee3ff;
+}
+
+.health-shield-chip.is-preview {
+  border-color: #9bf0ff;
+  box-shadow: 0 0 12px #66d9ff66, 0 2px 0 #0c1721;
+  color: #ffffff;
+}
+
+.health-preview-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.health-preview-band.is-damage {
+  background: repeating-linear-gradient(-45deg, #ffd46ae0 0 6px, #ff7058e0 6px 12px);
+  animation: hp-preview-pulse 1s ease-in-out infinite;
+}
+
+.health-preview-band.is-lethal {
+  background: repeating-linear-gradient(-45deg, #ff5454f0 0 6px, #ffe169f0 6px 12px);
+  animation: hp-preview-pulse 750ms ease-in-out infinite;
+}
+
+.health-preview-band.is-heal {
+  background: repeating-linear-gradient(-45deg, #6ef0b4dd 0 6px, #2ea877dd 6px 12px);
+  animation: hp-preview-pulse 1s ease-in-out infinite;
+}
+
+.combat-health-wrap.is-lethal-preview .combat-health-bar {
+  border-color: #ff9c66;
+  box-shadow: 0 0 12px #ff6e5470;
+}
+
+.health-preview-tag {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: calc(10px * var(--text-scale));
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.health-preview-tag.is-damage {
+  background: #ffd470;
+  color: #261206;
+  box-shadow: 0 1px 3px #0008;
+}
+
+.health-preview-tag.is-lethal {
+  background: #ff6259;
+  color: #fff8f5;
+  box-shadow: 0 0 10px #ff5e5788;
+}
+
+.health-preview-tag.is-heal {
+  background: #7df0b8;
+  color: #0d2b1c;
+  box-shadow: 0 1px 3px #0008;
+}
+
+@keyframes hp-preview-pulse {
+  50% { opacity: 0.55; }
+}
+
+/* ---------- 전장 위 카드 미리보기 (적 의도 + 용사 버프 예고) ---------- */
+.combat-overhead button.overhead-intent.is-preview {
+  outline: 2px dashed var(--intent-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--intent-accent) 45%, transparent), 0 3px 9px #100b16b8;
+  transform: scale(1.03);
+}
+
+.hero-preview-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 2px;
+  animation: preview-pill-pop 160ms ease-out both;
+}
+
+.hero-preview-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1.5px solid #d4b878;
+  background: #231a2ff2;
+  color: #fff3da;
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 700;
+  line-height: 1.3;
+  box-shadow: 0 2px 8px #0c0713aa;
+  white-space: nowrap;
+}
+
+.hero-preview-pill.tone-guard { border-color: #6fd0ea; color: #ccf6ff; background: #16303ff2; }
+.hero-preview-pill.tone-heal { border-color: #7be0a5; color: #d5ffe6; background: #173628f2; }
+.hero-preview-pill.tone-power { border-color: #ffbe66; color: #ffe6bd; background: #3b2616f2; }
+.hero-preview-pill.tone-focus { border-color: #c2a0f5; color: #eedfff; background: #2c1e42f2; }
+.hero-preview-pill.tone-energy { border-color: #ffd36e; color: #fff2c4; background: #3b2d14f2; }
+.hero-preview-pill.tone-draw { border-color: #d6cbe0; color: #f6effc; background: #2d2438f2; }
+
+@keyframes preview-pill-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- 정답 플로팅 배지 (클릭 방해 없이 단어 뜻 복기 + 연출 감상) ---------- */
+.battle-answer-toast {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 9px;
+  max-width: min(520px, calc(100% - 24px));
+  padding: 8px 16px;
+  border: 2px solid #7fe0a5;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1d3c2df2, #142b21f5);
+  color: #e8fff0;
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.35;
+  box-shadow: 0 6px 24px #070e0aa8, 0 0 18px #66e09938;
+  animation: toast-pop 200ms cubic-bezier(.2, .9, .3, 1.15) both;
+}
+
+.battle-answer-toast .toast-check {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6ee09e;
+  color: #0c2618;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.battle-answer-toast strong {
+  color: #ffffff;
+  font-size: calc(15px * var(--text-scale));
+}
+
+.battle-answer-toast .toast-sep {
+  color: #8fd9ae;
+}
+
+.battle-answer-toast .toast-meaning {
+  color: #d4fce4;
+}
+
+.battle-answer-toast .toast-card {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #2b543f;
+  color: #ffe2a8;
+  font-size: calc(11px * var(--text-scale));
+}
+
+.battle-stage-status {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  pointer-events: none;
+  padding: 4px 13px;
+  border: 1.5px solid #6b5470;
+  border-radius: 999px;
+  background: #1b1325e6;
+  color: #f3dfbd;
+  font-size: calc(11px * var(--text-scale));
+  box-shadow: 0 4px 14px #09060e99;
+}
+
+@keyframes toast-pop {
+  from { opacity: 0; transform: translate(-50%, -8px) scale(0.94); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+/* ---------- Slay the Spire 스타일 하단 1행 액션 도크 ---------- */
+.game-dialog .battle-controls.battle-dock {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(10px, 1.8vw, 22px);
+  padding: 10px clamp(12px, 2vw, 24px) 12px;
+  background: radial-gradient(ellipse at 50% 0, #432e42a6, transparent 62%), linear-gradient(#241a2b, #15101b);
+  border-top: 2px solid #755449;
+  box-shadow: 0 -8px 26px #0f0a15b8;
+  transition: opacity 160ms ease, filter 160ms ease;
+}
+
+.game-dialog .battle-controls.battle-dock.is-dimmed {
+  opacity: 0.3;
+  filter: saturate(0.65) blur(1px);
+  pointer-events: none;
+}
+
+.dock-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 112px;
+  flex-shrink: 0;
+}
+
+/* 원형 에너지 오브 */
+.battle-dock .combat-energy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.sts-energy-orb {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1px;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  border: 3px solid #592e14;
+  background: radial-gradient(circle at 32% 26%, #fff3c7 0%, #ffc46b 38%, #e47d34 82%, #9e481a 100%);
+  box-shadow: inset 0 0 0 3px #fff1c255, 0 4px 0 #3f1f0c, 0 0 20px #ffb25e42;
+  color: #291407;
+  line-height: 60px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sts-energy-current {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  align-self: center;
+}
+
+.sts-energy-max {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5c2d12;
+  align-self: center;
+  margin-top: 6px;
+}
+
+.sts-energy-preview {
+  position: absolute;
+  top: -7px;
+  right: -12px;
+  padding: 2px 6px;
+  border: 2px solid #2b1408;
+  border-radius: 999px;
+  background: #ffe18c;
+  color: #2b1408;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.1;
+  box-shadow: 0 2px 6px #0008;
+}
+
+.combat-energy.is-empty .sts-energy-orb {
+  border-color: #362840;
+  background: radial-gradient(circle at 35% 30%, #443652, #231b2c);
+  box-shadow: inset 0 0 0 3px #18111f, 0 3px 0 #100b16;
+  color: #9e91ad;
+}
+
+.combat-energy.is-empty .sts-energy-max {
+  color: #776a86;
+}
+
+.energy-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.battle-dock .energy-gems {
+  gap: 4px;
+}
+
+.battle-dock .energy-gem {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+}
+
+.battle-dock .energy-gem.is-spending {
+  opacity: 0.45;
+  border-style: dashed;
+  border-color: #ffe28c;
+  box-shadow: 0 0 6px #ffca6380;
+}
+
+.energy-label {
+  font-size: calc(10px * var(--text-scale));
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* 덱 더미 (뽑기 / 버림) */
+.battle-dock .deck-pile {
+  display: inline-flex;
+  align-items: center;
+  flex-direction: row;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1.5px solid #4d3b5b;
+  border-radius: 999px;
+  background: #1b1424;
+  color: var(--muted);
+  box-shadow: 0 2px 0 #0e0913;
+}
+
+.battle-dock .deck-pile > span {
+  width: auto;
+  height: auto;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--sun);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.battle-dock .deck-pile small {
+  font-size: calc(10.5px * var(--text-scale));
+  white-space: nowrap;
+}
+
+.battle-dock .deck-pile strong {
+  color: var(--ivory);
+  font-weight: 700;
+}
+
+/* 턴 종료 버튼 + 자동 추천 글로우 */
+.battle-dock .end-turn {
+  margin: 0;
+  min-width: 112px;
+  min-height: 52px;
+  padding: 10px 18px;
+  font-size: calc(14px * var(--text-scale));
+  letter-spacing: 0.3px;
+}
+
+.battle-dock .end-turn.is-suggested {
+  border-color: #ffe094;
+  box-shadow: 0 4px 0 #5a2f15, 0 0 22px #ffb85c99;
+  animation: end-turn-glow 1.4s ease-in-out infinite;
+}
+
+@keyframes end-turn-glow {
+  50% { border-color: #fff0b8; box-shadow: 0 4px 0 #5a2f15, 0 0 32px #ffd378dd; }
+}
+
+/* ---------- 손패 카드: 역할별 색상 코드 + 실시간 강화 수치 ---------- */
+.battle-dock .card-hand {
+  display: flex;
+  justify-content: safe center;
+  align-items: stretch;
+  gap: clamp(8px, 1vw, 12px);
+  padding: 12px 6px 6px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  scroll-snap-type: x proximity;
+}
+
+.battle-dock .card-hand > :first-child { margin-left: auto; }
+.battle-dock .card-hand > :last-child { margin-right: auto; }
+
+.game-dialog .game-card.role-attack { --role-accent: #ff866b; --role-pill-bg: #ff6e542b; --role-pill-text: #ffc2b3; }
+.game-dialog .game-card.role-guard { --role-accent: #6ed0ea; --role-pill-bg: #5cc9e82b; --role-pill-text: #bdefff; }
+.game-dialog .game-card.role-heal { --role-accent: #7be0a5; --role-pill-bg: #6ad9982b; --role-pill-text: #c6ffe0; }
+.game-dialog .game-card.role-buff { --role-accent: #ffc864; --role-pill-bg: #ffb9472b; --role-pill-text: #ffe5ad; }
+.game-dialog .game-card.role-debuff { --role-accent: #c79af5; --role-pill-bg: #b482eb2b; --role-pill-text: #e6d1ff; }
+
+.game-dialog .battle-dock .card-hand .game-card {
+  --card-accent: var(--role-accent, var(--sun));
+  flex: 0 1 164px;
+  min-width: 138px;
+  min-height: 174px;
+  padding: 10px 11px 11px;
+  gap: 7px;
+  border: 2px solid color-mix(in srgb, var(--role-accent, #725744) 48%, #34263d) !important;
+  border-top-width: 4px !important;
+  border-top-color: var(--role-accent, var(--sun)) !important;
+  border-radius: 12px !important;
+  background: radial-gradient(ellipse at 50% 8%, color-mix(in srgb, var(--role-accent, #ffb25e) 18%, transparent), transparent 64%), linear-gradient(180deg, #362943, #22192c);
+  box-shadow: 0 5px 0 #0e0913, 0 8px 18px #0a060f88;
+  transition: transform 150ms cubic-bezier(.2, .85, .3, 1.1), border-color 150ms, box-shadow 150ms, opacity 150ms;
+}
+
+.game-dialog .battle-dock .card-hand .game-card:is(:hover, :focus-visible):not(:disabled) {
+  transform: translateY(-10px) scale(1.025);
+  z-index: 2;
+  border-color: var(--role-accent, var(--sun)) !important;
+  background: radial-gradient(ellipse at 50% 8%, color-mix(in srgb, var(--role-accent, #ffb25e) 30%, transparent), transparent 65%), linear-gradient(180deg, #433252, #2b2038);
+  box-shadow: 0 12px 24px #08040ec8, 0 0 0 2px color-mix(in srgb, var(--role-accent, #ffb25e) 55%, transparent);
+}
+
+.game-dialog .battle-dock .card-hand .game-card:disabled {
+  opacity: 0.42;
+  filter: saturate(0.45);
+  box-shadow: 0 3px 0 #0e0913;
+}
+
+.card-kind-pill {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--role-pill-bg, #ffffff14);
+  color: var(--role-pill-text, var(--muted));
+  font-size: calc(9.5px * var(--text-scale));
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.game-card .card-top {
+  gap: 6px;
+}
+
+.game-card .card-shortcut {
+  margin-left: auto;
+  display: inline-grid;
+  place-items: center;
+  width: 21px;
+  min-width: 21px;
+  height: 21px;
+  border-radius: 5px;
+  border: 1.5px solid #59466a;
+  background: #1a1223;
+  color: #e6dcf0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.battle-dock .card-art {
+  height: 44px;
+  color: var(--role-accent, var(--sun));
+  border-bottom-color: color-mix(in srgb, var(--role-accent, #ffb25e) 22%, transparent);
+}
+
+.battle-dock .card-art > .game-icon {
+  width: 34px;
+  height: 34px;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--role-accent, #ffb25e) 42%, transparent));
+}
+
+.battle-dock .card-art > span { width: 42px; height: 42px; }
+.battle-dock .card-art > i { width: 28px; height: 28px; }
+
+.battle-dock .game-card > strong {
+  font-size: calc(13.5px * var(--text-scale));
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.battle-dock .card-description {
+  font-size: calc(11.5px * var(--text-scale));
+  line-height: 1.55;
+  color: #dfd6e8;
+}
+
+.card-effect-part.is-boosted {
+  color: #8df2b8;
+  font-weight: 700;
+}
+
+.card-effect-part.is-muted {
+  color: var(--faint);
+  font-size: calc(10px * var(--text-scale));
+}
+
+/* ---------- 화면 중앙 세로 집중 퀴즈 오버레이 ---------- */
+.battle-quiz-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  display: grid;
+  place-items: center;
+  padding: clamp(10px, 2.5vh, 24px) clamp(10px, 3vw, 24px);
+  background: radial-gradient(ellipse at 50% 45%, #171024b8, #0c0814e0 76%);
+  backdrop-filter: blur(3px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.game-dialog .quiz-panel.is-battle-focus {
+  width: min(560px, 100%);
+  max-height: 100%;
+  margin: auto;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 3px solid #6e5580;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #2e223bfa, #1d1527fc);
+  box-shadow: 0 0 0 2px var(--edge), 0 18px 50px #06030be6;
+  display: flex;
+  flex-direction: column;
+  animation: quiz-focus-in 170ms cubic-bezier(.2, .85, .3, 1.1) both;
+}
+
+.game-dialog .quiz-panel.is-battle-focus.quiz-wrong {
+  border-color: #d9776c;
+  box-shadow: 0 0 0 2px var(--edge), 0 0 28px #e9756733, 0 18px 50px #06030be6;
+}
+
+@keyframes quiz-focus-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.quiz-card-banner {
+  --banner-accent: var(--sun);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 11px 18px;
+  border-bottom: 2px solid #443354;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--banner-accent) 20%, #23192f), #21182c 70%);
+}
+
+.quiz-card-banner.tone-attack { --banner-accent: #ff866b; }
+.quiz-card-banner.tone-guard { --banner-accent: #6ed0ea; }
+.quiz-card-banner.tone-heal { --banner-accent: #7be0a5; }
+.quiz-card-banner.tone-buff { --banner-accent: #ffc864; }
+.quiz-card-banner.tone-debuff { --banner-accent: #c79af5; }
+
+.quiz-card-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.quiz-card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1.5px solid color-mix(in srgb, var(--banner-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--banner-accent) 16%, #181120);
+  color: var(--banner-accent);
+  flex-shrink: 0;
+}
+
+.quiz-card-icon .game-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.quiz-card-title {
+  color: var(--ivory);
+  font-size: calc(14px * var(--text-scale));
+  font-weight: 700;
+}
+
+.quiz-card-effect {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--banner-accent) 18%, #16101e);
+  border: 1px solid color-mix(in srgb, var(--banner-accent) 45%, transparent);
+  color: #fff2db;
+  font-size: calc(11.5px * var(--text-scale));
+  font-weight: 700;
+}
+
+.quiz-type-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #3d2d4e;
+  border: 1px solid #6c5582;
+  color: var(--sun);
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.quiz-panel.is-battle-focus .answer-verdict {
+  margin: 0;
+  border-radius: 0;
+  border-width: 0 0 2px;
+  justify-content: center;
+  padding: 10px 18px;
+}
+
+.quiz-panel.is-battle-focus .quiz-content {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
+  padding: 20px 22px 18px;
+}
+
+.quiz-panel.is-battle-focus .quiz-question {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.game-dialog .quiz-panel.is-battle-focus h3 {
+  display: block;
+  margin: 0;
+  text-align: center;
+  line-height: 1.18;
+}
+
+.game-dialog .quiz-panel.is-battle-focus h3 > span {
+  display: inline-block;
+  font-size: clamp(28px, 4vw, calc(40px * var(--text-scale)));
+  font-weight: 700;
+  color: #fff6e3;
+  letter-spacing: 0.4px;
+  text-shadow: 0 3px 0 #120b18;
+}
+
+.game-dialog .quiz-panel.is-battle-focus .quiz-instruction {
+  margin: 2px 0 0;
+  font-size: calc(13px * var(--text-scale));
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.game-dialog .quiz-panel.is-battle-focus .quiz-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid #58436b;
+  background: #23192f;
+  color: #f3e6d0;
+  font-size: calc(13px * var(--text-scale));
+}
+
+.game-dialog .quiz-panel.is-battle-focus .quiz-context > span {
+  color: var(--sun);
+  font-weight: 700;
+}
+
+/* 단어 바로 아래 밀착 2×2 보기 */
+.quiz-panel.is-battle-focus .quiz-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.quiz-panel.is-battle-focus .quiz-options button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 12px 14px;
+  border: 2px solid #4e3b60;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #352842, #291e34);
+  color: var(--ivory);
+  font-size: calc(15.5px * var(--text-scale));
+  line-height: 1.45;
+  box-shadow: 0 3px 0 #0e0913;
+  transition: transform 110ms ease, background 110ms, border-color 110ms, box-shadow 110ms;
+}
+
+.quiz-panel.is-battle-focus .quiz-options button > span {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1.5px solid #634d77;
+  border-radius: 7px;
+  background: #1d1527;
+  color: var(--sun);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.quiz-panel.is-battle-focus .quiz-options button > strong {
+  font-weight: 400;
+  color: inherit;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.quiz-panel.is-battle-focus .quiz-options button:hover:not(:disabled),
+.quiz-panel.is-battle-focus .quiz-options button:focus-visible {
+  background: linear-gradient(180deg, #473659, #352745);
+  border-color: var(--sun);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 #0e0913, 0 0 16px #ffb25e2e;
+}
+
+.quiz-panel.is-battle-focus .quiz-options button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #0e0913;
+}
+
+.quiz-panel.is-battle-focus .quiz-typing {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* 오답 복습 정지 피드백 */
+.quiz-panel.is-battle-focus .quiz-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.quiz-feedback-summary {
+  display: grid;
+  gap: 7px;
+  padding: 13px 16px;
+  border: 1.5px solid #4e3b60;
+  border-radius: 12px;
+  background: #1a1223cc;
+}
+
+.game-dialog .quiz-feedback-summary p {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: calc(13.5px * var(--text-scale));
+  line-height: 1.55;
+}
+
+.quiz-feedback-summary p > span {
+  font-size: calc(11px * var(--text-scale));
+  color: var(--faint);
+  min-width: 48px;
+}
+
+.quiz-feedback-summary .feedback-picked b {
+  color: #ffada4;
+  font-weight: 700;
+}
+
+.quiz-feedback-summary .feedback-answer strong {
+  color: #8df2b8;
+  font-size: calc(15.5px * var(--text-scale));
+  font-weight: 700;
+}
+
+.quiz-feedback-summary .feedback-pair {
+  padding-top: 6px;
+  border-top: 1px dashed #3e2f4d;
+  color: var(--ivory);
+}
+
+.quiz-feedback-summary .feedback-pair > span {
+  min-width: auto;
+}
+
+.quiz-feedback-summary .feedback-pair strong {
+  color: #fff2d4;
+  font-weight: 700;
+}
+
+.quiz-panel.is-battle-focus .quiz-feedback .game-primary {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 2px;
+}
+
+.quiz-panel.is-battle-focus .quiz-meta {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: 9px 18px 12px;
+  border-top: 1px solid #3c2e4b;
+  background: #1a122366;
+}
+
+.game-dialog .quiz-panel.is-battle-focus .quiz-meta p {
+  margin: 0;
+  font-size: calc(11px * var(--text-scale));
+  color: var(--faint);
+}
+
+.quiz-panel.is-battle-focus.is-resolving {
+  width: min(380px, 100%);
+  padding-bottom: 14px;
+  text-align: center;
+}
+
+.quiz-resolving-note {
+  margin: 12px 16px 0 !important;
+  color: #f0dbb3 !important;
+  font-size: calc(13px * var(--text-scale)) !important;
+}
+
+/* ---------- 낮은 세로 화면 (노트북 1366×768 등) 최적화 ---------- */
+@media (min-width: 741px) and (max-height: 820px) {
+  .game-dialog .battle-stage > .combat-hud.is-slim { padding-block: 5px; }
+  .game-dialog .combat-hud.is-slim .combatant-hud { padding: 5px 10px 6px; }
+  .game-dialog .battle-controls.battle-dock { padding-block: 8px 9px; }
+  .game-dialog .battle-dock .card-hand .game-card { min-height: 154px; padding: 8px 10px 9px; gap: 5px; }
+  .battle-dock .card-art { height: 34px; }
+  .battle-dock .card-art > .game-icon { width: 28px; height: 28px; }
+  .sts-energy-orb { width: 58px; height: 58px; }
+  .sts-energy-current { font-size: 24px; }
+  .battle-dock .end-turn { min-height: 46px; }
+}
+
+/* ---------- 태블릿 / 모바일 (<= 740px) ---------- */
+@media (max-width: 740px) {
+  .game-dialog .battle-stage > .combat-hud.is-slim {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .game-dialog .combat-hud.is-slim .combatant-hud {
+    padding: 5px 7px 6px;
+  }
+
+  .game-dialog .combat-hud.is-slim .combatant-heading h3 {
+    font-size: calc(11.5px * var(--text-scale));
+  }
+
+  .combat-hud.is-slim .battle-turn {
+    min-width: 44px;
+    padding: 4px 6px;
+    font-size: 8px;
+  }
+
+  .combat-hud.is-slim .battle-turn strong {
+    font-size: 13px;
+  }
+
+  .combat-health-wrap {
+    gap: 4px;
+  }
+
+  .combat-health-wrap .combat-health-bar {
+    height: 20px;
+  }
+
+  .health-shield-chip {
+    height: 20px;
+    padding: 0 5px 0 4px;
+    font-size: calc(9.5px * var(--text-scale));
+  }
+
+  .health-shield-chip .game-icon {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* 모바일 하단 도크: 상단 1줄(에너지·더미·턴종료) + 하단 손패 */
+  .game-dialog .battle-controls.battle-dock {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 6px 10px;
+    padding: 8px 10px 10px;
+  }
+
+  .dock-left {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: row;
+    justify-content: flex-start;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .dock-right {
+    grid-column: 2;
+    grid-row: 1;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .battle-dock .card-hand {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 8px 2px 4px;
+    gap: 8px;
+  }
+
+  .battle-dock .combat-energy {
+    flex-direction: row;
+    gap: 7px;
+  }
+
+  .sts-energy-orb {
+    width: 44px;
+    height: 44px;
+  }
+
+  .sts-energy-current { font-size: 20px; }
+  .sts-energy-max { font-size: 10px; margin-top: 4px; }
+  .energy-meta { align-items: flex-start; }
+  .energy-label { display: none; }
+
+  .battle-dock .deck-pile {
+    padding: 3px 7px;
+    gap: 4px;
+  }
+
+  .battle-dock .deck-pile small {
+    font-size: calc(9.5px * var(--text-scale));
+  }
+
+  .battle-dock .end-turn {
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: calc(12px * var(--text-scale));
+  }
+
+  .game-dialog .battle-dock .card-hand .game-card {
+    flex: 0 0 136px;
+    min-width: 136px;
+    min-height: 158px;
+    padding: 8px 9px 9px;
+    gap: 5px;
+  }
+
+  .battle-dock .card-art { height: 34px; }
+  .battle-dock .card-art > .game-icon { width: 28px; height: 28px; }
+  .battle-dock .game-card > strong { font-size: calc(12px * var(--text-scale)); }
+  .battle-dock .card-description { font-size: calc(10.5px * var(--text-scale)); }
+
+  .battle-answer-toast {
+    top: 8px;
+    padding: 6px 12px;
+    font-size: calc(11.5px * var(--text-scale));
+  }
+}
+
+@media (max-width: 650px) {
+  .battle-quiz-backdrop {
+    padding: 10px;
+  }
+
+  .game-dialog .quiz-panel.is-battle-focus {
+    width: 100%;
+    border-radius: 14px;
+  }
+
+  .quiz-card-banner {
+    padding: 9px 12px;
+  }
+
+  .quiz-panel.is-battle-focus .quiz-content {
+    gap: 13px;
+    padding: 14px 12px 12px;
+  }
+
+  /* 좁은 모바일에서 보기를 1열 전체 폭으로 배치해 긴 뜻도 편하게 읽고 탭한다. */
+  .quiz-panel.is-battle-focus .quiz-options {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .quiz-panel.is-battle-focus .quiz-options button {
+    min-height: 48px;
+    padding: 10px 12px;
+    font-size: calc(14.5px * var(--text-scale));
+  }
+
+  .battle-dock .deck-pile {
+    padding: 3px 6px;
+  }
+
+  .battle-dock .energy-gems {
+    display: none;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .quiz-panel.is-battle-focus .quiz-meta {
+    display: none;
+  }
+}
+
+/* ---------- 움직임 줄이기·끄기 존중 ---------- */
+.app[data-background-motion="off"] .health-preview-band,
+.app[data-background-motion="off"] .battle-dock .end-turn.is-suggested,
+.app[data-background-motion="off"] .battle-answer-toast,
+.app[data-background-motion="off"] .quiz-panel.is-battle-focus,
+.app[data-background-motion="off"] .hero-preview-pills,
+.app[data-background-motion="reduced"] .health-preview-band,
+.app[data-background-motion="reduced"] .battle-dock .end-turn.is-suggested,
+.app[data-background-motion="reduced"] .battle-answer-toast,
+.app[data-background-motion="reduced"] .quiz-panel.is-battle-focus,
+.app[data-background-motion="reduced"] .hero-preview-pills {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .health-preview-band,
+  .battle-dock .end-turn.is-suggested,
+  .battle-answer-toast,
+  .quiz-panel.is-battle-focus,
+  .hero-preview-pills {
+    animation: none !important;
+    transition: none !important;
+  }
+}

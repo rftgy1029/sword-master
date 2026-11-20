@@ -155,6 +155,9 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
               <SettingOptions name="selectionEffect" title="메뉴 선택 효과" description="선택한 항목의 밝기 변화를 조절해요."
                 choices={[[ 'breathe', '천천히 밝아짐' ], [ 'static', '고정' ]]}
                 value={settings.selectionEffect} onChange={changeSetting} />
+              <SettingOptions name="shortcutConfirm" title="전투 단축키 확정" description="숫자 키로 카드와 퀴즈 보기를 바로 고를지, 오입력 방지를 위해 두 번 눌러 확정할지 선택해요."
+                choices={[[ 'single', '한 번에 선택' ], [ 'double', '두 번 눌러 확정' ]]}
+                value={settings.shortcutConfirm} onChange={changeSetting} />
               <div className="setting-fullscreen">
                 <div><h4>전체 화면</h4><p>{fullscreenSupported ? '현재 창에만 적용돼요. Esc로 나올 수 있어요.' : '이 브라우저에서는 전체 화면을 지원하지 않아요.'}</p></div>
                 <button className="settings-action" disabled={!fullscreenSupported} aria-pressed={fullscreen}
@@ -174,8 +177,9 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
               <dl className="controls-guide">
                 <div><dt><kbd>↑</kbd><kbd>↓</kbd></dt><dd>메뉴와 왼쪽 분류 이동</dd></div>
                 <div><dt><kbd>Tab</kbd><kbd>Shift + Tab</kbd></dt><dd>다음 항목과 이전 항목으로 이동</dd></div>
-                <div><dt><kbd>←</kbd><kbd>→</kbd></dt><dd>선택 항목의 설정값 변경</dd></div>
-                <div><dt><kbd>Enter</kbd><kbd>Space</kbd></dt><dd>버튼 실행 또는 항목 선택</dd></div>
+                <div><dt><kbd>←</kbd><kbd>→</kbd></dt><dd>선택 항목의 설정값 변경 · 전투 손패 카드 미리보기</dd></div>
+                <div><dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>전투 카드·퀴즈 보기 빠른 선택 (설정에서 1회/2회 확정 전환)</dd></div>
+                <div><dt><kbd>Enter</kbd><kbd>Space</kbd></dt><dd>버튼 실행 · 전투 턴 종료 · 오답 확인 후 계속</dd></div>
                 <div><dt><kbd>Esc</kbd></dt><dd>설정을 닫고 타이틀로 돌아가기</dd></div>
               </dl>
               <div className="controls-tip"><span aria-hidden="true">✦</span><p>설정을 닫으면 타이틀의 ‘설정’ 메뉴에서 바로 이어서 조작할 수 있어요.</p></div>

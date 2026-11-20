@@ -65,15 +65,31 @@ try{
     }else if(r.phase==='forge'){
       await page.getByRole('button',{name:'다음 경로로',exact:false}).click();
     }else if(b.feedback){
-      if(!realAttack&&b.effect.kind==='attack'){
+      if(b.feedback.correct){
+        if(!realAttack&&b.effect.kind==='attack'){
+          await page.waitForFunction(()=>{
+            const saved=JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress;
+            return saved.run.phase!=='battle'||!saved.run.battle?.feedback;
+          },{},{timeout:20000});
+          realAttack=true;console.log(MOTION==='normal'?'real-time 3D attack completed and auto-advanced':'reduced-motion 3D effect auto-advanced');
+        }else{
+          await settle();
+          await page.waitForFunction(()=>{
+            const saved=JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress;
+            return saved.run.phase!=='battle'||!saved.run.battle?.feedback;
+          },{},{timeout:20000});
+        }
+      }else{
+        await settle();
         await page.locator('.quiz-feedback .game-primary').waitFor({timeout:20000});
-        realAttack=true;console.log(MOTION==='normal'?'real-time 3D attack completed':'reduced-motion 3D effect completed');
-      }else await settle();
-      await page.locator('.quiz-feedback .game-primary').click();
+        await page.locator('.quiz-feedback .game-primary').click();
+      }
     }else if(b.pending){
       await page.locator('.quiz-options button').first().waitFor();
       if(!restored){
         const old=structuredClone(b.pending),energy=b.energy;
+        const quizWidth=await page.locator('.quiz-panel.is-battle-focus').evaluate(el=>el.getBoundingClientRect().width);
+        assert.ok(quizWidth<=580,`Central quiz panel stays compact (${quizWidth}px)`);
         await capture('quiz-desktop');
         await page.getByRole('button',{name:'모험 닫고 타이틀로',exact:true}).click();
         await page.reload();
@@ -86,7 +102,17 @@ try{
       await page.locator('.quiz-options button').nth(q.options.indexOf(answer)).click();
     }else{
       await settle();
-      if(!battleShot){await capture('battle-desktop');await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);await capture('battle-mobile');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.setViewportSize({width:1440,height:900});battleShot=true;}
+      if(!battleShot){
+        await capture('battle-desktop');
+        const attackCard=b.hand.map(uid=>r.deck.find(c=>c.uid===uid)).find(c=>CARDS[c.type].damage&&CARDS[c.type].cost<=b.energy);
+        if(attackCard){
+          await page.locator(`.card-hand [data-card-uid="${attackCard.uid}"]`).hover();
+          await page.locator('.enemy-hud .health-preview-tag').waitFor({timeout:5000});
+          await capture('battle-hover-preview');
+          await page.mouse.move(10,10);
+        }
+        await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);await capture('battle-mobile');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.setViewportSize({width:1440,height:900});battleShot=true;
+      }
       const cards=b.hand.map(uid=>r.deck.find(c=>c.uid===uid)).filter(c=>CARDS[c.type].cost<=b.energy);
       const intent=intentFor(b.enemy);
       const score=card=>{const c=cardDetails(card);if(c.heal)return r.hp<r.maxHp-7?100:-1;if(c.focus)return cards.some(other=>other.uid!==card.uid&&cardDetails(other).damage)?90:-1;if(c.strength)return b.turn<4?50:1;if(c.block&&!c.damage)return intent.kind==='attack'&&b.block<intent.value?40:0;if(c.weak)return intent.value>=10&&b.enemy.weak<1?30:0;return(c.damage+b.strength+b.focus)*(c.hits||1)/(c.cost||1)+10;};

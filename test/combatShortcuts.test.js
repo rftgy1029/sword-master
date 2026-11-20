@@ -16,3 +16,9 @@ test('shortcut ignores repeated keys, composing and modifier combinations', () =
     assert.equal(cardShortcutIndex({ key: '1', code: 'Numpad1', [flag]: true }), null);
   }
 });
+
+test('custom max parameter supports five-card hands without changing default limit', () => {
+  assert.equal(cardShortcutIndex({ key: '5', code: 'Digit5' }, 5), 4);
+  assert.equal(cardShortcutIndex({ key: '5', code: 'Numpad5' }, 5), 4);
+  assert.equal(cardShortcutIndex({ key: '6', code: 'Digit6' }, 5), null);
+});

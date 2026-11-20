@@ -54,7 +54,10 @@ test('audio settings default for older saves and normalize the volume range', ()
   const old = normalizeSettings({ graphicsQuality: 'high' });
   assert.equal(old.combatSound, 'on');
   assert.equal(old.combatVolume, 60);
+  assert.equal(old.shortcutConfirm, 'single');
   assert.equal(normalizeSettings({ combatVolume: 137 }).combatVolume, 100);
   assert.equal(normalizeSettings({ combatVolume: -3 }).combatVolume, 0);
   assert.equal(normalizeSettings({ combatVolume: '25' }).combatVolume, 60);
+  assert.equal(normalizeSettings({ shortcutConfirm: 'double' }).shortcutConfirm, 'double');
+  assert.equal(normalizeSettings({ shortcutConfirm: 'triple' }).shortcutConfirm, 'single');
 });

@@ -5,6 +5,7 @@ import GameErrorBoundary from './components/GameErrorBoundary.jsx';
 import '../styles.css';
 import './styles/premium.css';
 import './styles/dusk.css';
+import './styles/battleFocus.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode><GameErrorBoundary><App /></GameErrorBoundary></StrictMode>,

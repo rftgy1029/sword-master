@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   graphicsQuality: 'auto',
   combatSound: 'on',
   combatVolume: 60,
+  shortcutConfirm: 'single',
 });
 
 const OPTIONS = {
@@ -17,6 +18,7 @@ const OPTIONS = {
   renderer: ['auto', '3d', '2d'],
   graphicsQuality: ['auto', 'low', 'balanced', 'high'],
   combatSound: ['on', 'off'],
+  shortcutConfirm: ['single', 'double'],
 };
 
 export function normalizeSettings(value) {

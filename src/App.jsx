@@ -234,7 +234,7 @@ function GameApp({ settings, setSettings }) {
         : openedMenu === '오답 복습' ? <ReviewDialog progress={progress} dispatch={dispatch} error={error} onClose={closeMenu} />
         : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
           : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
-            newAdventure={openedMenu === '새 모험'} onClose={closeAdventure} /> : null}
+            shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onClose={closeAdventure} /> : null}
       {downloadVisible && (
         <AssetDownloadOverlay
           progress={preloadState.progress}
