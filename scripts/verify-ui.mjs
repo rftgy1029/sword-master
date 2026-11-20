@@ -50,6 +50,7 @@ try{
   await page.goto(BASE_URL);
   await page.getByRole('button',{name:/^이어하기/}).click();
   await page.locator('.quiz-options button:not(:disabled)').nth(3).waitFor({timeout:20000});
+  assert.equal(await page.locator('.battle-quiz-backdrop').count(),0,'Inline quiz renders without a dimmed modal backdrop');
   await page.locator('.quiz-options button').nth(3).scrollIntoViewIfNeeded();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   assert.equal(await page.locator('.quiz-options').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);
@@ -58,11 +59,11 @@ try{
   const q=fixture.run.battle.pending.question;
   const wrong=q.options.findIndex(s=>!questionById(q.id).answers.includes(s));
   await page.locator('.quiz-options button').nth(wrong).tap();
-  await page.locator('.quiz-feedback .game-primary:not(:disabled)').waitFor({timeout:20000});
+  await page.locator('.battle-quiz-dock.is-reveal-wrong .quiz-dock-option.is-reveal-correct').waitFor({timeout:10000});
   const p=await read();assert.equal(p.run.battle.enemy.hp,fixture.run.battle.enemy.hp);assert.equal(p.learning.entries[q.id].wrong,1);
-  await page.locator('.quiz-feedback .game-primary').click();
+  await page.locator('.card-hand .game-card').first().waitFor({timeout:10000});
   await page.getByRole('button',{name:'모험 닫고 타이틀로',exact:true}).click();
-  console.log('360px / max text: options reachable, wrong answer records learning without damage');
+  console.log('360px / max text: inline quiz options reachable, wrong answer highlights answer and auto-returns without damage');
   await page.setViewportSize({width:1366,height:768});
   await page.getByRole('button',{name:'오답 복습',exact:false}).click();
   for(let i=0;i<2;i++){

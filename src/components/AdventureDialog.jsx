@@ -8,7 +8,7 @@ import { schoolClearCount } from '../survey.js';
 import { TierCrest } from './VocabularyDialog.jsx';
 import CombatScene from './CombatScene.jsx';
 import DungeonEntrance from './DungeonEntrance.jsx';
-import QuizPanel from './QuizPanel.jsx';
+import BattleQuizDock from './BattleQuizDock.jsx';
 import { TransitionVeil, useSceneTransition } from './SceneTransition.jsx';
 import { useCardDeal } from './useCardDeal.js';
 import { navigateTiers } from '../game/tierNavigation.js';
@@ -62,6 +62,7 @@ export function Card({
     disabled={disabled}
     onClick={onClick}
     onMouseEnter={onPreviewStart}
+    onMouseMove={onPreviewStart}
     onMouseLeave={onPreviewEnd}
     onFocus={onPreviewStart}
     onBlur={onPreviewEnd}
@@ -166,12 +167,14 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
   const dealCanvas = useRef(null);
   const shortcut = useRef(null);
   const toastTimer = useRef(null);
+  const wrongRevealTimer = useRef(null);
   const handledFeedbackKey = useRef(null);
   const autoAckedKey = useRef(null);
   const lastQuizCard = useRef(null);
   useEffect(() => () => {
     cancelShortcut(shortcut);
     clearTimeout(toastTimer.current);
+    clearTimeout(wrongRevealTimer.current);
   }, []);
   const [skillBusy, setSkillBusy] = useState(false);
   const [visualStatus, setVisualStatus] = useState('loading');
@@ -185,9 +188,11 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
   const [shownPlayerHP, setShownPlayerHP] = useState(run.hp);
   const [shownBlock, setShownBlock] = useState(run.battle.block);
   const [shownIntent, setShownIntent] = useState(() => intentFor(run.battle.enemy));
+  const [shownEnergy, setShownEnergy] = useState(run.battle.energy);
   const [hoveredCardUid, setHoveredCardUid] = useState(null);
   const [focusedCardUid, setFocusedCardUid] = useState(null);
   const [answerToast, setAnswerToast] = useState(null);
+  const [wrongTimerDoneKey, setWrongTimerDoneKey] = useState(null);
   const transition = useSceneTransition();
   const b = run.battle;
   const graphics = useGraphics();
@@ -196,10 +201,11 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
   }, [b.enemy.type, graphics.renderer, graphics.unavailable]);
   const pending = b.pending;
   const feedback = b.feedback;
-  const locked = !!(pending || feedback);
-  const showQuizOverlay = Boolean(pending || (feedback && !feedback.correct));
+  const inQuiz = Boolean(pending || feedback);
+  const locked = inQuiz;
   const intent = intentFor(b.enemy);
   const combatEffect = fatalEffect ?? b.effect;
+  const enemyActing = skillBusy && ['hurt', 'enemy'].includes(combatEffect.kind);
   const cue = attackCue.current?.id === combatEffect.id ? attackCue.current.cue : undefined;
   const selectedCard = pending && run.deck.find((c) => c.uid === pending.uid);
   if (selectedCard) {
@@ -217,7 +223,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
   const deal = useCardDeal({ section, canvas: dealCanvas, cards: hand, turn: b.turn, drawCount: b.draw.length,
     suspended: locked || skillBusy || loading, animateOpening,
     motionPreference: visualStatus === 'fallback' ? 'off' : motionPreference, onOpeningDone });
-  const busy = loading || skillBusy || deal.busy || fatal;
+  const busy = loading || skillBusy || (!inQuiz && deal.busy) || fatal;
 
   useEffect(() => {
     if (locked || busy) {
@@ -246,48 +252,99 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
   useEffect(() => { if (!skillBusy) setShownPlayerHP(fatal ? 0 : run.hp); }, [skillBusy, run.hp, fatal]);
   useEffect(() => { if (!skillBusy) setShownBlock(b.block); }, [skillBusy, b.block]);
   useEffect(() => { if (!skillBusy) setShownIntent(intentFor(b.enemy)); }, [skillBusy, b.enemy]);
+  useEffect(() => { if (!enemyActing) setShownEnergy(b.energy); }, [enemyActing, b.energy]);
 
-  // 정답이면 방해하지 않는 플로팅 배지로 단어 뜻을 짧게 보여 주고, 기술 연출이 끝나는 즉시 손패로 자동 복귀한다.
+  const showToast = (toast, durationMs = 1900) => {
+    const id = Date.now() + Math.random();
+    setAnswerToast({ ...toast, id });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => {
+      setAnswerToast((current) => (current?.id === id ? null : current));
+    }, durationMs);
+  };
+
+  const feedbackKey = feedback ? `${b.effect.id}:${feedback.question.id}` : null;
+  const reducedMotion = motionPreference === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const wrongRevealMs = reducedMotion ? 700 : 1150;
+
+  // 정답·오답 모두 전장 상단 슬림 토스트로 단어와 뜻을 한 번 더 각인한다.
   useEffect(() => {
-    if (!feedback) return;
-    const key = `${b.effect.id}:${feedback.question.id}`;
-    if (handledFeedbackKey.current === key) return;
-    handledFeedbackKey.current = key;
+    if (!feedback || !feedbackKey) return;
+    if (handledFeedbackKey.current === feedbackKey) return;
+    handledFeedbackKey.current = feedbackKey;
+    const source = questionById(feedback.question.id, wordbooks);
+    if (!source) return;
     if (feedback.correct) {
-      const source = questionById(feedback.question.id, wordbooks);
-      const toastId = Date.now();
-      setAnswerToast({
-        id: toastId,
+      showToast({
+        tone: 'correct',
+        badge: feedback.cardName,
         term: source.word.term,
         meaning: source.word.meaning,
-        cardName: feedback.cardName,
-      });
-      clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(() => {
-        setAnswerToast((current) => (current?.id === toastId ? null : current));
-      }, 1800);
+      }, 1850);
+    } else {
+      showToast({
+        tone: 'wrong',
+        badge: '오답 복기',
+        term: source.word.term,
+        meaning: source.word.meaning,
+      }, 2600);
     }
-  }, [feedback, b.effect.id, wordbooks]);
+  }, [feedback, feedbackKey, wordbooks]);
 
+  // 오답 시 1.15초 정답 하이라이트 후 자동 복귀(클릭/Enter/Space로 즉시 스킵 가능).
   useEffect(() => {
-    if (!feedback?.correct || loading || skillBusy) return;
-    const key = `${b.effect.id}:${feedback.question.id}`;
-    if (autoAckedKey.current === key) return;
-    const instant = !canAnimate || motionPreference === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const timer = setTimeout(() => {
-      autoAckedKey.current = key;
-      if (b.enemy.hp <= 0) transition(() => dispatch({ type: 'ACK' }));
-      else dispatch({ type: 'ACK' });
-    }, instant ? 90 : 180);
-    return () => clearTimeout(timer);
-  }, [feedback, loading, skillBusy, b.effect.id, b.enemy.hp, canAnimate, motionPreference, dispatch, transition]);
+    clearTimeout(wrongRevealTimer.current);
+    if (!feedback || feedback.correct || loading || !feedbackKey) return undefined;
+    wrongRevealTimer.current = setTimeout(() => {
+      setWrongTimerDoneKey(feedbackKey);
+    }, wrongRevealMs);
+    return () => clearTimeout(wrongRevealTimer.current);
+  }, [feedback, feedbackKey, loading, wrongRevealMs]);
 
+  const skipWrongReveal = () => {
+    if (!feedback || feedback.correct || loading || !feedbackKey) return;
+    clearTimeout(wrongRevealTimer.current);
+    setWrongTimerDoneKey(feedbackKey);
+  };
+
+  // 연출(정답) 또는 1.15초 하이라이트(오답)가 끝나면 손패 또는 승리로 자동 복귀한다.
   useEffect(() => {
+    if (!feedback || !feedbackKey || loading || skillBusy) return undefined;
+    if (autoAckedKey.current === feedbackKey) return undefined;
+    if (feedback.correct) {
+      const delay = canAnimate ? (reducedMotion ? 90 : 180) : (reducedMotion ? 150 : 280);
+      const timer = setTimeout(() => {
+        autoAckedKey.current = feedbackKey;
+        if (b.enemy.hp <= 0) transition(() => dispatch({ type: 'ACK' }));
+        else dispatch({ type: 'ACK' });
+      }, delay);
+      return () => clearTimeout(timer);
+    }
+    if (wrongTimerDoneKey === feedbackKey) {
+      autoAckedKey.current = feedbackKey;
+      dispatch({ type: 'ACK' });
+    }
+    return undefined;
+  }, [feedback, feedbackKey, loading, skillBusy, wrongTimerDoneKey, b.enemy.hp, canAnimate, reducedMotion, dispatch, transition]);
+
+  const pendingQuestionId = pending?.question?.id;
+  useEffect(() => {
+    if (busy || feedback) return;
     const active = document.activeElement;
-    if (!busy && (!active || ['BODY', 'DIALOG', 'H2'].includes(active.tagName) || active.disabled || active.closest('[inert]'))) {
+    if (!active || ['BODY', 'DIALOG', 'H2'].includes(active.tagName) || active.disabled || active.closest('[inert]')) {
       section.current?.querySelector('[data-initial-focus]:not(:disabled):not([inert] *)')?.focus({ preventScroll: true });
     }
-  }, [busy, locked, showQuizOverlay]);
+  }, [busy, locked, pendingQuestionId, feedback]);
+
+  const playCard = (uid) => {
+    if (busy || locked) return;
+    dispatch({ type: 'SELECT_CARD', uid });
+  };
+
+  const handleAnswer = (answer) => {
+    if (loading || fatal || !pending) return;
+    if (dispatch({ type: 'ANSWER', id: pending.question.id, answer }) && canAnimate) setSkillBusy(true);
+  };
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -301,7 +358,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
       if (!card || CARDS[card.type].cost > b.energy) return;
       event.preventDefault();
       const button = root.querySelectorAll('.card-hand .game-card')[index];
-      confirmShortcut(shortcut, `card:${card.uid}`, button, () => dispatch({ type: 'SELECT_CARD', uid: card.uid }), { mode: shortcutConfirm });
+      confirmShortcut(shortcut, `card:${card.uid}`, button, () => playCard(card.uid), { mode: shortcutConfirm });
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -356,10 +413,10 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
     : '';
   const playerPreviewKind = cardPreview && cardPreview.healGain > 0 ? 'heal' : null;
   const playerPreviewLabel = cardPreview && cardPreview.healGain > 0 ? `+${cardPreview.healGain}` : '';
-  const stageStatus = deal.busy
+  const stageStatus = (!inQuiz && deal.busy)
     ? '카드를 뽑는 중…'
-    : skillBusy
-      ? (combatEffect.kind === 'hurt' ? '적의 공격!' : combatEffect.kind === 'enemy' ? '적이 행동하는 중…' : '')
+    : enemyActing
+      ? (combatEffect.kind === 'hurt' ? '적의 공격!' : '적이 행동하는 중…')
       : '';
 
   return <>
@@ -367,7 +424,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
       <span className="battle-loading-ring" aria-hidden="true" />
       <span>전투를 불러오는 중…</span>
     </div>}
-    <section ref={section} className={`battle-screen${busy ? ' is-animating' : ''}${showQuizOverlay ? ' has-quiz-overlay' : ''}`} aria-label="턴제 카드 전투" aria-busy={busy} inert={loading}>
+    <section ref={section} className={`battle-screen${busy ? ' is-animating' : ''}${inQuiz ? ' is-quizzing' : ''}`} aria-label="턴제 카드 전투" aria-busy={busy} inert={loading}>
       <div className="battle-stage">
         <div className="combat-hud is-slim">
           <section className="combatant-hud player-hud" aria-label="모험가 상태">
@@ -396,11 +453,11 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
               <StatusBadges battle={b} compact busy={skillBusy} />
             </>}
             enemyIndicators={shownEnemyHP > 0 && <>
-              <EnemyIntent intent={shownIntent} acting={skillBusy && ['hurt', 'enemy'].includes(combatEffect.kind)}
-                playerBlock={shownBlock} playerHp={shownPlayerHP} locked={locked} preview={cardPreview} />
+              <EnemyIntent intent={shownIntent} acting={enemyActing}
+                playerBlock={shownBlock} playerHp={shownPlayerHP} locked={false} preview={cardPreview} />
               <StatusBadges battle={b} enemy compact busy={skillBusy} />
             </>}
-            studying={showQuizOverlay} playerHealth={shownPlayerHP / run.maxHp}
+            studying={Boolean(pending)} playerHealth={shownPlayerHP / run.maxHp}
             onReady={() => setVisualStatus('ready')} onError={() => setVisualStatus('fallback')}
             onImpact={(_, target, hit) => {
               if (target === 'player') setShownPlayerHP((hp) => Math.max(fatal ? 0 : run.hp, hp - hit.amount));
@@ -414,21 +471,21 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
               }
             }} />
 
-          {answerToast && !showQuizOverlay && <div key={answerToast.id} className="battle-answer-toast is-correct" role="status" aria-live="polite">
-            <span className="toast-check" aria-hidden="true">✓</span>
+          {answerToast && <div key={answerToast.id} className={`battle-answer-toast is-${answerToast.tone ?? 'correct'}`} role="status" aria-live="polite">
+            <span className="toast-check" aria-hidden="true">{answerToast.tone === 'wrong' ? '✕' : '✓'}</span>
             <strong lang="en">{answerToast.term}</strong>
             <span className="toast-sep" aria-hidden="true">=</span>
             <span className="toast-meaning">{answerToast.meaning}</span>
-            <small className="toast-card">{answerToast.cardName}</small>
+            {answerToast.badge && <small className="toast-card">{answerToast.badge}</small>}
           </div>}
 
-          {stageStatus && !showQuizOverlay && <div className="battle-stage-status" role="status">{stageStatus}</div>}
+          {stageStatus && <div className="battle-stage-status" role="status">{stageStatus}</div>}
         </div>
       </div>
 
-      <div className={`battle-controls battle-dock${showQuizOverlay ? ' is-dimmed' : ''}`} inert={showQuizOverlay}>
+      <div className={`battle-controls battle-dock${inQuiz ? ' is-quiz-mode' : ''}`}>
         <div className="dock-side dock-left">
-          <CombatEnergy energy={b.energy} playable={playableCount}
+          <CombatEnergy energy={shownEnergy} playable={playableCount}
             previewCost={cardPreview?.cost ?? 0}
             previewAfter={cardPreview ? cardPreview.energyAfter : null} />
           <div className="deck-pile draw-pile" aria-label={`뽑을 카드 ${b.draw.length}장`} title={`뽑을 카드 ${b.draw.length}장`}>
@@ -436,52 +493,55 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
           </div>
         </div>
 
-        <div className="card-hand" data-keyboard-group aria-label="손에 든 카드">
-          {hand.map((card, index) => {
-            const playable = CARDS[card.type].cost <= b.energy;
-            return <Card key={card.uid} card={card} compact shortcut={index < 5 ? index + 1 : undefined}
-              liveEffects={liveCardEffects(run, card)}
-              hidden={deal.hidden.includes(card.uid)} disabled={locked || busy || !playable}
-              onPreviewStart={(event) => {
-                if (event.type === 'focus') {
-                  if (event.currentTarget.matches(':focus-visible')) setFocusedCardUid(card.uid);
-                } else {
-                  setHoveredCardUid(card.uid);
-                }
-              }}
-              onPreviewEnd={(event) => {
-                if (event.type === 'blur') setFocusedCardUid((curr) => (curr === card.uid ? null : curr));
-                else setHoveredCardUid((curr) => (curr === card.uid ? null : curr));
-              }}
-              onClick={() => { if (!busy && !locked) dispatch({ type: 'SELECT_CARD', uid: card.uid }); }}
-              initialFocus={!showQuizOverlay && playable} />;
-          })}
-          {!hand.length && <p className="empty-hand game-muted">손에 든 카드가 없어요. 턴을 종료해 새 카드를 뽑으세요.</p>}
-        </div>
+        {inQuiz ? (
+          <BattleQuizDock
+            question={pending?.question ?? feedback?.question}
+            feedback={feedback}
+            card={quizCard}
+            cardName={selectedCard ? CARDS[selectedCard.type].name : (feedback?.cardName ?? '')}
+            cardSummary={quizCardSummary}
+            wordbooks={wordbooks}
+            busy={loading || skillBusy || fatal}
+            shortcutMode={shortcutConfirm}
+            revealDuration={feedback && !feedback.correct ? wrongRevealMs : 0}
+            onAnswer={handleAnswer}
+            onSkipReveal={skipWrongReveal}
+          />
+        ) : (
+          <div className="card-hand" data-keyboard-group aria-label="손에 든 카드">
+            {hand.map((card, index) => {
+              const playable = CARDS[card.type].cost <= b.energy;
+              return <Card key={card.uid} card={card} compact shortcut={index < 5 ? index + 1 : undefined}
+                liveEffects={liveCardEffects(run, card)}
+                hidden={deal.hidden.includes(card.uid)} disabled={locked || busy || !playable}
+                onPreviewStart={(event) => {
+                  if (event.type === 'focus') {
+                    if (event.currentTarget.matches(':focus-visible')) setFocusedCardUid(card.uid);
+                  } else {
+                    setHoveredCardUid(card.uid);
+                  }
+                }}
+                onPreviewEnd={(event) => {
+                  if (event.type === 'blur') setFocusedCardUid((curr) => (curr === card.uid ? null : curr));
+                  else setHoveredCardUid((curr) => (curr === card.uid ? null : curr));
+                }}
+                onClick={() => playCard(card.uid)}
+                initialFocus={!inQuiz && playable} />;
+            })}
+            {!hand.length && <p className="empty-hand game-muted">손에 든 카드가 없어요. 턴을 종료해 새 카드를 뽑으세요.</p>}
+          </div>
+        )}
 
         <div className="dock-side dock-right">
           <button className={`game-primary end-turn${!locked && !busy && playableCount === 0 ? ' is-suggested' : ''}`}
             disabled={locked || busy}
-            data-initial-focus={!showQuizOverlay && !locked && playableCount === 0 ? '' : undefined}
+            data-initial-focus={!inQuiz && !locked && playableCount === 0 ? '' : undefined}
             onClick={endTurn}>턴 종료</button>
           <div className="deck-pile discard-pile" aria-label={`버린 카드 ${b.discard.length}장, 소멸 ${b.exhaust.length}장`} title={`버린 카드 ${b.discard.length}장 · 소멸 ${b.exhaust.length}장`}>
             <span>◇</span><small>버림 <strong>{b.discard.length}</strong>{b.exhaust.length > 0 && ` · 소멸 ${b.exhaust.length}`}</small>
           </div>
         </div>
       </div>
-
-      {showQuizOverlay && <div className="battle-quiz-backdrop" role="presentation">
-        <QuizPanel compact busy={loading || skillBusy}
-          question={pending?.question ?? feedback.question}
-          feedback={feedback}
-          wordbooks={wordbooks}
-          card={quizCard}
-          cardName={selectedCard ? CARDS[selectedCard.type].name : feedback.cardName}
-          cardSummary={quizCardSummary}
-          shortcutMode={shortcutConfirm}
-          onAnswer={(answer) => { if (!loading && pending && dispatch({ type: 'ANSWER', id: pending.question.id, answer }) && canAnimate) setSkillBusy(true); }}
-          onContinue={() => { if (loading || skillBusy) return; if (b.enemy.hp <= 0) transition(() => dispatch({ type: 'ACK' })); else dispatch({ type: 'ACK' }); }} />
-      </div>}
 
       <div ref={dealCanvas} className="card-deal-canvas" aria-hidden="true" />
     </section>
@@ -490,9 +550,9 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
 
 function BattleLog({ battle }) {
   return <section className="combat-log" aria-label="전투 기록과 규칙">
-    <h3>전투 기록 · 카드 사용 규칙</h3>
+    <h3>전투 기록 · 전투 규칙</h3>
     <p>뽑을 카드 {battle.draw.length} · 버린 카드 {battle.discard.length} · 소멸 {battle.exhaust.length}</p>
-    <p>선택 즉시 에너지와 카드를 소비합니다. 오답도 카드를 돌려주지 않습니다. 소멸 카드는 다음 전투에서 돌아옵니다. 집중은 다음에 성공한 카드의 수치에 적용되며, 집중 카드끼리는 누적됩니다.</p>
+    <p>카드를 고른 뒤 영단어 문제를 맞히면 효과가 발동합니다. 소멸 카드는 다음 전투에서 돌아옵니다.</p>
     <ol>{battle.log.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ol>
   </section>;
 }

@@ -125,6 +125,11 @@ export function loadProgress(storage) {
     if (raw === null) return { progress: emptyProgress(), raw, blocked: false, error: '' };
     const saved = JSON.parse(raw);
     if (saved.version !== 1 || !validProgress(saved.progress)) throw new Error('invalid');
+    const battle = saved.progress.run?.battle;
+    if (battle && Object.hasOwn(battle, 'chant')) {
+      if (battle.chant) battle.energy = Math.max(3, battle.energy);
+      delete battle.chant;
+    }
     return { progress: saved.progress, raw, blocked: false, error: '' };
   } catch {
     return { progress: emptyProgress(), raw: null, blocked: true,

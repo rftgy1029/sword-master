@@ -81,20 +81,22 @@ try{
         }
       }else{
         await settle();
-        await page.locator('.quiz-feedback .game-primary').waitFor({timeout:20000});
-        await page.locator('.quiz-feedback .game-primary').click();
+        await page.waitForFunction(()=>{
+          const saved=JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress;
+          return saved.run.phase!=='battle'||!saved.run.battle?.feedback;
+        },{},{timeout:20000});
       }
     }else if(b.pending){
-      await page.locator('.quiz-options button').first().waitFor();
+      await page.locator('.quiz-options button:not(:disabled)').first().waitFor();
       if(!restored){
         const old=structuredClone(b.pending),energy=b.energy;
-        const quizWidth=await page.locator('.quiz-panel.is-battle-focus').evaluate(el=>el.getBoundingClientRect().width);
-        assert.ok(quizWidth<=580,`Central quiz panel stays compact (${quizWidth}px)`);
+        assert.equal(await page.locator('.battle-quiz-backdrop').count(),0,'Inline dock quiz never covers the battlefield');
+        await page.locator('.battle-dock .battle-quiz-dock').waitFor();
         await capture('quiz-desktop');
         await page.getByRole('button',{name:'모험 닫고 타이틀로',exact:true}).click();
         await page.reload();
         await page.getByRole('button',{name:/^이어하기/}).click();
-        await page.locator('.quiz-options button').first().waitFor({timeout:20000});
+        await page.locator('.quiz-options button:not(:disabled)').first().waitFor({timeout:20000});
         const resumed=await read();assert.deepEqual(resumed.run.battle.pending,old);assert.equal(resumed.run.battle.energy,energy);
         restored=true;console.log('unanswered quiz reload: exact question, card and energy preserved');
       }

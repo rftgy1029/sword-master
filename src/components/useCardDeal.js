@@ -29,6 +29,7 @@ export function useCardDeal({ section, canvas, cards, turn, drawCount, suspended
   useLayoutEffect(() => {
     if (suspended) {
       if (previous.current?.turn === turn) previous.current.ids = previous.current.ids.filter((uid) => cards.some((card) => card.uid === uid));
+      setBusy(false);
       return;
     }
     if (drawing.current) return;
