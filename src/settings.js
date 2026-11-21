@@ -5,7 +5,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   backgroundMotion: 'normal',
   selectionEffect: 'breathe',
   renderer: 'auto',
-  graphicsQuality: 'auto',
+  graphicsQuality: 'balanced',
   combatSound: 'on',
   combatVolume: 60,
   shortcutConfirm: 'single',
@@ -16,7 +16,7 @@ const OPTIONS = {
   backgroundMotion: ['normal', 'reduced', 'off'],
   selectionEffect: ['breathe', 'static'],
   renderer: ['auto', '3d', '2d'],
-  graphicsQuality: ['auto', 'lowest', 'low', 'balanced', 'high'],
+  graphicsQuality: ['lowest', 'low', 'balanced', 'high'],
   combatSound: ['on', 'off'],
   shortcutConfirm: ['single', 'double'],
 };
@@ -28,6 +28,19 @@ export function normalizeSettings(value) {
   const volume = value?.combatVolume;
   normalized.combatVolume = Number.isFinite(volume) ? Math.min(100, Math.max(0, Math.round(volume))) : DEFAULT_SETTINGS.combatVolume;
   return normalized;
+}
+
+/**
+ * Returns true only when storage already records an explicit graphics quality choice
+ * (new visits and legacy 'auto' saves return false so the first-launch picker appears once).
+ */
+export function hasChosenGraphicsQuality(storage) {
+  try {
+    const saved = JSON.parse((storage ?? globalThis.localStorage).getItem(SETTINGS_KEY));
+    return saved?.version === 1 && OPTIONS.graphicsQuality.includes(saved.settings?.graphicsQuality);
+  } catch {
+    return false;
+  }
 }
 
 export function readSettings(storage) {

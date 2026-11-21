@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {CombatPlayback,combatMotionMode,impactAges} from '../src/game/three/playback.js';
 import {
-  MODEL_TYPES, detectDeviceQuality, effectiveFrameRate, qualityProfile, slowFrameThreshold, stepDownQuality,
+  MODEL_TYPES, QUALITY_PRESETS, effectiveFrameRate, qualityProfile, recommendGraphicsQuality,
 } from '../src/game/three/quality.js';
 import { setActorOutlines, setHitFlash, stylizeActor } from '../src/game/three/toon.js';
 import {MONSTERS,CARDS} from '../src/game/catalog.js';
@@ -251,7 +251,7 @@ test('lowest quality profile trims DPR, lights, environment and outlines while k
   assert.equal(lowest.rimLight, false);
   assert.equal(lowest.motes, 0);
   assert.equal(lowest.fps, 24);
-  assert.equal(lowest.idleFps, 8);
+  assert.equal(lowest.idleFps, 10);
   assert.equal(lowest.studyFps, 0);
   assert.ok(lowest.trail >= 6 && lowest.particles >= 8 && lowest.debris >= 3 && lowest.projectileParts >= 3);
 
@@ -261,34 +261,49 @@ test('lowest quality profile trims DPR, lights, environment and outlines while k
   assert.equal(low.pointLights, false);
   assert.equal(low.studyFps, 15);
   assert.equal(low.idleFps, 20);
+
+  const balanced = qualityProfile('balanced', { pixelRatio: 2 });
+  assert.equal(balanced.fps, 60);
+  assert.equal(balanced.idleFps, 60);
+  assert.equal(balanced.studyFps, 30);
 });
 
-test('device quality detection classifies software GPUs, weak laptops and budget phones safely in 3D', () => {
-  assert.equal(detectDeviceQuality({ gpuRenderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device))', hardwareConcurrency: 8, deviceMemory: 8 }), 'lowest');
-  assert.equal(detectDeviceQuality({ gpuRenderer: 'Microsoft Basic Render Driver', hardwareConcurrency: 8, deviceMemory: 8 }), 'lowest');
-  assert.equal(detectDeviceQuality({ gpuRenderer: 'llvmpipe (LLVM 15.0.6, 256 bits)', hardwareConcurrency: 4, deviceMemory: 8 }), 'lowest');
-  assert.equal(detectDeviceQuality({ gpuRenderer: 'NVIDIA GeForce RTX 3060', hardwareConcurrency: 2, deviceMemory: 8 }), 'lowest');
-  assert.equal(detectDeviceQuality({ gpuRenderer: 'NVIDIA GeForce RTX 3060', hardwareConcurrency: 8, deviceMemory: 2 }), 'lowest');
-  assert.equal(detectDeviceQuality({ gpuRenderer: 'Intel(R) UHD Graphics 620', hardwareConcurrency: 8, deviceMemory: 8 }), 'low');
-  assert.equal(detectDeviceQuality({ gpuRenderer: 'Apple GPU', compact: true, hardwareConcurrency: 6, deviceMemory: 6 }), 'low');
-  assert.equal(detectDeviceQuality({ gpuRenderer: 'Adreno (TM) 610', compact: true, hardwareConcurrency: 4, deviceMemory: 3 }), 'lowest');
-  assert.equal(detectDeviceQuality({ gpuRenderer: 'NVIDIA GeForce RTX 3060', compact: false, coarsePointer: false, hardwareConcurrency: 8, deviceMemory: 16 }), 'balanced');
+test('graphics preset recommendation suggests high/balanced/low/lowest accurately without overriding explicit picks', () => {
+  assert.deepEqual(QUALITY_PRESETS.map((p) => p.id), ['lowest', 'low', 'balanced', 'high']);
+
+  // Software / caveat / ultra-low -> lowest
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device))', hardwareConcurrency: 8, deviceMemory: 8 }), 'lowest');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Microsoft Basic Render Driver', hardwareConcurrency: 8, deviceMemory: 8 }), 'lowest');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'llvmpipe (LLVM 15.0.6, 256 bits)', hardwareConcurrency: 4, deviceMemory: 8 }), 'lowest');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'WebKit WebGL', majorPerformanceCaveat: true, hardwareConcurrency: 8, deviceMemory: 16 }), 'lowest');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: '', hardwareConcurrency: 4, deviceMemory: 2 }), 'lowest');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'NVIDIA GeForce RTX 4060', saveData: true, hardwareConcurrency: 16, deviceMemory: 32 }), 'lowest');
+
+  // High-end desktop GPUs & Apple Silicon -> high
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'NVIDIA GeForce RTX 3060', compact: false, coarsePointer: false, hardwareConcurrency: 2, deviceMemory: 4 }), 'high');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro)', compact: false, coarsePointer: false, hardwareConcurrency: 4 }), 'high');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Apple GPU', compact: false, coarsePointer: false, hardwareConcurrency: 4 }), 'high');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'ANGLE (AMD, AMD Radeon RX 7800 XT)', compact: false, coarsePointer: false, hardwareConcurrency: 8, deviceMemory: 16 }), 'high');
+
+  // Mid desktop GPUs -> balanced
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11)', compact: false, coarsePointer: false, hardwareConcurrency: 8, deviceMemory: 8 }), 'balanced');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: '', compact: false, coarsePointer: false, hardwareConcurrency: 8, deviceMemory: 8 }), 'balanced');
+
+  // Modern phones & budget iGPUs -> low
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Apple GPU', compact: true, hardwareConcurrency: 4 }), 'low');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Adreno (TM) 750', compact: true, hardwareConcurrency: 8, deviceMemory: 8 }), 'low');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Intel(R) UHD Graphics 620', hardwareConcurrency: 8, deviceMemory: 8 }), 'low');
 });
 
-test('auto quality step-down stays in 3D and adaptive FPS prioritizes active combat over quiz idle', () => {
-  assert.equal(stepDownQuality('high'), 'balanced');
-  assert.equal(stepDownQuality('balanced'), 'low');
-  assert.equal(stepDownQuality('low'), 'lowest');
-  assert.equal(stepDownQuality('lowest'), 'lowest');
-
-  const autoCapped = qualityProfile('auto', { compact: false, deviceTier: 'balanced', autoTier: 'lowest', pixelRatio: 2 });
-  assert.equal(autoCapped.level, 'lowest');
-  const explicitHigh = qualityProfile('high', { compact: true, deviceTier: 'lowest', autoTier: 'lowest', pixelRatio: 2 });
-  assert.equal(explicitHigh.level, 'high');
+test('explicit quality choices are honored directly and adaptive FPS prioritizes active combat over quiz idle', () => {
+  for (const tier of ['lowest', 'low', 'balanced', 'high']) {
+    assert.equal(qualityProfile(tier, { compact: true, pixelRatio: 3 }).level, tier);
+    assert.equal(qualityProfile(tier, { compact: false, pixelRatio: 2 }).level, tier);
+  }
 
   const lowest = qualityProfile('lowest');
   assert.equal(effectiveFrameRate(lowest, { active: false, studying: true, reduced: false }), 0);
-  assert.equal(effectiveFrameRate(lowest, { active: false, studying: false, reduced: false }), 8);
+  assert.equal(effectiveFrameRate(lowest, { active: false, studying: false, reduced: false }), 10);
   assert.equal(effectiveFrameRate(lowest, { active: true, studying: true, reduced: false }), 24);
   assert.equal(effectiveFrameRate(lowest, { active: true, studying: false, reduced: true }), 24);
 
@@ -297,12 +312,10 @@ test('auto quality step-down stays in 3D and adaptive FPS prioritizes active com
   assert.equal(effectiveFrameRate(low, { active: false, studying: false, reduced: false }), 20);
   assert.equal(effectiveFrameRate(low, { active: true, studying: false, reduced: false }), 30);
 
-  assert.equal(slowFrameThreshold(0), null);
-  assert.equal(slowFrameThreshold(8), null);
-  assert.equal(slowFrameThreshold(15), null);
-  assert.ok(slowFrameThreshold(20) > 0.08);
-  assert.ok(slowFrameThreshold(30) > 0.055 && slowFrameThreshold(30) < 0.07);
-  assert.ok(slowFrameThreshold(60) > 0.04 && slowFrameThreshold(60) < 0.055);
+  const high = qualityProfile('high');
+  assert.equal(effectiveFrameRate(high, { active: false, studying: true, reduced: false }), 30);
+  assert.equal(effectiveFrameRate(high, { active: false, studying: false, reduced: false }), 60);
+  assert.equal(effectiveFrameRate(high, { active: true, studying: true, reduced: false }), 60);
 });
 
 test('stylizeActor skips outline meshes on lowest quality while keeping hit-flash and lazy outline toggle', () => {

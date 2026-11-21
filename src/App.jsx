@@ -6,13 +6,14 @@ import SettingsDialog from './components/SettingsDialog.jsx';
 import VocabularyDialog from './components/VocabularyDialog.jsx';
 import SurveyDialog from './components/SurveyDialog.jsx';
 import { SURVEY_FORM_URL, surveyUnlocked } from './survey.js';
-import { DEFAULT_SETTINGS, normalizeSettings, readSettings, saveSettings } from './settings.js';
+import { DEFAULT_SETTINGS, hasChosenGraphicsQuality, normalizeSettings, readSettings, saveSettings } from './settings.js';
 import { listenForMenuNavigation } from './menuNavigation.js';
 import { useProgress } from './game/useProgress.js';
 import { TIERS } from './vocabulary.js';
 import { SceneTransitionProvider, useSceneTransition } from './components/SceneTransition.jsx';
 import { GraphicsProvider, useGraphics } from './components/GraphicsContext.jsx';
 import AssetDownloadOverlay from './components/AssetDownloadOverlay.jsx';
+import GraphicsQualityOverlay from './components/GraphicsQualityOverlay.jsx';
 import { isEmbeddedAssetBundle, isTitlePreloadReady, preloadCombatAssets, preloadTitleAssets } from './game/assetPreload.js';
 import { version } from '../package.json';
 import SwordLogo from './components/ui/SwordLogo.jsx';
@@ -53,6 +54,7 @@ function GameApp({ settings, setSettings }) {
   const reducedMotion = settings.backgroundMotion !== 'normal';
 
   const needsPreload = settings.renderer !== '2d' && !graphics.unavailable && !isEmbeddedAssetBundle();
+  const [qualityChosen, setQualityChosen] = useState(() => settings.renderer === '2d' || hasChosenGraphicsQuality());
   const [preloadAttempt, setPreloadAttempt] = useState(0);
   const [preloadState, setPreloadState] = useState(() => ({
     ready: !needsPreload || isTitlePreloadReady(),
@@ -62,9 +64,12 @@ function GameApp({ settings, setSettings }) {
   }));
   const [titleSceneReady, setTitleSceneReady] = useState(() => !needsPreload || isTitlePreloadReady());
   const wasDownloading = useRef(false);
-  const titleAssetsReady = !needsPreload || preloadState.ready;
-  const preloadBlocking = needsPreload && (!preloadState.ready || !titleSceneReady);
-  const downloadVisible = preloadBlocking && openedMenu === null;
+  const needsQualityChoice = !qualityChosen && settings.renderer !== '2d' && !graphics.unavailable;
+  const titleAssetsReady = (!needsPreload || preloadState.ready) && !needsQualityChoice;
+  const preloadBlocking = needsQualityChoice || (needsPreload && (!preloadState.ready || !titleSceneReady));
+  const qualityPickerVisible = needsQualityChoice && openedMenu === null;
+  const downloadVisible = !qualityPickerVisible && preloadBlocking && openedMenu === null;
+  const overlayVisible = qualityPickerVisible || downloadVisible;
 
   useEffect(() => {
     if (!needsPreload) {
@@ -107,18 +112,21 @@ function GameApp({ settings, setSettings }) {
   }, [needsPreload, preloadAttempt]);
 
   useEffect(() => {
-    if (downloadVisible) {
+    if (overlayVisible) {
       wasDownloading.current = true;
     } else if (wasDownloading.current) {
       wasDownloading.current = false;
       if (openedMenu === null && !preloadBlocking) buttons.current[selected]?.focus({ preventScroll: true });
     }
-  }, [downloadVisible, openedMenu, preloadBlocking, selected]);
+  }, [overlayVisible, openedMenu, preloadBlocking, selected]);
 
   useEffect(() => {
     if (!preloadBlocking && openedMenu === null) buttons.current[0]?.focus({ preventScroll: true });
   }, []);
-  useEffect(() => { setSettingsSaved(saveSettings(settings)); }, [settings]);
+  useEffect(() => {
+    if (!qualityChosen) return;
+    setSettingsSaved(saveSettings(settings));
+  }, [settings, qualityChosen]);
   useEffect(() => {
     if (openedMenu !== null || preloadBlocking) return;
     const indices = MENU.map((_, i) => i).filter(isEnabled);
@@ -236,6 +244,20 @@ function GameApp({ settings, setSettings }) {
         : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
           : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
             shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onClose={closeAdventure} /> : null}
+      {qualityPickerVisible && (
+        <GraphicsQualityOverlay
+          recommended={graphics.recommendedQuality}
+          preloadReady={preloadState.ready}
+          preloadStatus={preloadState.status}
+          preloadProgress={preloadState.progress}
+          onConfirm={(chosen) => {
+            const next = normalizeSettings({ ...settings, graphicsQuality: chosen });
+            setSettings(next);
+            setQualityChosen(true);
+            setSettingsSaved(saveSettings(next));
+          }}
+        />
+      )}
       {downloadVisible && (
         <AssetDownloadOverlay
           progress={overlayProgress}

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_SETTINGS, SETTINGS_KEY, normalizeSettings, readSettings, saveSettings } from '../src/settings.js';
+import {
+  DEFAULT_SETTINGS, SETTINGS_KEY, hasChosenGraphicsQuality, normalizeSettings, readSettings, saveSettings,
+} from '../src/settings.js';
 
 test('missing or corrupt storage recovers to defaults', () => {
   for (const raw of [null, '', '{broken', 'null', '[]']) {
@@ -32,12 +34,14 @@ test('existing settings receive graphics defaults without changing reading and m
   const old = { textSize:'large',backgroundMotion:'off',selectionEffect:'static' };
   assert.deepEqual(readSettings({getItem:()=>JSON.stringify({version:1,settings:old})}),{...DEFAULT_SETTINGS,...old});
   assert.equal(normalizeSettings({renderer:'invalid',graphicsQuality:'unlimited'}).renderer,'auto');
+  assert.equal(normalizeSettings({graphicsQuality:'auto'}).graphicsQuality,'balanced');
 });
 
 test('unavailable storage is handled without throwing', () => {
   const unavailable = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('quota exceeded'); } };
   assert.deepEqual(readSettings(unavailable), DEFAULT_SETTINGS);
   assert.equal(saveSettings(DEFAULT_SETTINGS, unavailable), false);
+  assert.equal(hasChosenGraphicsQuality(unavailable), false);
 });
 
 test('restoring defaults preserves unrelated saved data', () => {
@@ -62,13 +66,22 @@ test('audio settings default for older saves and normalize the volume range', ()
   assert.equal(normalizeSettings({ shortcutConfirm: 'triple' }).shortcutConfirm, 'single');
 });
 
-test('lowest graphics quality option persists and normalizes alongside existing tiers', () => {
+test('explicit graphics quality tiers persist and first-launch setup detects unset or legacy auto saves', () => {
   const data = new Map();
   const storage = { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
-  for (const tier of ['auto', 'lowest', 'low', 'balanced', 'high']) {
+  assert.equal(hasChosenGraphicsQuality(storage), false);
+
+  // Legacy 'auto' save triggers first-launch selection once while preserving other settings
+  data.set(SETTINGS_KEY, JSON.stringify({ version: 1, settings: { textSize: 'large', graphicsQuality: 'auto' } }));
+  assert.equal(hasChosenGraphicsQuality(storage), false);
+  assert.equal(readSettings(storage).textSize, 'large');
+  assert.equal(readSettings(storage).graphicsQuality, 'balanced');
+
+  for (const tier of ['lowest', 'low', 'balanced', 'high']) {
     assert.equal(normalizeSettings({ graphicsQuality: tier }).graphicsQuality, tier);
+    const saved = { ...DEFAULT_SETTINGS, graphicsQuality: tier };
+    assert.equal(saveSettings(saved, storage), true);
+    assert.deepEqual(readSettings(storage), saved);
+    assert.equal(hasChosenGraphicsQuality(storage), true);
   }
-  const saved = { ...DEFAULT_SETTINGS, graphicsQuality: 'lowest' };
-  assert.equal(saveSettings(saved, storage), true);
-  assert.deepEqual(readSettings(storage), saved);
 });

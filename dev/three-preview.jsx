@@ -39,7 +39,7 @@ function Preview(){
     <p>실제 학습·모험 저장을 사용하지 않는 장면입니다.</p>
     <div style={{display:'flex',flexWrap:'wrap',gap:10,marginBlock:18}}>
       <label>몬스터 <select aria-label="몬스터" value={type} onChange={changeType}>{Object.entries(MONSTERS).map(([id,m])=><option key={id} value={id}>{m.name}</option>)}</select></label>
-      <label>품질 <select aria-label="품질" value={settings.graphicsQuality} onChange={e=>setSettings({...settings,graphicsQuality:e.target.value})}>{['auto','lowest','low','balanced','high'].map(v=><option key={v}>{v}</option>)}</select></label>
+      <label>품질 <select aria-label="품질" value={settings.graphicsQuality} onChange={e=>setSettings({...settings,graphicsQuality:e.target.value})}>{['lowest','low','balanced','high'].map(v=><option key={v}>{v}</option>)}</select></label>
       <label>움직임 <select aria-label="움직임" value={settings.backgroundMotion} onChange={e=>setSettings({...settings,backgroundMotion:e.target.value})}>{['normal','reduced','off'].map(v=><option key={v}>{v}</option>)}</select></label>
       <label>화면 <select aria-label="화면" value={settings.renderer} onChange={e=>setSettings({...settings,renderer:e.target.value})}>{['auto','3d','2d'].map(v=><option key={v}>{v}</option>)}</select></label>
       <label>구도 <select aria-label="구도" value={view} onChange={e=>setView(e.target.value)}>{Object.entries(BATTLE_VIEWS).map(([id,v])=><option key={id} value={id}>{v.label}</option>)}</select></label>

@@ -182,6 +182,12 @@ try{
   await surveyContext.addInitScript(p=>{localStorage.setItem('sword-master.adventure.v1',JSON.stringify({version:1,progress:p}));},cleared);
   const survey=await surveyContext.newPage();survey.on('pageerror',e=>errors.push(e.message));
   await survey.goto(BASE_URL);
+  await survey.locator('.graphics-setup-card').waitFor({timeout:15000});
+  assert.equal(await survey.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await survey.locator('[data-quality-choice="low"]').click();
+  await survey.locator('.graphics-setup-actions .game-primary').click();
+  await survey.locator('.graphics-setup-card').waitFor({state:'detached',timeout:15000});
+  await survey.locator('.scene-view[aria-busy="false"]').waitFor({timeout:25000});
   const surveyButton=survey.getByRole('button',{name:/^설문 참여/});
   await surveyButton.waitFor();
   assert.equal(await survey.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
