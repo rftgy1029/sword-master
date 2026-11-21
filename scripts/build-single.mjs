@@ -1,14 +1,17 @@
-// 게임 전체를 HTML 파일 하나로 묶는다: npm run build:single
-// vite build --mode single 결과(dist-single/)의 JS·CSS를 index.html 안에 넣고,
+// 게임 전체를 HTML 파일 하나로 묶는다:
+// - 일반판: npm run build:single -> standalone/sword-master.html
+// - 관리자판: npm run build:admin -> standalone/sword-master-admin.html
+// vite build 결과(dist-single/ 또는 dist-single-admin/)의 JS·CSS를 index.html 안에 넣고,
 // 실행 중에 읽는 public/ 파일(3D 모델·효과 이미지·PDF 글꼴)은 data URL 표로 함께 넣는다.
-// 결과: standalone/sword-master.html (인터넷 없이 브라우저로 바로 열 수 있다)
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const isAdmin = process.argv.includes('--admin');
 const root = fileURLToPath(new URL('..', import.meta.url));
-const dist = join(root, 'dist-single');
-const output = join(root, 'standalone', 'sword-master.html');
+const dist = join(root, isAdmin ? 'dist-single-admin' : 'dist-single');
+const fileName = isAdmin ? 'sword-master-admin.html' : 'sword-master.html';
+const output = join(root, 'standalone', fileName);
 const TYPES = { '.glb': 'model/gltf-binary', '.png': 'image/png', '.ttf': 'font/ttf', '.svg': 'image/svg+xml' };
 const dataUrl = (file) => `data:${TYPES[extname(file)] ?? 'application/octet-stream'};base64,${readFileSync(file).toString('base64')}`;
 
@@ -21,6 +24,9 @@ for (const [folder, ext] of [['models', '.glb'], ['effects', '.png'], ['fonts', 
 }
 
 let html = readFileSync(join(dist, 'index.html'), 'utf8');
+if (isAdmin) {
+  html = html.replace(/<title>[^<]*<\/title>/, '<title>S’word Master · 관리자</title>');
+}
 const inlineScript = (code) => code.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--');
 const scripts = [...html.matchAll(/<script type="module" crossorigin src="\.\/(assets\/[^"]+\.js)"><\/script>/g)];
 const styles = [...html.matchAll(/<link rel="stylesheet" crossorigin href="\.\/(assets\/[^"]+\.css)">/g)];
@@ -39,4 +45,4 @@ if (readdirSync(join(dist, 'assets')).some((n) => n.endsWith('.js') && n !== pat
 
 mkdirSync(join(root, 'standalone'), { recursive: true });
 writeFileSync(output, html);
-console.log(`standalone/sword-master.html · ${(Buffer.byteLength(html) / 1024 / 1024).toFixed(1)} MB · public 파일 ${Object.keys(assets).length}개 포함`);
+console.log(`standalone/${fileName} · ${(Buffer.byteLength(html) / 1024 / 1024).toFixed(1)} MB · public 파일 ${Object.keys(assets).length}개 포함`);

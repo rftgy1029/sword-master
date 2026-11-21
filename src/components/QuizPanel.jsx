@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { cardShortcutIndex, confirmShortcut, cancelShortcut } from '../game/combatShortcuts.js';
 import { cardRoleTone } from '../game/cardPreview.js';
-import { QUIZ_TYPES, questionById } from '../game/quiz.js';
+import { QUIZ_TYPES, isCorrectAnswer, questionById } from '../game/quiz.js';
 import { MAX_TERM_LENGTH } from '../game/wordbooks.js';
 import GameIcon from './ui/GameIcon.jsx';
 
@@ -18,17 +18,24 @@ function AnswerVerdict({ correct, review }) {
   </div>;
 }
 
-function TypedAnswer({ busy, onAnswer }) {
+function TypedAnswer({ busy, source, showAnswerHint = false, onAnswer }) {
   const [answer, setAnswer] = useState('');
-  return <form className="quiz-options quiz-typing" onSubmit={(event) => {
-    event.preventDefault();
-    if (!busy && answer.trim()) onAnswer(answer.trim());
-  }}>
-    <label htmlFor="typed-answer">영단어 입력</label>
-    <input id="typed-answer" value={answer} onChange={(event) => setAnswer(event.target.value)}
-      disabled={busy} data-initial-focus lang="en" autoCapitalize="none" autoComplete="off" spellCheck={false} maxLength={MAX_TERM_LENGTH} />
-    <button type="submit" disabled={busy || !answer.trim()}>정답 확인</button>
-  </form>;
+  const hintAnswer = source?.answers?.[0] ?? source?.word?.term ?? '';
+  return <>
+    {showAnswerHint && hintAnswer && <div className="admin-typing-hint">
+      <span>정답 힌트: <strong lang="en">{hintAnswer}</strong></span>
+      <button type="button" disabled={busy} onClick={() => setAnswer(hintAnswer)}>자동 입력</button>
+    </div>}
+    <form className="quiz-options quiz-typing" onSubmit={(event) => {
+      event.preventDefault();
+      if (!busy && answer.trim()) onAnswer(answer.trim());
+    }}>
+      <label htmlFor="typed-answer">영단어 입력</label>
+      <input id="typed-answer" value={answer} onChange={(event) => setAnswer(event.target.value)}
+        disabled={busy} data-initial-focus lang="en" autoCapitalize="none" autoComplete="off" spellCheck={false} maxLength={MAX_TERM_LENGTH} />
+      <button type="submit" disabled={busy || !answer.trim()}>정답 확인</button>
+    </form>
+  </>;
 }
 
 export default function QuizPanel({
@@ -44,6 +51,7 @@ export default function QuizPanel({
   compact = false,
   busy = false,
   shortcutMode = 'single',
+  showAnswerHint = false,
 }) {
   const panel = useRef(null);
   const shortcut = useRef(null);
@@ -121,9 +129,12 @@ export default function QuizPanel({
         {source.type !== 'meaning' && (!compact || !feedback) && <p className="quiz-context"><span>뜻</span> {source.word.meaning}</p>}
       </div>
 
-      {!feedback ? (typing ? <TypedAnswer key={question.id} busy={busy} onAnswer={onAnswer} /> : <div className="quiz-options" data-keyboard-group>
-        {question.options.map((option, i) => <button key={option} disabled={busy} data-initial-focus={i === 0 ? '' : undefined}
-          onClick={() => onAnswer(option)}><span>{i + 1}</span><strong>{option}</strong></button>)}
+      {!feedback ? (typing ? <TypedAnswer key={question.id} busy={busy} source={source} showAnswerHint={showAnswerHint} onAnswer={onAnswer} /> : <div className="quiz-options" data-keyboard-group>
+        {question.options.map((option, i) => {
+          const isAdminHint = showAnswerHint && isCorrectAnswer(question, option, wordbooks);
+          return <button key={option} className={isAdminHint ? 'is-admin-answer' : undefined} disabled={busy} data-initial-focus={i === 0 ? '' : undefined}
+            onClick={() => onAnswer(option)}><span>{i + 1}</span><strong>{option}</strong>{isAdminHint && <em className="admin-answer-pill">정답</em>}</button>;
+        })}
       </div>) : <div className="quiz-feedback" aria-live="polite">
         <div className="quiz-feedback-summary">
           {(!compact || !feedback.correct) && <p className="feedback-picked"><span>{typing ? '입력한 답' : '내 선택'}</span> <b>{feedback.answer}</b></p>}

@@ -12,7 +12,7 @@ const TASK_META = {
   typing: { tone: 'typing', symbol: '⌨', title: '영단어 입력', prompt: '이 뜻의 영단어를 입력하세요' },
 };
 
-function DockTypedAnswer({ busy, feedback, source, onAnswer, onSkipReveal }) {
+function DockTypedAnswer({ busy, feedback, source, showAnswerHint = false, onAnswer, onSkipReveal }) {
   const [value, setValue] = useState('');
   if (feedback) {
     return <div className={`quiz-dock-typing-reveal ${feedback.correct ? 'is-correct' : 'is-wrong'}`}
@@ -25,16 +25,23 @@ function DockTypedAnswer({ busy, feedback, source, onAnswer, onSkipReveal }) {
       )}
     </div>;
   }
-  return <form className="quiz-options quiz-typing quiz-dock-typing" onSubmit={(event) => {
-    event.preventDefault();
-    if (!busy && value.trim()) onAnswer(value.trim());
-  }}>
-    <label htmlFor="battle-typed-answer" className="sr-only">영단어 입력</label>
-    <input id="battle-typed-answer" value={value} onChange={(event) => setValue(event.target.value)}
-      placeholder="이 뜻의 영단어를 입력하세요"
-      disabled={busy} data-initial-focus lang="en" autoCapitalize="none" autoComplete="off" spellCheck={false} maxLength={MAX_TERM_LENGTH} />
-    <button type="submit" className="game-primary" disabled={busy || !value.trim()}>발동</button>
-  </form>;
+  const hintAnswer = source.answers[0] ?? source.word.term;
+  return <>
+    {showAnswerHint && <div className="admin-typing-hint">
+      <span>정답 힌트: <strong lang="en">{hintAnswer}</strong></span>
+      <button type="button" disabled={busy} onClick={() => setValue(hintAnswer)}>자동 입력</button>
+    </div>}
+    <form className="quiz-options quiz-typing quiz-dock-typing" onSubmit={(event) => {
+      event.preventDefault();
+      if (!busy && value.trim()) onAnswer(value.trim());
+    }}>
+      <label htmlFor="battle-typed-answer" className="sr-only">영단어 입력</label>
+      <input id="battle-typed-answer" value={value} onChange={(event) => setValue(event.target.value)}
+        placeholder="이 뜻의 영단어를 입력하세요"
+        disabled={busy} data-initial-focus lang="en" autoCapitalize="none" autoComplete="off" spellCheck={false} maxLength={MAX_TERM_LENGTH} />
+      <button type="submit" className="game-primary" disabled={busy || !value.trim()}>발동</button>
+    </form>
+  </>;
 }
 
 export default function BattleQuizDock({
@@ -47,6 +54,7 @@ export default function BattleQuizDock({
   busy = false,
   shortcutMode = 'single',
   revealDuration = 0,
+  showAnswerHint = false,
   onAnswer,
   onSkipReveal,
 }) {
@@ -135,14 +143,15 @@ export default function BattleQuizDock({
     </div>
 
     {typing ? (
-      <DockTypedAnswer key={question.id} busy={busy} feedback={feedback} source={source} onAnswer={onAnswer} onSkipReveal={onSkipReveal} />
+      <DockTypedAnswer key={question.id} busy={busy} feedback={feedback} source={source} showAnswerHint={showAnswerHint} onAnswer={onAnswer} onSkipReveal={onSkipReveal} />
     ) : (
       <div className="quiz-options quiz-dock-options" data-keyboard-group>
         {question.options.map((option, i) => {
           const isPicked = feedback && feedback.answer === option;
           const isAnswer = feedback && isCorrectAnswer(question, option, wordbooks);
+          const isAdminHint = showAnswerHint && !feedback && isCorrectAnswer(question, option, wordbooks);
           const stateClass = !feedback
-            ? ''
+            ? (isAdminHint ? ' is-admin-answer' : '')
             : isAnswer
               ? ' is-reveal-correct'
               : isPicked
@@ -155,6 +164,7 @@ export default function BattleQuizDock({
             onClick={() => { if (!busy && !feedback) onAnswer(option); }}>
             <span className="quiz-dock-option-key">{feedback ? (isAnswer ? '✓' : isPicked ? '✕' : i + 1) : i + 1}</span>
             <strong>{option}</strong>
+            {isAdminHint && <em className="admin-answer-pill">정답</em>}
           </button>;
         })}
       </div>

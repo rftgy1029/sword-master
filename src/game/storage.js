@@ -119,9 +119,9 @@ export function validProgress(p) {
   } catch { return false; }
 }
 
-export function loadProgress(storage) {
+export function loadProgress(storage, key = PROGRESS_KEY) {
   try {
-    const raw = (storage ?? globalThis.localStorage).getItem(PROGRESS_KEY);
+    const raw = (storage ?? globalThis.localStorage).getItem(key);
     if (raw === null) return { progress: emptyProgress(), raw, blocked: false, error: '' };
     const saved = JSON.parse(raw);
     if (saved.version !== 1 || !validProgress(saved.progress)) throw new Error('invalid');
@@ -137,15 +137,24 @@ export function loadProgress(storage) {
   }
 }
 
-export function persistProgress(progress, expectedRaw, storage) {
+export function persistProgress(progress, expectedRaw, storage, key = PROGRESS_KEY) {
   try {
     const target = storage ?? globalThis.localStorage;
-    if (target.getItem(PROGRESS_KEY) !== expectedRaw) return { ok: false, conflict: true,
+    if (target.getItem(key) !== expectedRaw) return { ok: false, conflict: true,
       error: '다른 탭에서 기록이 변경되었습니다. 새로고침 후 이어해 주세요. 이 탭의 변경은 저장하지 않았습니다.' };
     const raw = JSON.stringify({ version: 1, progress });
-    target.setItem(PROGRESS_KEY, raw);
+    target.setItem(key, raw);
     return { ok: true, raw, error: '' };
   } catch {
     return { ok: false, conflict: false, error: '브라우저에 저장할 수 없습니다. 이번 접속에서 플레이할 수 있지만 종료하면 새 진행이 사라집니다.' };
+  }
+}
+
+export function clearProgress(storage, key = PROGRESS_KEY) {
+  try {
+    (storage ?? globalThis.localStorage).removeItem(key);
+    return true;
+  } catch {
+    return false;
   }
 }
