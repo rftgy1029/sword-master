@@ -18,7 +18,8 @@ export default function CombatScene({
   const overheads = useRef({});
   const bounds = useRef({ width: 0, height: 0, player: {}, enemy: {} });
   const anchors = useRef(null);
-  const positionIndicators = useCallback((points) => {
+  const applied = useRef({ player: null, enemy: null });
+  const positionIndicators = useCallback((points, force = false) => {
     anchors.current = points;
     const box = bounds.current;
     if (!points || !box.width || !box.height) return;
@@ -27,10 +28,16 @@ export default function CombatScene({
       if (!node || !point) continue;
       const x = Math.max(size.width / 2 + 6, Math.min(box.width - size.width / 2 - 6, point.x * box.width));
       const y = Math.max(size.height + 6, Math.min(box.height - 6, point.y * box.height));
+      const visible = point.visible !== false;
+      const renderer = points.renderer;
+      const prev = applied.current[side];
+      if (!force && prev && prev.visible === visible && prev.renderer === renderer
+        && Math.abs(prev.x - x) < 0.4 && Math.abs(prev.y - y) < 0.4) continue;
+      applied.current[side] = { x, y, visible, renderer };
       node.style.left = `${x.toFixed(1)}px`;
       node.style.top = `${y.toFixed(1)}px`;
-      node.style.visibility = point.visible === false ? 'hidden' : 'visible';
-      node.dataset.renderer = points.renderer;
+      node.style.visibility = visible ? 'visible' : 'hidden';
+      node.dataset.renderer = renderer;
     }
   }, []);
   useEffect(() => {
@@ -42,7 +49,7 @@ export default function CombatScene({
         player: { width: player.offsetWidth, height: player.offsetHeight },
         enemy: { width: enemy.offsetWidth, height: enemy.offsetHeight },
       };
-      positionIndicators(anchors.current);
+      positionIndicators(anchors.current, true);
     };
     const observer = new ResizeObserver(measure);
     [overlay.current, ...Object.values(overheads.current)].forEach(node => observer.observe(node));

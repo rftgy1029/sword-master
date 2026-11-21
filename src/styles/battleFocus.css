@@ -1663,3 +1663,50 @@
     transition: none !important;
   }
 }
+
+/* ---------- 저사양(낮음·매우 낮음) UI 합성 부하 경량화 ---------- */
+:root[data-graphics-quality="low"] dialog::backdrop,
+:root[data-graphics-quality="low"] .game-dialog::backdrop,
+:root[data-graphics-quality="low"] .settings-dialog::backdrop,
+:root[data-graphics-quality="low"] .vocabulary-dialog::backdrop,
+:root[data-graphics-quality="lowest"] dialog::backdrop,
+:root[data-graphics-quality="lowest"] .game-dialog::backdrop,
+:root[data-graphics-quality="lowest"] .settings-dialog::backdrop,
+:root[data-graphics-quality="lowest"] .vocabulary-dialog::backdrop {
+  backdrop-filter: none;
+  background: #060b0ae0;
+}
+
+:root[data-graphics-quality="low"] .battle-quiz-backdrop,
+:root[data-graphics-quality="lowest"] .battle-quiz-backdrop {
+  backdrop-filter: none;
+  background: radial-gradient(ellipse at 50% 45%, #171024d6, #0c0814ed 76%);
+}
+
+:root[data-graphics-quality="low"] .game-dialog .battle-controls.battle-dock.is-dimmed,
+:root[data-graphics-quality="lowest"] .game-dialog .battle-controls.battle-dock.is-dimmed {
+  filter: none;
+  opacity: 0.34;
+}
+
+:root[data-graphics-quality="low"] .relic-icon,
+:root[data-graphics-quality="low"] .result-sigil,
+:root[data-graphics-quality="lowest"] .relic-icon,
+:root[data-graphics-quality="lowest"] .result-sigil {
+  animation: none;
+  filter: none;
+}
+
+:root[data-graphics-quality="lowest"] .battle-dock .card-art > .game-icon,
+:root[data-graphics-quality="lowest"] .card-art > .game-icon,
+:root[data-graphics-quality="lowest"] .brand-mark,
+:root[data-graphics-quality="lowest"] .tier-crest,
+:root[data-graphics-quality="lowest"] .combatant-hud meter {
+  filter: none;
+}
+
+:root[data-graphics-quality="lowest"] .game-dialog .battle-controls.battle-dock,
+:root[data-graphics-quality="lowest"] .game-card,
+:root[data-graphics-quality="lowest"] .card-hand .game-card {
+  box-shadow: none;
+}

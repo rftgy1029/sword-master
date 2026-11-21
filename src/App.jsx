@@ -56,28 +56,29 @@ function GameApp({ settings, setSettings }) {
   const [preloadAttempt, setPreloadAttempt] = useState(0);
   const [preloadState, setPreloadState] = useState(() => ({
     ready: !needsPreload || isTitlePreloadReady(),
-    status: 'idle',
-    progress: { percent: 0, loadedBytes: 0, totalBytes: 0, label: '3D 자산 확인 중…' },
+    status: !needsPreload || isTitlePreloadReady() ? 'ready' : 'loading',
+    progress: { percent: 0, loadedBytes: 0, totalBytes: 0, label: '3D 자산 확인 중…', phase: 'downloading' },
     error: '',
   }));
-  const [showDownloadCard, setShowDownloadCard] = useState(false);
+  const [titleSceneReady, setTitleSceneReady] = useState(() => !needsPreload || isTitlePreloadReady());
   const wasDownloading = useRef(false);
   const titleAssetsReady = !needsPreload || preloadState.ready;
-  const downloadVisible = needsPreload && !preloadState.ready && showDownloadCard && openedMenu === null;
+  const preloadBlocking = needsPreload && (!preloadState.ready || !titleSceneReady);
+  const downloadVisible = preloadBlocking && openedMenu === null;
 
   useEffect(() => {
     if (!needsPreload) {
-      setShowDownloadCard(false);
+      setTitleSceneReady(true);
       return undefined;
     }
     if (isTitlePreloadReady()) {
-      setShowDownloadCard(false);
+      setTitleSceneReady(true);
       setPreloadState((prev) => (prev.ready ? prev : { ...prev, ready: true, status: 'ready', error: '' }));
       preloadCombatAssets();
       return undefined;
     }
     let cancelled = false;
-    const revealTimer = setTimeout(() => { if (!cancelled) setShowDownloadCard(true); }, 200);
+    setTitleSceneReady(false);
     setPreloadState((prev) => ({ ...prev, ready: false, status: 'loading', error: '' }));
     const task = preloadTitleAssets({
       onProgress: (nextProgress) => {
@@ -87,15 +88,11 @@ function GameApp({ settings, setSettings }) {
     task.promise
       .then(() => {
         if (cancelled) return;
-        clearTimeout(revealTimer);
-        setShowDownloadCard(false);
         setPreloadState((prev) => ({ ...prev, ready: true, status: 'ready', error: '' }));
         preloadCombatAssets();
       })
       .catch((err) => {
         if (cancelled) return;
-        clearTimeout(revealTimer);
-        setShowDownloadCard(true);
         setPreloadState((prev) => ({
           ...prev,
           ready: false,
@@ -105,7 +102,6 @@ function GameApp({ settings, setSettings }) {
       });
     return () => {
       cancelled = true;
-      clearTimeout(revealTimer);
       task.unsubscribe();
     };
   }, [needsPreload, preloadAttempt]);
@@ -115,24 +111,26 @@ function GameApp({ settings, setSettings }) {
       wasDownloading.current = true;
     } else if (wasDownloading.current) {
       wasDownloading.current = false;
-      if (openedMenu === null) buttons.current[selected]?.focus({ preventScroll: true });
+      if (openedMenu === null && !preloadBlocking) buttons.current[selected]?.focus({ preventScroll: true });
     }
-  }, [downloadVisible, openedMenu, selected]);
+  }, [downloadVisible, openedMenu, preloadBlocking, selected]);
 
-  useEffect(() => { buttons.current[0]?.focus({ preventScroll: true }); }, []);
+  useEffect(() => {
+    if (!preloadBlocking && openedMenu === null) buttons.current[0]?.focus({ preventScroll: true });
+  }, []);
   useEffect(() => { setSettingsSaved(saveSettings(settings)); }, [settings]);
   useEffect(() => {
-    if (openedMenu !== null || downloadVisible) return;
+    if (openedMenu !== null || preloadBlocking) return;
     const indices = MENU.map((_, i) => i).filter(isEnabled);
     return listenForMenuNavigation(document, {
       menu: menu.current, buttons: indices.map((i) => buttons.current[i]), selected: Math.max(0, indices.indexOf(selected)),
       onSelect: (i) => setSelected(indices[i]),
     });
-  }, [openedMenu, downloadVisible, selected, canContinue, canSurvey]);
+  }, [openedMenu, preloadBlocking, selected, canContinue, canSurvey]);
 
   useEffect(() => () => clearTimeout(swing.current), []);
   useEffect(() => {
-    if (openedMenu !== null || downloadVisible) { typedRef.current = ''; setTyped(''); return; }
+    if (openedMenu !== null || preloadBlocking) { typedRef.current = ''; setTyped(''); return; }
     const enabled = MENU.map((_, i) => isEnabled(i));
     function onKey(event) {
       if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || swing.current) return;
@@ -156,7 +154,7 @@ function GameApp({ settings, setSettings }) {
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [openedMenu, canContinue, canSurvey, reducedMotion]);
+  }, [openedMenu, preloadBlocking, canContinue, canSurvey, reducedMotion]);
 
   function focusMenu(index) {
     setSelected(index);
@@ -183,9 +181,9 @@ function GameApp({ settings, setSettings }) {
     return <button ref={(element) => { buttons.current[index] = element; }}
       className={`menu-button${isContinue ? ' continue-button' : ''}${isSurvey ? ' survey-button' : ''}${selected === index ? ' is-selected' : ''}${match.index === index ? ' is-typed' : ''}`}
       disabled={!isEnabled(index)} onFocus={() => setSelected(index)}
-      onPointerEnter={(event) => { if (event.pointerType === 'mouse' && openedMenu === null && isEnabled(index)) focusMenu(index); }}
+      onPointerEnter={(event) => { if (event.pointerType === 'mouse' && openedMenu === null && !preloadBlocking && isEnabled(index)) focusMenu(index); }}
       onClick={(event) => {
-        if (openedMenu !== null) return;
+        if (openedMenu !== null || preloadBlocking) return;
         setSelected(index);
         opener.current = event.currentTarget;
         transition(() => setOpenedMenu(MENU[index].label));
@@ -198,12 +196,15 @@ function GameApp({ settings, setSettings }) {
   }
 
   const heroAction = swinging ? 'attack' : MENU_REACTIONS[selected] ?? 'idle';
+  const overlayProgress = preloadState.ready && !titleSceneReady
+    ? { ...preloadState.progress, percent: 99, label: '3D 무대 초기화 중…', phase: 'initializing' }
+    : preloadState.progress;
 
   return (
     <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect} data-background-motion={settings.backgroundMotion}>
-      <main className="start-screen">
+      <main className="start-screen" inert={preloadBlocking}>
         <div className="title-backdrop">
-          <TitleScene active={titleAssetsReady && (openedMenu === null || openedMenu === '설문 참여')} motionPreference={settings.backgroundMotion} heroAction={heroAction} />
+          <TitleScene active={titleAssetsReady && (openedMenu === null || openedMenu === '설문 참여')} motionPreference={settings.backgroundMotion} heroAction={heroAction} onLoaded={() => setTitleSceneReady(true)} />
         </div>
         <section className="title-panel" aria-label="S’word Master 시작">
           <SwordLogo />
@@ -237,12 +238,11 @@ function GameApp({ settings, setSettings }) {
             shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onClose={closeAdventure} /> : null}
       {downloadVisible && (
         <AssetDownloadOverlay
-          progress={preloadState.progress}
+          progress={overlayProgress}
           status={preloadState.status}
           error={preloadState.error}
           onRetry={() => setPreloadAttempt((n) => n + 1)}
           onUse2d={() => {
-            setShowDownloadCard(false);
             graphics.reportFailure();
           }}
         />

@@ -13,7 +13,7 @@ import BattleCamera from './BattleCamera.jsx';
 import { createKnightRig } from './knightRig.js';
 import { enemyAttackPose } from '../enemyAttackTimeline.js';
 import SkillEffects from './SkillEffects.jsx';
-import { setHitFlash, setOutlineScale, stylizeActor } from './toon.js';
+import { setActorOutlines, setHitFlash, setOutlineScale, stylizeActor } from './toon.js';
 import CombatAtmosphere from './CombatAtmosphere.jsx';
 import SwordTrail from './SwordTrail.jsx';
 import ImpactEffects, { hitFlashAmount } from './ImpactEffects.jsx';
@@ -47,7 +47,12 @@ function Stones({ blocks, geometry=stoneGeometry }) {
 
 function EnvironmentLight({ quality }) {
   const { gl, scene } = useThree();
+  const useEnvironment = quality.environment !== false;
   useEffect(() => {
+    if (!useEnvironment) {
+      scene.environment = null;
+      return undefined;
+    }
     const generator = new THREE.PMREMGenerator(gl);
     const room = new RoomEnvironment();
     const environment = generator.fromScene(room, .04);
@@ -55,14 +60,16 @@ function EnvironmentLight({ quality }) {
     scene.environmentIntensity = .4;
     room.dispose(); generator.dispose();
     return () => { scene.environment = null; environment.dispose(); };
-  }, [gl, scene]);
+  }, [gl, scene, useEnvironment]);
+  const hemiIntensity = useEnvironment ? 1.05 : quality.rimLight !== false ? 1.42 : 1.58;
+  const sunIntensity = useEnvironment ? 2.7 : 2.95;
   return <>
     {/* 황혼: 왼쪽에서 낮게 드는 주황 노을빛과 뒤쪽의 보랏빛 하늘 */}
-    <hemisphereLight args={[DUSK.sky, DUSK.ground, 1.05]} />
-    <directionalLight position={[-6, 5, 5]} color={DUSK.sun} intensity={2.7} castShadow={quality.shadows}
+    <hemisphereLight args={[DUSK.sky, DUSK.ground, hemiIntensity]} />
+    <directionalLight position={[-6, 5, 5]} color={DUSK.sun} intensity={sunIntensity} castShadow={quality.shadows}
       shadow-mapSize={[quality.shadowSize, quality.shadowSize]} shadow-bias={-.001} shadow-normalBias={.025}
       shadow-camera-left={-7} shadow-camera-right={7} shadow-camera-top={6} shadow-camera-bottom={-4} />
-    <directionalLight position={[4, 4, -3]} color={DUSK.rim} intensity={1.7} />
+    {quality.rimLight !== false && <directionalLight position={[4, 4, -3]} color={DUSK.rim} intensity={1.7} />}
   </>;
 }
 
@@ -116,14 +123,14 @@ function CameraFit({ mode, view }) {
   return null;
 }
 
-function Torch({ position }) {
+function Torch({ position, light = true }) {
   const flame = useRef(null);
   useFrame(({ clock }) => { if (flame.current) flame.current.scale.setScalar(.95 + Math.sin(clock.elapsedTime * 8 + position[0]) * .07); });
   return <group position={position}>
     <mesh position={[0, -.18, 0]}><cylinderGeometry args={[.045, .045, .5, 8]} /><meshStandardMaterial color="#392a21" roughness={.9} /></mesh>
     <mesh position={[0, .04, 0]}><cylinderGeometry args={[.13, .07, .14, 8]} /><meshStandardMaterial color="#ad8954" metalness={.7} roughness={.35} /></mesh>
-    <mesh ref={flame} position={[0, .22, 0]}><sphereGeometry args={[.12, 10, 8]} /><meshStandardMaterial color="#ffb451" emissive="#ff9837" emissiveIntensity={3} /></mesh>
-    <pointLight position={[0, .3, .25]} color="#ffc176" intensity={3.6} distance={5.5} decay={2} />
+    <mesh ref={flame} position={[0, .22, 0]}><sphereGeometry args={[.12, 8, 6]} /><meshStandardMaterial color="#ffb451" emissive="#ff9837" emissiveIntensity={3} /></mesh>
+    {light && <pointLight position={[0, .3, .25]} color="#ffc176" intensity={3.6} distance={5.5} decay={2} />}
   </group>;
 }
 
@@ -152,7 +159,7 @@ function KitClone({ source, item }) {
 }
 
 // 바닥·벽·기둥·소품은 Kenney Mini Dungeon(CC0) 부품이고, 횃불·책장·화로·바닥 문양은 이 게임의 장식이다.
-function Dungeon({ variant = 'hall', mode = 'battle' }) {
+function Dungeon({ variant = 'hall', mode = 'battle', quality }) {
   const kit = useLoader(GLTFLoader, dungeonKitUrl());
   useLayoutEffect(() => { kit.scene.traverse(node => { if (node.isMesh) node.material.color.set(KIT_TINT); }); }, [kit]);
   const groups = useMemo(() => [...groupByPiece(dungeonLayout(variant, mode))], [variant, mode]);
@@ -163,6 +170,7 @@ function Dungeon({ variant = 'hall', mode = 'battle' }) {
       ...Array.from({length:8},(_,i)=>({position:[x-.56+i*.16,y,-1.92],scale:[.12,.35+i%3*.05,.23],color:['#6f6545','#495f51','#805549','#627679'][(i+row)%4]})),
     ]),
   ]),[]);
+  const usePointLights = quality?.pointLights !== false;
   return <group name="dungeon">
     {groups.map(([piece, items]) => {
       const source = kit.scene.getObjectByName(piece);
@@ -173,22 +181,24 @@ function Dungeon({ variant = 'hall', mode = 'battle' }) {
     })}
     <mesh position={[0, -.3, 9]} receiveShadow><boxGeometry args={[60, .3, 28]} /><meshStandardMaterial color="#111e19" roughness={1} /></mesh>
     <mesh position={[0, 1.15, WALL_FRONT - TILE - .02]}><planeGeometry args={[2.6, 2.3]} /><meshBasicMaterial color="#070f0d" /></mesh>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .012, 0]}><ringGeometry args={[1.55, 1.57, 64]} /><meshStandardMaterial color="#a78e53" metalness={.5} roughness={.5} /></mesh>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .012, 0]}><ringGeometry args={[1.55, 1.57, quality?.level === 'lowest' ? 24 : 48]} /><meshStandardMaterial color="#a78e53" metalness={.5} roughness={.5} /></mesh>
     <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, .016, 0]}><ringGeometry args={[1.03, 1.045, 4]} /><meshStandardMaterial color="#8e8152" metalness={.5} roughness={.5} /></mesh>
-    <Torch position={[-2.6, 1.8, WALL_FRONT + .45]} /><Torch position={[2.6, 1.8, WALL_FRONT + .45]} />
+    <Torch position={[-2.6, 1.8, WALL_FRONT + .45]} light={usePointLights} /><Torch position={[2.6, 1.8, WALL_FRONT + .45]} light={usePointLights} />
     {variant==='library'&&<Stones blocks={books} geometry={plainGeometry}/>}
     {variant === 'forge' && <group position={[0, 0, WALL_FRONT + .1]}>
       <mesh position={[0, .9, 0]}><boxGeometry args={[1.65, 1.8, .3]} /><meshStandardMaterial color="#211d19" /></mesh>
       {[-.6,-.3,0,.3,.6].map(x => <mesh key={x} position={[x, .9, .19]}><boxGeometry args={[.055, 1.7, .08]} /><meshStandardMaterial color="#625542" metalness={.8} roughness={.45} /></mesh>)}
-      <pointLight position={[0, .6, .5]} color="#ff8436" intensity={4} distance={6} />
+      {usePointLights && <pointLight position={[0, .6, .5]} color="#ff8436" intensity={4} distance={6} />}
       <mesh position={[0, .3, .03]}><planeGeometry args={[1.6, .6]} /><meshStandardMaterial color="#e47725" emissive="#fa7019" emissiveIntensity={2} /></mesh>
     </group>}
   </group>;
 }
 
-export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false, procedural = false, weaponRef, anchorRef }) {
+export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false, procedural = false, outlines = true, weaponRef, anchorRef }) {
   const source = useLoader(GLTFLoader, modelUrl(type));
   const root = useRef(null);
+  const initialOutlines = useRef(outlines);
+  initialOutlines.current = outlines;
   const actor = useMemo(() => {
     const object = clone(source.scene);
     const head = object.getObjectByName('head') ?? object;
@@ -201,7 +211,7 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
       head.worldToLocal(headPoint);
     }
     object.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
-    const outline = stylizeActor(object);
+    const outline = stylizeActor(object, { outlines: initialOutlines.current });
     const mixer = new THREE.AnimationMixer(object);
     const actions = Object.fromEntries(source.animations.map(clip => [clip.name, mixer.clipAction(clip)]));
     const rig = procedural ? createKnightRig(object) : null;
@@ -218,7 +228,10 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
     weaponRef.current = base && tip ? { base, tip } : null;
     return () => { weaponRef.current = null; };
   }, [actor, weaponRef]);
-  useEffect(() => () => { actor.mixer.stopAllAction(); actor.outline.dispose(); actor.name=null; actor.action=null; }, [actor]);
+  useEffect(() => {
+    setActorOutlines(actor.object, actor.outline, outlines);
+  }, [actor, outlines]);
+  useEffect(() => () => { actor.mixer.stopAllAction(); actor.outline.dispose(); actor.name = null; actor.action = null; }, [actor]);
   useFrame((_, delta) => {
     if (!root.current) return;
     const state = control?.() ?? {};
@@ -262,7 +275,7 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
   }, -1);
   return <group ref={root} name={`actor-${type}`} position={position} rotation={[0, rotation, 0]} scale={scale} dispose={null}>
     <primitive object={actor.object} />
-    <mesh rotation={[-Math.PI / 2,0,0]} position={[0,.005,0]}><circleGeometry args={[.48,32]} /><meshBasicMaterial color="#06100b" transparent opacity={.3} depthWrite={false} /></mesh>
+    <mesh rotation={[-Math.PI / 2,0,0]} position={[0,.005,0]}><circleGeometry args={[.48,16]} /><meshBasicMaterial color="#06100b" transparent opacity={.3} depthWrite={false} /></mesh>
   </group>;
 }
 
@@ -273,6 +286,9 @@ function Motes({ count, still }) {
   return <points ref={points}><bufferGeometry><bufferAttribute attach="attributes-position" args={[values,3]} /></bufferGeometry><pointsMaterial color="#e6d39b" size={.025} transparent opacity={.5} sizeAttenuation depthWrite={false} /></points>;
 }
 
+const FIRST_PLAYBACK_STEP_MS = 16;
+const MAX_PLAYBACK_STEP_MS = 100;
+
 function BattleActors({ state, director, quality, reduced, onAnchors }) {
   const pose = useRef({});
   const sword = useRef(null);
@@ -282,8 +298,17 @@ function BattleActors({ state, director, quality, reduced, onAnchors }) {
   const heroAnchor = useRef(null), enemyAnchor = useRef(null);
   const projected = useRef(new THREE.Vector3());
   const anchors = useRef({ renderer: '3d', player: {}, enemy: {} });
+  const lastActive = useRef(null);
   useFrame(({ clock }, delta) => {
-    if (!document.hidden && !director.active?.manual) director.advance(delta * 1000);
+    const active = director.active;
+    if (!active) {
+      lastActive.current = null;
+    } else if (!document.hidden && !active.manual) {
+      const firstFrame = lastActive.current !== active;
+      lastActive.current = active;
+      const stepMs = Math.min(Math.max(0, delta) * 1000, firstFrame ? FIRST_PLAYBACK_STEP_MS : MAX_PLAYBACK_STEP_MS);
+      director.advance(stepMs);
+    }
     const current = director.active;
     const plan = current?.plan;
     const hitAges = impactAges(current, ages.current);
@@ -327,10 +352,10 @@ function BattleActors({ state, director, quality, reduced, onAnchors }) {
   });
 
   return <>
-    <Actor type="hero" rotation={Math.PI / 2} procedural weaponRef={sword} anchorRef={heroAnchor} still={reduced} control={() => ({
+    <Actor type="hero" rotation={Math.PI / 2} procedural outlines={quality.outlines !== false} weaponRef={sword} anchorRef={heroAnchor} still={reduced} control={() => ({
       pose: pose.current, flash: reduced ? 0 : hitFlashAmount(director.active, 'hero'), flashColor: '#ffd2c4',
     })} />
-    <Actor type={state.enemy.type} rotation={-Math.PI / 2} anchorRef={enemyAnchor} still={reduced} control={() => foe.current} />
+    <Actor type={state.enemy.type} rotation={-Math.PI / 2} outlines={quality.outlines !== false} anchorRef={enemyAnchor} still={reduced} control={() => foe.current} />
     <CombatAtmosphere director={director} quality={quality} pose={pose} sword={sword} />
     <SwordTrail director={director} quality={quality} sword={sword} />
     <SkillEffects director={director} quality={quality} sword={sword} />
@@ -338,7 +363,7 @@ function BattleActors({ state, director, quality, reduced, onAnchors }) {
   </>;
 }
 
-function Camp({ forge = false }) {
+function Camp({ forge = false, light = true }) {
   return <group position={[1,0,.3]}>
     {forge ? <>
       <mesh position={[0,.35,0]} castShadow><cylinderGeometry args={[.25,.33,.7,8]} /><meshStandardMaterial color="#4b3d2e" roughness={.8} /></mesh>
@@ -347,12 +372,12 @@ function Camp({ forge = false }) {
     </> : <>
       {[0,1,2].map(i => <mesh key={i} position={[0,.12,0]} rotation={[Math.PI/2,i*Math.PI/3,0]}><cylinderGeometry args={[.075,.09,.9,8]} /><meshStandardMaterial color="#5d422d" roughness={.95} /></mesh>)}
       {[0,1,2].map(i => <mesh key={i} position={[(i-1)*.15,.4,0]}><coneGeometry args={[.14,.7-i*.1,8]} /><meshStandardMaterial color="#ffbf6e" emissive="#ff8a37" emissiveIntensity={2.5} /></mesh>)}
-      <pointLight position={[0,.7,0]} color="#ffb469" intensity={5} distance={5} />
+      {light && <pointLight position={[0,.7,0]} color="#ffb469" intensity={5} distance={5} />}
     </>}
   </group>;
 }
 
-function MapRooms({ run, onSelect, inspecting, onHighlight, highlightedNodeId }) {
+function MapRooms({ run, onSelect, inspecting, onHighlight, highlightedNodeId, outlines = true }) {
   const horizontal=useThree(state=>state.size.width>state.size.height*1.5);
   const canvas=useThree(state=>state.gl.domElement);
   useEffect(() => () => { canvas.style.cursor = ''; }, [canvas]);
@@ -397,44 +422,53 @@ function MapRooms({ run, onSelect, inspecting, onHighlight, highlightedNodeId })
         {reachable && <mesh rotation={[-Math.PI/2,0,0]} position={[0,.012,0]}><ringGeometry args={[.5,.54,32]} /><meshBasicMaterial color="#ffb25e" /></mesh>}
       </group>;
     })}
-    <Actor position={[(run.lane-1)*3,.02,-(Math.max(0,run.floor)-3.5)*1.55]} scale={.32} rotation={Math.PI} />
-    <Actor type="boss" position={[0,.02,-5.42]} scale={.28} rotation={0}/>
+    <Actor position={[(run.lane-1)*3,.02,-(Math.max(0,run.floor)-3.5)*1.55]} scale={.32} rotation={Math.PI} outlines={outlines} />
+    <Actor type="boss" position={[0,.02,-5.42]} scale={.28} rotation={0} outlines={outlines}/>
   </group>;
 }
 
-function EntranceActor({ reduced, onComplete }) {
-  const elapsed=useRef(0), finished=useRef(false);
-  useFrame((_,delta)=>{
-    if(document.hidden||finished.current)return;
-    elapsed.current+=delta;
-    if(elapsed.current>(reduced ? .3 : 3.2)){finished.current=true;onComplete?.();}
+function EntranceActor({ reduced, onComplete, outlines = true }) {
+  const elapsed = useRef(0), finished = useRef(false), started = useRef(false);
+  useFrame((_, delta) => {
+    if (document.hidden || finished.current) return;
+    if (!started.current) { started.current = true; return; }
+    elapsed.current += Math.min(Math.max(0, delta), 0.1);
+    if (elapsed.current > (reduced ? .3 : 3.2)) { finished.current = true; onComplete?.(); }
   });
-  return <Actor rotation={Math.PI} action={reduced?'idle':'walk'} still={reduced} control={()=>({position:[0,0,1-Math.min(1,elapsed.current/3)*3],scale:Math.max(.4,1-Math.max(0,elapsed.current-2)*.35)})} />;
+  return <Actor rotation={Math.PI} action={reduced ? 'idle' : 'walk'} still={reduced} outlines={outlines} control={() => ({ position: [0, 0, 1 - Math.min(1, elapsed.current / 3) * 3], scale: Math.max(.4, 1 - Math.max(0, elapsed.current - 2) * .35) })} />;
 }
 
 function SceneReady({ callback }) {
-  useEffect(()=>{callback?.();},[callback]);
+  const { gl, scene, camera, clock, invalidate } = useThree();
+  useEffect(() => {
+    // Compile all scene materials (including hidden combat VFX shaders) up front so the first attack never stalls.
+    try { gl.compile(scene, camera); } catch { /* Best-effort shader warmup */ }
+    clock.getDelta();
+    invalidate();
+    callback?.();
+  }, [gl, scene, camera, clock, invalidate, callback]);
   return null;
 }
 
 export default function World({ mode='battle', state, playback, quality, reduced=false, run, onSelect, inspecting, onHighlight, highlightedNodeId, onComplete, won=true, onSceneReady, heroAction='idle', onAnchors, cameraView, studying=false, danger=false }) {
   const variant=mode==='forge'||['ember','scarab','ravager','boss'].includes(state?.enemy.type)?'forge':['bat','wisp','watcher','mushroom'].includes(state?.enemy.type)?'library':'hall';
+  const motesCount = quality.motes ?? quality.particles;
   return <>
     <color attach="background" args={[DUSK.background]} />
     <fog attach="fog" args={[DUSK.background,...BATTLE_FOG]} />
     <CameraFit mode={mode} view={cameraView} /><EnvironmentLight quality={quality} />
-    {mode==='battle'&&<BattleCamera director={playback} view={cameraView} studying={studying} danger={danger} reduced={reduced} />}
-    {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} onHighlight={onHighlight} highlightedNodeId={highlightedNodeId} />}
+    {mode==='battle'&&<BattleCamera director={playback} view={cameraView} studying={studying} danger={danger} reduced={reduced} snapStudy={quality.studyFps === 0} />}
+    {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} onHighlight={onHighlight} highlightedNodeId={highlightedNodeId} outlines={quality.outlines !== false} />}
     <Suspense fallback={null}>
-      {mode!=='map'&&<Dungeon variant={variant} mode={mode} />}
+      {mode!=='map'&&<Dungeon variant={variant} mode={mode} quality={quality} />}
       {mode==='battle'?<BattleActors state={state} director={playback} quality={quality} reduced={reduced} onAnchors={onAnchors} />
-        :mode==='entry'?<EntranceActor reduced={reduced} onComplete={onComplete} />
-          :mode==='map'?null:mode==='title'?<Actor position={[.9,0,.9]} rotation={-.38} action={heroAction} still={reduced} />
-            :<Actor position={[-1.3,0,0]} rotation={Math.PI/3} action={mode==='result'?won?'victory':'death':'idle'} still={reduced} />}
+        :mode==='entry'?<EntranceActor reduced={reduced} onComplete={onComplete} outlines={quality.outlines !== false} />
+          :mode==='map'?null:mode==='title'?<Actor position={[.9,0,.9]} rotation={-.38} action={heroAction} still={reduced} outlines={quality.outlines !== false} />
+            :<Actor position={[-1.3,0,0]} rotation={Math.PI/3} action={mode==='result'?won?'victory':'death':'idle'} still={reduced} outlines={quality.outlines !== false} />}
       <SceneReady callback={onSceneReady}/>
     </Suspense>
-    {['rest','forge'].includes(mode)&&<Camp forge={mode==='forge'} />}
-    {mode==='reward'&&<pointLight position={[1.2,1.1,.3]} color="#ffdc8c" intensity={2} distance={3} />}
-    <Motes count={quality.particles} still={reduced} />
+    {['rest','forge'].includes(mode)&&<Camp forge={mode==='forge'} light={quality.pointLights !== false} />}
+    {mode==='reward'&&quality.pointLights!==false&&<pointLight position={[1.2,1.1,.3]} color="#ffdc8c" intensity={2} distance={3} />}
+    {motesCount > 0 && <Motes count={motesCount} still={reduced} />}
   </>;
 }

@@ -91,8 +91,8 @@ const dummy = new THREE.Object3D();
 const shakeOffset = new THREE.Vector3();
 const random = seed => { const x = Math.sin(seed * 127.1) * 43758.5453; return x - Math.floor(x); };
 
-function ImpactSlot({ slotRef, sparks }) {
-  const crescent = useMemo(() => crescentGeometry(), []);
+function ImpactSlot({ slotRef, sparks, segments }) {
+  const crescent = useMemo(() => crescentGeometry(.62, 1.12, Math.PI * .95, segments), [segments]);
   const plane = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
   const materials = useMemo(() => ({ slash: slashMaterial(), flash: flashMaterial(), ring: ringMaterial(), dust: ringMaterial(), spark: sparkMaterial() }), []);
   useEffect(() => () => { crescent.dispose(); plane.dispose(); Object.values(materials).forEach(material => material.dispose()); }, [crescent, plane, materials]);
@@ -111,7 +111,8 @@ export default function ImpactEffects({ director, pose, quality, reduced }) {
   const { camera, invalidate } = useThree();
   const first = useRef(null), second = useRef(null), third = useRef(null);
   const slots = [first, second, third]; // SLOTS개
-  const sparks = Math.max(8, Math.round(quality.particles * .65));
+  const sparks = Math.max(6, Math.round(quality.particles * .65));
+  const segments = quality.level === 'lowest' ? 20 : 48;
   const agesBuffer = useRef([]);
   const shaken = useRef(false);
   const color = useMemo(() => new THREE.Color(), []);
@@ -229,7 +230,7 @@ export default function ImpactEffects({ director, pose, quality, reduced }) {
     }
   });
   return <group name="impact-effects">
-    {slots.map((slot, index) => <ImpactSlot key={index} slotRef={slot} sparks={sparks} />)}
+    {slots.map((slot, index) => <ImpactSlot key={index} slotRef={slot} sparks={sparks} segments={segments} />)}
   </group>;
 }
 

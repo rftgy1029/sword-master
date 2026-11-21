@@ -12,7 +12,7 @@ const FOG_DEPTH = BATTLE_FOG[1] - BATTLE_FOG[0];
  * 여기서는 부드럽게 따라가 카메라·안개에 적용한다. 타격 흔들림(ImpactEffects)은 이 위치를 기준으로 더해진다.
  * 연출 진행(-2) 뒤, 흔들림·머리 위 표시(0) 앞에서 실행한다.
  */
-export default function BattleCamera({ director, view, studying = false, danger = false, reduced = false }) {
+export default function BattleCamera({ director, view, studying = false, danger = false, reduced = false, snapStudy = false }) {
   const { camera, scene } = useThree();
   const goal = useRef(createCameraPose());
   const now = useRef(null);
@@ -23,8 +23,8 @@ export default function BattleCamera({ director, view, studying = false, danger 
     const aspect = state.size.width / Math.max(1, state.size.height);
     const current = director.active;
     directCamera({ aspect, view, plan: current?.plan, elapsed: current?.elapsed ?? 0, studying, reduced, danger, time: state.clock.elapsedTime }, goal.current);
-    // 처음·화면 크기 변경·움직임 줄이기·검사용 수동 진행·오래 멈췄던 프레임에서는 따라가지 않고 바로 맞춘다.
-    const snap = !now.current || reduced || current?.manual || aspect !== lastAspect.current || !(delta > 0 && delta < .25);
+    // 처음·화면 크기 변경·움직임 줄이기·검사용 수동 진행·오래 멈췄던 프레임·정지 퀴즈 모드에서는 따라가지 않고 바로 맞춘다.
+    const snap = !now.current || reduced || (snapStudy && studying && !current) || current?.manual || aspect !== lastAspect.current || !(delta > 0 && delta < .25);
     lastAspect.current = aspect;
     if (!now.current) now.current = createCameraPose();
     if (snap) copyPose(now.current, goal.current);

@@ -114,45 +114,80 @@ const facialDetail = material => /\sdetail$/.test(material.name ?? '');
 const box = new THREE.Box3();
 const size = new THREE.Vector3();
 
-/**
- * 액터 메시를 툰 재질로 바꾸고, 충분히 큰 불투명 부위에는 뒷면 외곽선을 붙인다.
- * 외곽선 재질은 액터마다 따로 두어 `setOutlineScale`로 액터 크기에 맞춘 두께를 유지한다.
- */
-export function stylizeActor(object) {
+function attachOutlines(object, outlineMaterial, candidates) {
+  if (outlineMaterial.userData.built) return;
   object.updateMatrixWorld(true);
-  const outlineMaterial = baseOutline.clone();
-  outlineMaterial.userData.flashTargets = new Set();
-  const meshes = [];
-  object.traverse(node => { if (node.isMesh && !node.userData.outline) meshes.push(node); });
-  for (const mesh of meshes) {
-    const sources = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    mesh.material = Array.isArray(mesh.material) ? sources.map(toonMaterial) : toonMaterial(mesh.material);
-    for (const material of [mesh.material].flat()) if (material.userData.hitFlash) outlineMaterial.userData.flashTargets.add(material);
-    if (sources.some(glowing) || sources.some(facialDetail)) continue;
+  const material = outlineMaterial.userData.shaderMaterial ?? baseOutline.clone();
+  outlineMaterial.userData.shaderMaterial = material;
+  material.uniforms.width.value = OUTLINE_WIDTH * (outlineMaterial.userData.scale ?? 1);
+  const list = [];
+  for (const mesh of candidates) {
     if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
     box.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld).getSize(size);
     if (Math.max(size.x, size.y, size.z) < OUTLINE_MIN_SIZE) continue;
     addOutlineNormals(mesh.geometry);
     let outline;
     if (mesh.isSkinnedMesh) {
-      outline = new THREE.SkinnedMesh(mesh.geometry, outlineMaterial);
+      outline = new THREE.SkinnedMesh(mesh.geometry, material);
       outline.bind(mesh.skeleton, mesh.bindMatrix);
-    } else outline = new THREE.Mesh(mesh.geometry, outlineMaterial);
+    } else outline = new THREE.Mesh(mesh.geometry, material);
     outline.name = `${mesh.name} outline`;
     outline.userData.outline = true;
     outline.raycast = () => {};
     mesh.add(outline);
+    list.push(outline);
   }
-  return outlineMaterial;
+  outlineMaterial.userData.outlines = list;
+  outlineMaterial.userData.built = true;
 }
 
-export function setOutlineScale(material, scale) {
-  material.uniforms.width.value = OUTLINE_WIDTH * scale;
+/**
+ * 액터 메시를 툰 재질로 바꾸고, 필요할 때 충분히 큰 불투명 부위에 뒷면 외곽선을 붙인다.
+ * 저사양(outlines: false)에서는 외곽선 복제와 법선 계산을 생략해 드로우콜과 초기화 시간을 절반 가까이 줄인다.
+ */
+export function stylizeActor(object, { outlines = true } = {}) {
+  const handle = {
+    userData: {
+      flashTargets: new Set(),
+      candidates: [],
+      outlines: [],
+      built: false,
+      shaderMaterial: null,
+      scale: 1,
+    },
+    dispose() {
+      this.userData.shaderMaterial?.dispose();
+      this.userData.shaderMaterial = null;
+    },
+  };
+  const meshes = [];
+  object.traverse(node => { if (node.isMesh && !node.userData.outline) meshes.push(node); });
+  for (const mesh of meshes) {
+    const sources = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    mesh.material = Array.isArray(mesh.material) ? sources.map(toonMaterial) : toonMaterial(mesh.material);
+    for (const material of [mesh.material].flat()) if (material.userData.hitFlash) handle.userData.flashTargets.add(material);
+    if (sources.some(glowing) || sources.some(facialDetail)) continue;
+    handle.userData.candidates.push(mesh);
+  }
+  if (outlines) attachOutlines(object, handle, handle.userData.candidates);
+  return handle;
 }
 
-/** 액터의 피격 번쩍임 세기(0~1)와 색. stylizeActor가 돌려준 외곽선 재질을 액터 핸들로 쓴다. */
+export function setActorOutlines(object, handle, enabled) {
+  if (!handle?.userData) return;
+  if (enabled && !handle.userData.built) attachOutlines(object, handle, handle.userData.candidates);
+  for (const outline of handle.userData.outlines) outline.visible = enabled;
+}
+
+export function setOutlineScale(handle, scale) {
+  if (!handle?.userData) return;
+  handle.userData.scale = scale;
+  if (handle.userData.shaderMaterial) handle.userData.shaderMaterial.uniforms.width.value = OUTLINE_WIDTH * scale;
+}
+
+/** 액터의 피격 번쩍임 세기(0~1)와 색. stylizeActor가 돌려준 핸들을 쓴다. */
 export function setHitFlash(outline, amount, color = '#ffffff') {
-  for (const material of outline.userData.flashTargets ?? []) {
+  for (const material of outline?.userData?.flashTargets ?? []) {
     material.userData.hitFlash.value = amount;
     if (amount > 0) material.userData.hitFlashColor.value.set(color);
   }

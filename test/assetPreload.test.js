@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  COMBAT_EFFECT_PATHS,
   COMBAT_MONSTER_TYPES,
+  INITIAL_ASSET_SPECS,
   fetchBufferWithProgress,
   isTitlePreloadReady,
   preloadCombatAssets,
@@ -48,14 +50,19 @@ test('embedded single-file bundle skips network preload and reports ready immedi
   assert.equal(updates.at(-1).percent, 100);
 });
 
-test('preloadTitleAssets downloads stage and title GLBs in parallel, reports monotonic progress, and primes cache once', async () => {
+test('preloadTitleAssets downloads stage, title GLBs, combat effects, and all 12 monsters in one pass', async () => {
   resetAssetPreloadForTest();
   const fetched = [];
-  const primed = [];
+  const primedModels = [];
+  const seededModels = [];
+  const seededTextures = [];
+  const primedTextures = [];
   const updates = [];
   const stageModule = {
-    primeModelCache: (entries) => primed.push(...entries),
-    primeTextureCache: () => {},
+    primeModelCache: (entries) => primedModels.push(...entries),
+    seedModelCache: (entries) => seededModels.push(...entries),
+    seedTextureCache: async (entries) => { seededTextures.push(...entries); },
+    primeTextureCache: (urls) => primedTextures.push(...urls),
   };
 
   const first = preloadTitleAssets({
@@ -64,7 +71,8 @@ test('preloadTitleAssets downloads stage and title GLBs in parallel, reports mon
     loadStage: async () => stageModule,
     fetchImpl: async (url) => {
       fetched.push(url);
-      return streamResponse(url.includes('hero') ? 152_036 : 306_112, { chunkSize: 50_000 });
+      const size = url.includes('hero') ? 152_036 : url.includes('dungeon-kit') ? 306_112 : url.endsWith('.png') ? 8_192 : 120_000;
+      return streamResponse(size, { chunkSize: 50_000 });
     },
   });
   const second = preloadTitleAssets({
@@ -77,42 +85,73 @@ test('preloadTitleAssets downloads stage and title GLBs in parallel, reports mon
   assert.equal(res1.immediate, false);
   assert.equal(res2.immediate, false);
   assert.equal(isTitlePreloadReady(), true);
-  assert.equal(fetched.length, 2);
-  assert.equal(primed.length, 2);
-  assert.equal(primed[0][1].byteLength, 306_112);
-  assert.equal(primed[1][1].byteLength, 152_036);
+  assert.equal(fetched.length, INITIAL_ASSET_SPECS.length);
+  assert.equal(fetched.length, 2 + COMBAT_EFFECT_PATHS.length + COMBAT_MONSTER_TYPES.length);
+  assert.equal(primedModels.length, 2);
+  assert.equal(seededModels.length, COMBAT_MONSTER_TYPES.length);
+  assert.equal(seededTextures.length, COMBAT_EFFECT_PATHS.length);
+  assert.equal(primedTextures.length, COMBAT_EFFECT_PATHS.length);
+  assert.equal(primedModels[0][1].byteLength, 306_112);
+  assert.equal(primedModels[1][1].byteLength, 152_036);
+  for (const monster of COMBAT_MONSTER_TYPES) {
+    assert.ok(seededModels.some(([url]) => url.includes(`/${monster}.glb`)), `seeded ${monster}.glb`);
+  }
   for (let i = 1; i < updates.length; i++) {
     assert.ok(updates[i].percent >= updates[i - 1].percent, 'progress percent never goes backward');
   }
   assert.equal(updates.at(-1).percent, 100);
 
+  // Subsequent title preload is immediate with zero fetches.
   const third = await preloadTitleAssets({
     embedded: false,
     loadStage: async () => { throw new Error('should not reload stage'); },
     fetchImpl: async () => { throw new Error('should not refetch models'); },
   }).promise;
   assert.equal(third.immediate, true);
+
+  // Combat preload after full initial preload performs zero extra fetches and still primes prioritized boss.
+  await preloadCombatAssets({
+    embedded: false,
+    priorityType: 'boss',
+    yieldMs: 0,
+    loadStage: async () => { throw new Error('should reuse cached stage module'); },
+    fetchImpl: async () => { throw new Error('should not refetch already-downloaded monsters'); },
+  });
+  assert.equal(primedModels.length, 3);
+  assert.ok(primedModels[2][0].includes('boss.glb'));
 });
 
-test('failed title asset download rejects without poisoning cache so retry succeeds', async () => {
+test('failed initial download rejects without poisoning cache and retry only refetches missing assets', async () => {
   resetAssetPreloadForTest();
-  let failHero = true;
-  const stageModule = { primeModelCache: () => {}, primeTextureCache: () => {} };
+  let failBoss = true;
+  const fetchCounts = new Map();
+  const stageModule = {
+    primeModelCache: () => {},
+    seedModelCache: () => {},
+    seedTextureCache: async () => {},
+    primeTextureCache: () => {},
+  };
   const fetchImpl = async (url) => {
-    if (url.includes('hero') && failHero) return streamResponse(0, { status: 503 });
+    fetchCounts.set(url, (fetchCounts.get(url) ?? 0) + 1);
+    if (url.includes('boss.glb') && failBoss) return streamResponse(0, { status: 503 });
     return streamResponse(4096);
   };
 
   await assert.rejects(
-    preloadTitleAssets({ embedded: false, loadStage: async () => stageModule, fetchImpl }).promise,
+    preloadTitleAssets({ embedded: false, loadStage: async () => stageModule, fetchImpl, concurrency: 2 }).promise,
     /503/,
   );
   assert.equal(isTitlePreloadReady(), false);
 
-  failHero = false;
-  const retried = await preloadTitleAssets({ embedded: false, loadStage: async () => stageModule, fetchImpl }).promise;
+  failBoss = false;
+  const retried = await preloadTitleAssets({ embedded: false, loadStage: async () => stageModule, fetchImpl, concurrency: 2 }).promise;
   assert.equal(retried.immediate, false);
   assert.equal(isTitlePreloadReady(), true);
+  assert.equal(fetchCounts.size, INITIAL_ASSET_SPECS.length);
+  for (const [url, count] of fetchCounts) {
+    if (url.includes('boss.glb')) assert.equal(count, 2, 'failed monster retried once');
+    else assert.equal(count, 1, `already-downloaded asset ${url} was not fetched twice`);
+  }
 });
 
 test('fetchBufferWithProgress handles chunked streams and deduplicates concurrent callers', async () => {
@@ -137,15 +176,17 @@ test('fetchBufferWithProgress handles chunked streams and deduplicates concurren
   assert.equal(eventsB.at(-1)[0], 10_000);
 });
 
-test('preloadCombatAssets warms textures, prioritizes requested monster, and survives partial failures', async () => {
+test('standalone preloadCombatAssets warms textures, prioritizes requested monster, and survives partial failures', async () => {
   resetAssetPreloadForTest();
   const order = [];
   const primedModels = [];
   const seededModels = [];
+  const seededTextures = [];
   const primedTextures = [];
   const stageModule = {
     primeModelCache: (entries) => primedModels.push(...entries.map(([url]) => url)),
     seedModelCache: (entries) => seededModels.push(...entries.map(([url]) => url)),
+    seedTextureCache: async (entries) => { seededTextures.push(...entries.map(([url]) => url)); },
     primeTextureCache: (urls) => primedTextures.push(...urls),
   };
 
@@ -161,9 +202,11 @@ test('preloadCombatAssets warms textures, prioritizes requested monster, and sur
     },
   });
 
+  assert.equal(seededTextures.length, 2);
   assert.equal(primedTextures.length, 2);
-  assert.ok(order[0].includes('boss.glb'), `expected boss.glb first, got ${order[0]}`);
-  assert.equal(order.length, COMBAT_MONSTER_TYPES.length);
+  const monsterOrder = order.filter((url) => url.endsWith('.glb'));
+  assert.ok(monsterOrder[0].includes('boss.glb'), `expected boss.glb first, got ${monsterOrder[0]}`);
+  assert.equal(monsterOrder.length, COMBAT_MONSTER_TYPES.length);
   assert.equal(primedModels.length, 1);
   assert.equal(seededModels.length, COMBAT_MONSTER_TYPES.length - 2);
 });

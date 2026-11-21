@@ -61,3 +61,14 @@ test('audio settings default for older saves and normalize the volume range', ()
   assert.equal(normalizeSettings({ shortcutConfirm: 'double' }).shortcutConfirm, 'double');
   assert.equal(normalizeSettings({ shortcutConfirm: 'triple' }).shortcutConfirm, 'single');
 });
+
+test('lowest graphics quality option persists and normalizes alongside existing tiers', () => {
+  const data = new Map();
+  const storage = { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
+  for (const tier of ['auto', 'lowest', 'low', 'balanced', 'high']) {
+    assert.equal(normalizeSettings({ graphicsQuality: tier }).graphicsQuality, tier);
+  }
+  const saved = { ...DEFAULT_SETTINGS, graphicsQuality: 'lowest' };
+  assert.equal(saveSettings(saved, storage), true);
+  assert.deepEqual(readSettings(storage), saved);
+});

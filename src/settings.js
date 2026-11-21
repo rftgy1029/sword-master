@@ -16,7 +16,7 @@ const OPTIONS = {
   backgroundMotion: ['normal', 'reduced', 'off'],
   selectionEffect: ['breathe', 'static'],
   renderer: ['auto', '3d', '2d'],
-  graphicsQuality: ['auto', 'low', 'balanced', 'high'],
+  graphicsQuality: ['auto', 'lowest', 'low', 'balanced', 'high'],
   combatSound: ['on', 'off'],
   shortcutConfirm: ['single', 'double'],
 };

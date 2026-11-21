@@ -2,18 +2,60 @@ import { publicAsset } from '../publicAsset.js';
 import { dungeonKitUrl } from './three/kenneyDungeon.js';
 import { MODEL_TYPES, modelUrl } from './three/quality.js';
 
-export const STAGE_ESTIMATED_BYTES = 1_061_042;
+export const STAGE_ESTIMATED_BYTES = 1_058_627;
+
 export const TITLE_MODEL_SPECS = Object.freeze([
-  { key: 'dungeon-kit', label: '던전 석조', bytes: 306_112, url: dungeonKitUrl },
-  { key: 'hero', label: '기사 모델', bytes: 152_036, url: () => modelUrl('hero') },
+  { key: 'dungeon-kit', kind: 'title-model', label: '던전 석조', bytes: 306_112, url: dungeonKitUrl },
+  { key: 'hero', kind: 'title-model', label: '기사 모델', bytes: 152_036, url: () => modelUrl('hero') },
 ]);
+
 export const COMBAT_MONSTER_TYPES = Object.freeze(MODEL_TYPES.filter((type) => type !== 'hero'));
+
+const MONSTER_MODEL_BYTES = Object.freeze({
+  crawler: 540_144,
+  sentinel: 243_072,
+  ember: 110_392,
+  bat: 169_156,
+  slime: 104_256,
+  mushroom: 219_816,
+  scarab: 160_044,
+  wisp: 108_356,
+  hound: 226_696,
+  ravager: 292_236,
+  watcher: 102_532,
+  boss: 310_904,
+});
+
+export const MONSTER_MODEL_SPECS = Object.freeze(
+  COMBAT_MONSTER_TYPES.map((type) => ({
+    key: `monster-${type}`,
+    monsterType: type,
+    kind: 'monster-model',
+    label: '몬스터 3D 모델',
+    bytes: MONSTER_MODEL_BYTES[type] ?? 200_000,
+    url: () => modelUrl(type),
+  })),
+);
+
 export const COMBAT_EFFECT_PATHS = Object.freeze(['effects/impact-flipbook.png', 'effects/sword-light.png']);
+
+export const COMBAT_EFFECT_SPECS = Object.freeze([
+  { key: 'effect-impact', kind: 'effect-texture', label: '전투 이펙트', bytes: 34_982, url: () => publicAsset(COMBAT_EFFECT_PATHS[0]) },
+  { key: 'effect-sword', kind: 'effect-texture', label: '전투 이펙트', bytes: 1_996, url: () => publicAsset(COMBAT_EFFECT_PATHS[1]) },
+]);
+
+/** All 3D binary assets downloaded up front during the first-visit loading window. */
+export const INITIAL_ASSET_SPECS = Object.freeze([
+  ...TITLE_MODEL_SPECS,
+  ...COMBAT_EFFECT_SPECS,
+  ...MONSTER_MODEL_SPECS,
+]);
 
 const defaultLoadStage = () => import('./three/ThreeStage.jsx');
 
 const downloadedBuffers = new Map();
 const inflightBuffers = new Map();
+const seededModels = new Set();
 const primedModels = new Set();
 
 let titleReady = false;
@@ -34,6 +76,7 @@ export function isTitlePreloadReady() {
 export function resetAssetPreloadForTest() {
   downloadedBuffers.clear();
   inflightBuffers.clear();
+  seededModels.clear();
   primedModels.clear();
   titleReady = false;
   titleTask = null;
@@ -108,8 +151,33 @@ export function fetchBufferWithProgress(url, { fetchImpl = globalThis.fetch, onB
   return promise;
 }
 
+async function runPool(items, concurrency, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  let firstError = null;
+  const limit = Math.max(1, Math.min(concurrency, items.length));
+
+  const next = async () => {
+    while (cursor < items.length) {
+      if (firstError) return;
+      const index = cursor++;
+      try {
+        results[index] = await worker(items[index], index);
+      } catch (error) {
+        if (!firstError) firstError = error;
+        return;
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: limit }, next));
+  if (firstError) throw firstError;
+  return results;
+}
+
 /**
- * Preload the 3D stage module and title-screen GLBs in parallel before mounting SceneView.
+ * Preload the 3D stage module, title GLBs, combat effect textures, and all 12 monster GLBs
+ * together before mounting SceneView so first-time players never stall or fall back to 2D.
  * Accepts subscriber callbacks so StrictMode unmount/remount or duplicate callers share one task.
  */
 export function preloadTitleAssets({
@@ -117,8 +185,9 @@ export function preloadTitleAssets({
   loadStage = defaultLoadStage,
   fetchImpl = globalThis.fetch,
   embedded = isEmbeddedAssetBundle(),
+  concurrency = 4,
 } = {}) {
-  const specs = TITLE_MODEL_SPECS.map((spec) => ({ ...spec, resolvedUrl: spec.url() }));
+  const specs = INITIAL_ASSET_SPECS.map((spec) => ({ ...spec, resolvedUrl: spec.url() }));
   const defaultTotal = STAGE_ESTIMATED_BYTES + specs.reduce((sum, spec) => sum + spec.bytes, 0);
 
   if (embedded) {
@@ -135,25 +204,36 @@ export function preloadTitleAssets({
     const state = {
       stageLoaded: 0,
       stageDone: false,
-      modelLoaded: new Map(specs.map((spec) => [spec.key, 0])),
-      modelTotal: new Map(specs.map((spec) => [spec.key, spec.bytes])),
+      assetLoaded: new Map(specs.map((spec) => [spec.key, 0])),
+      assetTotal: new Map(specs.map((spec) => [spec.key, spec.bytes])),
+      assetDone: new Set(),
       percent: 0,
       snapshot: { percent: 0, loadedBytes: 0, totalBytes: defaultTotal, label: '3D 무대 모듈 내려받는 중…', phase: 'downloading' },
     };
 
+    const monsterTotalCount = specs.filter((spec) => spec.kind === 'monster-model').length;
+
+    const currentLabel = () => {
+      if (!state.stageDone) return '3D 무대 모듈 내려받는 중…';
+      const pendingTitle = specs.find((spec) => spec.kind === 'title-model' && !state.assetDone.has(spec.key));
+      if (pendingTitle) return `${pendingTitle.label} 내려받는 중…`;
+      const pendingEffect = specs.find((spec) => spec.kind === 'effect-texture' && !state.assetDone.has(spec.key));
+      if (pendingEffect) return `${pendingEffect.label} 내려받는 중…`;
+      const monstersDone = specs.filter((spec) => spec.kind === 'monster-model' && state.assetDone.has(spec.key)).length;
+      if (monstersDone < monsterTotalCount) return `몬스터 3D 모델 내려받는 중… (${monstersDone}/${monsterTotalCount})`;
+      return '3D 무대 준비 중…';
+    };
+
     const emitSnapshot = () => {
-      const loadedModels = specs.reduce((sum, spec) => sum + (state.modelLoaded.get(spec.key) ?? 0), 0);
-      const totalModels = specs.reduce((sum, spec) => sum + (state.modelTotal.get(spec.key) ?? spec.bytes), 0);
-      const totalBytes = STAGE_ESTIMATED_BYTES + totalModels;
-      const loadedBytes = Math.min(totalBytes, state.stageLoaded + loadedModels);
+      const loadedAssets = specs.reduce((sum, spec) => sum + (state.assetLoaded.get(spec.key) ?? 0), 0);
+      const totalAssets = specs.reduce((sum, spec) => sum + (state.assetTotal.get(spec.key) ?? spec.bytes), 0);
+      const totalBytes = STAGE_ESTIMATED_BYTES + totalAssets;
+      const loadedBytes = Math.min(totalBytes, state.stageLoaded + loadedAssets);
       const computed = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0;
-      const percent = state.stageDone && loadedModels >= totalModels ? 99 : Math.min(99, Math.max(state.percent, computed));
+      const allDone = state.stageDone && state.assetDone.size >= specs.length;
+      const percent = allDone ? 99 : Math.min(98, Math.max(state.percent, computed));
       state.percent = percent;
-      const label = !state.stageDone
-        ? '3D 무대 모듈 내려받는 중…'
-        : specs.find((spec) => (state.modelLoaded.get(spec.key) ?? 0) < (state.modelTotal.get(spec.key) ?? spec.bytes))?.label.concat(' 내려받는 중…')
-          ?? '3D 무대 준비 중…';
-      state.snapshot = { percent, loadedBytes, totalBytes, label, phase: 'downloading' };
+      state.snapshot = { percent, loadedBytes, totalBytes, label: currentLabel(), phase: 'downloading' };
       for (const subscriber of subscribers) subscriber(state.snapshot);
     };
 
@@ -172,31 +252,57 @@ export function preloadTitleAssets({
       return mod;
     });
 
-    const modelPromises = specs.map((spec) =>
-      fetchBufferWithProgress(spec.resolvedUrl, {
+    const assetsPromise = runPool(specs, concurrency, async (spec) => {
+      const buffer = await fetchBufferWithProgress(spec.resolvedUrl, {
         fetchImpl,
         onBytes: (loaded, total) => {
-          state.modelLoaded.set(spec.key, loaded);
-          if (total > 0) state.modelTotal.set(spec.key, Math.max(total, loaded));
+          state.assetLoaded.set(spec.key, loaded);
+          if (total > 0) state.assetTotal.set(spec.key, Math.max(total, loaded));
           emitSnapshot();
         },
-      }).then((buffer) => {
-        state.modelLoaded.set(spec.key, buffer.byteLength);
-        state.modelTotal.set(spec.key, buffer.byteLength);
-        emitSnapshot();
-        return [spec.resolvedUrl, buffer];
-      }),
-    );
+      });
+      state.assetLoaded.set(spec.key, buffer.byteLength);
+      state.assetTotal.set(spec.key, buffer.byteLength);
+      state.assetDone.add(spec.key);
+      emitSnapshot();
+      return { spec, url: spec.resolvedUrl, buffer };
+    });
 
-    const promise = Promise.all([stagePromise, ...modelPromises])
-      .then(([threeModule, ...entries]) => {
+    const promise = Promise.all([stagePromise, assetsPromise])
+      .then(async ([threeModule, entries]) => {
         clearInterval(ticker);
         cachedStageModule = threeModule;
-        threeModule?.primeModelCache?.(entries);
-        for (const [url] of entries) primedModels.add(url);
+
+        const titleModelEntries = [];
+        const monsterModelEntries = [];
+        const effectEntries = [];
+        for (const entry of entries) {
+          if (entry.spec.kind === 'title-model') titleModelEntries.push([entry.url, entry.buffer]);
+          else if (entry.spec.kind === 'monster-model') monsterModelEntries.push([entry.url, entry.buffer]);
+          else if (entry.spec.kind === 'effect-texture') effectEntries.push([entry.url, entry.buffer]);
+        }
+
+        // Prime title models immediately and seed all 12 monster GLBs into THREE.Cache (zero later fetches).
+        threeModule?.primeModelCache?.(titleModelEntries);
+        for (const [url] of titleModelEntries) {
+          seededModels.add(url);
+          primedModels.add(url);
+        }
+
+        if (monsterModelEntries.length) {
+          (threeModule?.seedModelCache ?? threeModule?.primeModelCache)?.(monsterModelEntries);
+          for (const [url] of monsterModelEntries) seededModels.add(url);
+        }
+
+        if (effectEntries.length) {
+          await threeModule?.seedTextureCache?.(effectEntries);
+          texturesPrimed = true;
+          threeModule?.primeTextureCache?.(effectEntries.map(([url]) => url));
+        }
+
         titleReady = true;
-        const totalModels = specs.reduce((sum, spec) => sum + (state.modelTotal.get(spec.key) ?? spec.bytes), 0);
-        const totalBytes = STAGE_ESTIMATED_BYTES + totalModels;
+        const totalAssets = specs.reduce((sum, spec) => sum + (state.assetTotal.get(spec.key) ?? spec.bytes), 0);
+        const totalBytes = STAGE_ESTIMATED_BYTES + totalAssets;
         state.snapshot = { percent: 100, loadedBytes: totalBytes, totalBytes, label: '3D 무대 준비 완료', phase: 'ready' };
         for (const subscriber of subscribers) subscriber(state.snapshot);
         return { immediate: false, module: threeModule };
@@ -223,8 +329,9 @@ export function preloadTitleAssets({
 }
 
 /**
- * Quietly preload combat effects and all 12 monster GLBs in the background after title readiness.
- * Calling again with a specific `priorityType` moves that monster to the front of the queue.
+ * Ensure combat effect textures and monster GLBs are warmed in Three.js/R3F caches.
+ * After `preloadTitleAssets`, buffers are already in memory so this avoids extra network
+ * traffic while still letting active battles prioritize GLTF parsing for the current enemy.
  */
 export function preloadCombatAssets({
   priorityType,
@@ -242,8 +349,19 @@ export function preloadCombatAssets({
       const threeModule = cachedStageModule ?? await loadStage();
       cachedStageModule = threeModule;
       if (!texturesPrimed) {
+        const effectUrls = COMBAT_EFFECT_PATHS.map((path) => publicAsset(path));
+        const fetchedEffects = [];
+        for (const url of effectUrls) {
+          try {
+            const buffer = await fetchBufferWithProgress(url, { fetchImpl });
+            fetchedEffects.push([url, buffer]);
+          } catch {
+            // Non-fatal; TextureLoader still attempts live loading if needed.
+          }
+        }
+        if (fetchedEffects.length) await threeModule?.seedTextureCache?.(fetchedEffects);
         texturesPrimed = true;
-        threeModule?.primeTextureCache?.(COMBAT_EFFECT_PATHS.map((path) => publicAsset(path)));
+        threeModule?.primeTextureCache?.(effectUrls);
       }
       const pending = new Set(COMBAT_MONSTER_TYPES);
       while (pending.size > 0) {
@@ -252,12 +370,17 @@ export function preloadCombatAssets({
         if (prioritized) queuedPriorityType = null;
         pending.delete(nextType);
         const url = modelUrl(nextType);
-        if (primedModels.has(url) && !prioritized) continue;
+        if (prioritized ? primedModels.has(url) : seededModels.has(url)) continue;
         try {
           const buffer = await fetchBufferWithProgress(url, { fetchImpl });
-          if (prioritized) threeModule?.primeModelCache?.([[url, buffer]]);
-          else (threeModule?.seedModelCache ?? threeModule?.primeModelCache)?.([[url, buffer]]);
-          primedModels.add(url);
+          if (prioritized) {
+            threeModule?.primeModelCache?.([[url, buffer]]);
+            seededModels.add(url);
+            primedModels.add(url);
+          } else {
+            (threeModule?.seedModelCache ?? threeModule?.primeModelCache)?.([[url, buffer]]);
+            seededModels.add(url);
+          }
         } catch {
           // Background preload failure is non-fatal; CombatScene still attempts live loading if needed.
         }

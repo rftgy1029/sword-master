@@ -121,11 +121,15 @@ export default function CombatAtmosphere({ director, quality, sword }) {
     }
 
     const marker = group.getObjectByName('combat-world-light');
-    const flash = lastAge >= 0 && lastAge < 230 ? (1 - lastAge / 230) ** 2 : 0;
-    marker.position.set(x, y, .4);
-    marker.color.setHex(color);
-    marker.intensity = quality.bloom ? flash * (type === 'nova' ? 7.5 : 5) : 0;
+    if (marker) {
+      const flash = lastAge >= 0 && lastAge < 230 ? (1 - lastAge / 230) ** 2 : 0;
+      marker.position.set(x, y, .4);
+      marker.color.setHex(color);
+      marker.intensity = quality.bloom ? flash * (type === 'nova' ? 7.5 : 5) : 0;
+    }
   });
+
+  const projectileCount = quality.projectileParts ?? (quality.level === 'low' ? 4 : 7);
 
   return <group ref={root} name="combat-atmosphere" visible={false}>
     {[false, false, true, true].map((smoke, index) => <mesh key={index} renderOrder={smoke ? 5 : 13} visible={false} frustumCulled={false}>
@@ -136,8 +140,8 @@ export default function CombatAtmosphere({ director, quality, sword }) {
       }} transparent depthWrite={false} blending={smoke ? THREE.NormalBlending : THREE.AdditiveBlending} />
     </mesh>)}
     <group name="combat-projectile" visible={false}>
-      {Array.from({ length: quality.level === 'low' ? 4 : 7 }, (_, index) => <mesh key={index}>
-        <icosahedronGeometry args={[1, 1]} />
+      {Array.from({ length: projectileCount }, (_, index) => <mesh key={index}>
+        <icosahedronGeometry args={[1, quality.level === 'lowest' ? 0 : 1]} />
         <meshBasicMaterial transparent depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>)}
     </group>
@@ -145,6 +149,6 @@ export default function CombatAtmosphere({ director, quality, sword }) {
       <dodecahedronGeometry args={[1, 0]} />
       <meshStandardMaterial roughness={.82} />
     </instancedMesh>
-    <pointLight name="combat-world-light" intensity={0} distance={4} decay={2} />
+    {quality.bloom && <pointLight name="combat-world-light" intensity={0} distance={4} decay={2} />}
   </group>;
 }

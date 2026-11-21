@@ -1,6 +1,8 @@
 import { TransitionVeil, useSceneTransition } from './SceneTransition.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS } from '../settings.js';
+import { useGraphics } from './GraphicsContext.jsx';
+import { QUALITY_LABELS } from '../game/three/quality.js';
 
 const TABS = [
   { id: 'display', label: '화면·연출', number: '01' },
@@ -28,6 +30,7 @@ function SettingOptions({ name, title, description, choices, value, onChange }) 
 }
 
 export default function SettingsDialog({ settings, onChange, onReset, saved, onClose }) {
+  const graphics = useGraphics();
   const dialog = useRef(null);
   const transition = useSceneTransition();
   const requestClose = () => transition(() => dialog.current.close());
@@ -39,6 +42,9 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
   const [resetNotice, setResetNotice] = useState(false);
   const fullscreenSupported = Boolean(document.fullscreenEnabled && document.documentElement.requestFullscreen);
   const defaultsActive = Object.keys(DEFAULT_SETTINGS).every((key) => settings[key] === DEFAULT_SETTINGS[key]);
+  const qualityHint = settings.graphicsQuality === 'auto'
+    ? `자동은 기기 사양과 프레임에 맞춰 3D 품질을 조절해요 (현재: ${QUALITY_LABELS[graphics.effectiveQuality] ?? '보통'}). 랙이 심하면 매우 낮음을 선택하세요.`
+    : '저사양 기기는 낮음이나 매우 낮음을 선택하면 3D 화면이 훨씬 부드러워져요.';
 
   useEffect(() => {
     if (!dialog.current.open) dialog.current.showModal();
@@ -137,8 +143,8 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
               <SettingOptions name="renderer" title="게임 화면" description="입체적인 던전 또는 가벼운 일러스트 화면을 선택해요."
                 choices={[[ 'auto','자동' ],[ '3d','입체 화면' ],[ '2d','간편 화면' ]]}
                 value={settings.renderer} onChange={changeSetting}/>
-              <SettingOptions name="graphicsQuality" title="그래픽 품질" description="자동은 화면 크기에 맞춰 조절해요. 느리면 낮음을 선택하세요."
-                choices={[[ 'auto','자동' ],[ 'low','낮음' ],[ 'balanced','보통' ],[ 'high','높음' ]]}
+              <SettingOptions name="graphicsQuality" title="그래픽 품질" description={qualityHint}
+                choices={[[ 'auto','자동' ],[ 'lowest','매우 낮음' ],[ 'low','낮음' ],[ 'balanced','보통' ],[ 'high','높음' ]]}
                 value={settings.graphicsQuality} onChange={changeSetting}/>
               <SettingOptions name="backgroundMotion" title="게임 애니메이션" description="화면 전환, 카드 기술과 배경의 움직임을 조절해요."
                 choices={[[ 'normal', '기본' ], [ 'reduced', '줄이기' ], [ 'off', '끄기' ]]}

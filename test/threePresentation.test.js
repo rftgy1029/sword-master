@@ -2,14 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {CombatPlayback,combatMotionMode,impactAges} from '../src/game/three/playback.js';
-import {MODEL_TYPES,qualityProfile} from '../src/game/three/quality.js';
+import {
+  MODEL_TYPES, detectDeviceQuality, effectiveFrameRate, qualityProfile, slowFrameThreshold, stepDownQuality,
+} from '../src/game/three/quality.js';
+import { setActorOutlines, setHitFlash, stylizeActor } from '../src/game/three/toon.js';
 import {MONSTERS,CARDS} from '../src/game/catalog.js';
 import { heroPose, ENEMY_HOME } from '../src/game/three/heroMotion.js';
 import { createKnightRig } from '../src/game/three/knightRig.js';
 import { enemyAttackPose } from '../src/game/enemyAttackTimeline.js';
 import {ATTACK_HITS} from '../src/game/attackTimeline.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {AnimationMixer, Group, Vector3} from 'three';
+import {AnimationMixer, BoxGeometry, Group, Mesh, MeshStandardMaterial, Vector3} from 'three';
 
 test('all 13 GLBs have complete meshes, materials, matching manifests and usable animation clips',()=>{
   const manifest=JSON.parse(readFileSync(new URL('../public/models/manifest.json',import.meta.url)));
@@ -234,4 +237,92 @@ test('the first hit can finish an enemy before a second animation beat with zero
   assert.equal(hits.length, 2);
   assert.equal(hits[1].blocked, false);
   assert.equal(hits[1].lethal, false);
+});
+
+test('lowest quality profile trims DPR, lights, environment and outlines while keeping core combat VFX', () => {
+  const lowest = qualityProfile('lowest', { pixelRatio: 2 });
+  assert.equal(lowest.level, 'lowest');
+  assert.equal(lowest.dpr, 0.75);
+  assert.equal(lowest.antialias, false);
+  assert.equal(lowest.shadows, false);
+  assert.equal(lowest.environment, false);
+  assert.equal(lowest.outlines, false);
+  assert.equal(lowest.pointLights, false);
+  assert.equal(lowest.rimLight, false);
+  assert.equal(lowest.motes, 0);
+  assert.equal(lowest.fps, 24);
+  assert.equal(lowest.idleFps, 8);
+  assert.equal(lowest.studyFps, 0);
+  assert.ok(lowest.trail >= 6 && lowest.particles >= 8 && lowest.debris >= 3 && lowest.projectileParts >= 3);
+
+  const low = qualityProfile('low', { pixelRatio: 2 });
+  assert.equal(low.outlines, true);
+  assert.equal(low.environment, false);
+  assert.equal(low.pointLights, false);
+  assert.equal(low.studyFps, 15);
+  assert.equal(low.idleFps, 20);
+});
+
+test('device quality detection classifies software GPUs, weak laptops and budget phones safely in 3D', () => {
+  assert.equal(detectDeviceQuality({ gpuRenderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device))', hardwareConcurrency: 8, deviceMemory: 8 }), 'lowest');
+  assert.equal(detectDeviceQuality({ gpuRenderer: 'Microsoft Basic Render Driver', hardwareConcurrency: 8, deviceMemory: 8 }), 'lowest');
+  assert.equal(detectDeviceQuality({ gpuRenderer: 'llvmpipe (LLVM 15.0.6, 256 bits)', hardwareConcurrency: 4, deviceMemory: 8 }), 'lowest');
+  assert.equal(detectDeviceQuality({ gpuRenderer: 'NVIDIA GeForce RTX 3060', hardwareConcurrency: 2, deviceMemory: 8 }), 'lowest');
+  assert.equal(detectDeviceQuality({ gpuRenderer: 'NVIDIA GeForce RTX 3060', hardwareConcurrency: 8, deviceMemory: 2 }), 'lowest');
+  assert.equal(detectDeviceQuality({ gpuRenderer: 'Intel(R) UHD Graphics 620', hardwareConcurrency: 8, deviceMemory: 8 }), 'low');
+  assert.equal(detectDeviceQuality({ gpuRenderer: 'Apple GPU', compact: true, hardwareConcurrency: 6, deviceMemory: 6 }), 'low');
+  assert.equal(detectDeviceQuality({ gpuRenderer: 'Adreno (TM) 610', compact: true, hardwareConcurrency: 4, deviceMemory: 3 }), 'lowest');
+  assert.equal(detectDeviceQuality({ gpuRenderer: 'NVIDIA GeForce RTX 3060', compact: false, coarsePointer: false, hardwareConcurrency: 8, deviceMemory: 16 }), 'balanced');
+});
+
+test('auto quality step-down stays in 3D and adaptive FPS prioritizes active combat over quiz idle', () => {
+  assert.equal(stepDownQuality('high'), 'balanced');
+  assert.equal(stepDownQuality('balanced'), 'low');
+  assert.equal(stepDownQuality('low'), 'lowest');
+  assert.equal(stepDownQuality('lowest'), 'lowest');
+
+  const autoCapped = qualityProfile('auto', { compact: false, deviceTier: 'balanced', autoTier: 'lowest', pixelRatio: 2 });
+  assert.equal(autoCapped.level, 'lowest');
+  const explicitHigh = qualityProfile('high', { compact: true, deviceTier: 'lowest', autoTier: 'lowest', pixelRatio: 2 });
+  assert.equal(explicitHigh.level, 'high');
+
+  const lowest = qualityProfile('lowest');
+  assert.equal(effectiveFrameRate(lowest, { active: false, studying: true, reduced: false }), 0);
+  assert.equal(effectiveFrameRate(lowest, { active: false, studying: false, reduced: false }), 8);
+  assert.equal(effectiveFrameRate(lowest, { active: true, studying: true, reduced: false }), 24);
+  assert.equal(effectiveFrameRate(lowest, { active: true, studying: false, reduced: true }), 24);
+
+  const low = qualityProfile('low');
+  assert.equal(effectiveFrameRate(low, { active: false, studying: true, reduced: false }), 15);
+  assert.equal(effectiveFrameRate(low, { active: false, studying: false, reduced: false }), 20);
+  assert.equal(effectiveFrameRate(low, { active: true, studying: false, reduced: false }), 30);
+
+  assert.equal(slowFrameThreshold(0), null);
+  assert.equal(slowFrameThreshold(8), null);
+  assert.equal(slowFrameThreshold(15), null);
+  assert.ok(slowFrameThreshold(20) > 0.08);
+  assert.ok(slowFrameThreshold(30) > 0.055 && slowFrameThreshold(30) < 0.07);
+  assert.ok(slowFrameThreshold(60) > 0.04 && slowFrameThreshold(60) < 0.055);
+});
+
+test('stylizeActor skips outline meshes on lowest quality while keeping hit-flash and lazy outline toggle', () => {
+  const root = new Group();
+  const body = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ color: '#8899aa' }));
+  body.name = 'body';
+  root.add(body);
+
+  const handle = stylizeActor(root, { outlines: false });
+  assert.equal(body.children.length, 0, 'no outline mesh created when outlines are disabled');
+  assert.equal(body.geometry.getAttribute('outlineNormal'), undefined, 'outline normals are not baked when disabled');
+  assert.equal(handle.userData.flashTargets.size, 1, 'toon material still supports hit flash');
+  setHitFlash(handle, 0.8, '#ffffff');
+  assert.equal(body.material.userData.hitFlash.value, 0.8);
+
+  setActorOutlines(root, handle, true);
+  assert.equal(body.children.length, 1, 'outline mesh attaches lazily if upgraded later');
+  assert.equal(body.children[0].visible, true);
+  setActorOutlines(root, handle, false);
+  assert.equal(body.children[0].visible, false, 'downgrading hides outlines without destroying meshes');
+  handle.dispose();
+  body.geometry.dispose();
 });

@@ -37,7 +37,9 @@ function SceneChoice({ mode='battle', fallback, onFailure, onLoaded, motionPrefe
   return <div className={`scene-view scene-${mode} ${className}`} data-renderer="3d" aria-busy={!ready}>
     <SceneBoundary onFailure={fail}>
       <Suspense fallback={<div className="scene-loading" role="status"><span/>석문이 열린다…</div>}>
-        <ThreeStage {...props} mode={mode} graphicsQuality={graphics.graphicsQuality} motionPreference={motionPreference ?? graphics.backgroundMotion} onFailure={fail} onLoaded={loaded} />
+        <ThreeStage {...props} mode={mode} graphicsQuality={graphics.graphicsQuality}
+          deviceTier={graphics.deviceTier} autoTier={graphics.autoTier} onSlowQuality={graphics.reportSlowFrame}
+          motionPreference={motionPreference ?? graphics.backgroundMotion} onFailure={fail} onLoaded={loaded} />
       </Suspense>
     </SceneBoundary>
     {!ready&&<div className="scene-loading" role="status"><span/>석문이 열린다…</div>}
