@@ -1,0 +1,102 @@
+dialog.game-dialog.tutorial-dialog[open] {
+  inset: 0;
+  margin: auto;
+  width: min(540px, calc(100% - 24px));
+  height: fit-content;
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid #76573f;
+  border-radius: 18px;
+  background: var(--plum);
+  box-shadow: 0 6px 0 var(--edge), 0 20px 72px #0b0718c9;
+}
+dialog.game-dialog.tutorial-dialog::backdrop { background: #100b1bbf; }
+.tutorial-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid #5a4235;
+  color: var(--sun);
+  font-size: calc(13px * var(--text-scale));
+}
+.tutorial-header .tutorial-skip {
+  min-height: 44px;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.tutorial-body { overflow-y: auto; overscroll-behavior: contain; }
+.tutorial-stage {
+  position: relative;
+  isolation: isolate;
+  height: clamp(126px, 21vh, 190px);
+  overflow: hidden;
+  background: linear-gradient(180deg, #170f2199, #30223b40 58%, #211927aa),
+    url('../../assets/maps/battle-ancient-hall-preview.png') center 56% / cover;
+}
+.tutorial-status, .tutorial-enemy {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  padding: 5px 8px;
+  background: #21182eef;
+  border: 1px solid #634c67;
+  border-radius: 8px;
+  color: var(--ivory);
+  font-size: calc(12px * var(--text-scale));
+}
+.tutorial-status { left: 12px; display: flex; gap: 8px; }
+.tutorial-status b { color: var(--sun); }
+.tutorial-enemy { right: 12px; width: min(46%, 170px); }
+.tutorial-enemy > strong { display: block; margin-bottom: 4px; }
+.tutorial-duel { position: absolute; inset: 0; display: flex; align-items: end; justify-content: space-around; }
+.tutorial-duel > :is(img, span) { width: min(30%, 146px); aspect-ratio: 1; object-fit: contain; }
+.tutorial-duel > span { background-size: 400% 300%; }
+.tutorial-damage {
+  position: absolute;
+  right: 16%;
+  bottom: 12%;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #38191b;
+  color: #ffca8e;
+  font-size: calc(18px * var(--text-scale));
+}
+.tutorial-lesson { padding: 18px clamp(14px, 4vw, 28px) 24px; }
+.tutorial-progress { display: flex; gap: 5px; margin: 0 0 15px; list-style: none; padding: 0; }
+.tutorial-progress li {
+  flex: 1;
+  border-top: 3px solid #584961;
+  padding-top: 5px;
+  font-size: calc(11px * var(--text-scale));
+  color: var(--muted);
+}
+.tutorial-progress [aria-current] { border-color: var(--sun); color: var(--sun); font-weight: 700; }
+.tutorial-dialog #tutorial-title { font-size: calc(22px * var(--text-scale)); font-weight: 700; line-height: 1.45; word-break: keep-all; }
+.tutorial-dialog #tutorial-description { margin: 6px 0 16px; line-height: 1.65; word-break: keep-all; }
+.tutorial-hand { display: flex; align-items: center; gap: clamp(12px, 3vw, 22px); margin-top: 14px; }
+.tutorial-hand small { color: var(--muted); font-size: calc(12px * var(--text-scale)); word-break: keep-all; }
+.tutorial-hand div > small { display: block; line-height: 1.6; }
+.tutorial-hand .game-card { min-height: 0; flex: 0 0 130px; gap: 5px; }
+.tutorial-hand .card-art { height: 35px; min-height: 0; }
+.tutorial-dialog .tutorial-word {
+  padding: 10px 14px;
+  border-left: 3px solid var(--sun);
+  background: var(--plum-raised);
+  color: var(--ivory);
+}
+.tutorial-word strong { margin-right: 8px; color: var(--sun); }
+.tutorial-dialog .tutorial-intent { margin: 0 0 12px; }
+.tutorial-lesson > .game-primary { min-height: 44px; width: 100%; }
+@media (max-width: 480px), (max-height: 540px) {
+  .tutorial-lesson { padding-top: 12px; }
+  .tutorial-stage { height: 118px; }
+  .tutorial-duel > :is(img, span) { width: 96px; }
+  .tutorial-hand .game-card { flex-basis: 111px; }
+}

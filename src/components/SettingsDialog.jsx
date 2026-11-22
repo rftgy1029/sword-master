@@ -27,7 +27,7 @@ function SettingOptions({ name, title, description, choices, value, onChange }) 
   );
 }
 
-export default function SettingsDialog({ settings, onChange, onReset, saved, onClose }) {
+export default function SettingsDialog({ settings, onChange, onReset, saved, onClose, onTutorial }) {
   const dialog = useRef(null);
   const transition = useSceneTransition();
   const requestClose = () => transition(() => dialog.current.close());
@@ -173,7 +173,7 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
           ) : (
             <>
               <div className="settings-section-heading"><h3>조작 안내</h3><span>CONTROLS</span></div>
-              <p className="controls-intro">키보드와 클릭으로 설정할 수 있어요.</p>
+              <button className="settings-action" onClick={onTutorial}>첫 전투 튜토리얼 다시 하기</button>
               <dl className="controls-guide">
                 <div><dt><kbd>↑</kbd><kbd>↓</kbd></dt><dd>메뉴와 왼쪽 분류 이동</dd></div>
                 <div><dt><kbd>Tab</kbd><kbd>Shift + Tab</kbd></dt><dd>다음 항목과 이전 항목으로 이동</dd></div>

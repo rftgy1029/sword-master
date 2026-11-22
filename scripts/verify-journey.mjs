@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {CARDS,cardDetails} from '../src/game/catalog.js';
 import {intentFor,reachableNodes} from '../src/game/engine.js';
-import {questionById} from '../src/game/quiz.js';
+import {QUESTION_BANK,questionById} from '../src/game/quiz.js';
 import {writeFileSync} from 'node:fs';
 
 const browser=await chromium.launch({...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{}),headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader','--disable-background-timer-throttling']});
@@ -30,6 +30,23 @@ const capture=async(name)=>{await page.screenshot({path:`${artifactRoot}3d-${nam
 try{
   await page.goto(BASE_URL);
   await page.locator('.scene-view[aria-busy="false"]').waitFor({timeout:25000});
+  const tutorial = page.locator('.tutorial-dialog[open]');
+  await tutorial.locator('.game-card').click();
+  const term = await tutorial.locator('#quiz-heading').innerText();
+  const source = QUESTION_BANK.find((item) => item.word.term === term && item.type === 'meaning');
+  const options = tutorial.locator('.quiz-options');
+  const wrong = (await options.locator('strong').allTextContents()).find((option) => option !== source.word.meaning);
+  await options.getByText(wrong, { exact: true }).click();
+  await tutorial.getByRole('button', { name: '같은 문제 다시 풀기' }).click();
+  await options.getByText(source.word.meaning, { exact: true }).click();
+  await tutorial.getByRole('button', { name: '턴 종료', exact: true }).click();
+  await tutorial.getByRole('button', { name: '새 모험 시작' }).click();
+  assert.equal(await page.evaluate(() => localStorage.getItem('sword-master.adventure.v1')), null,
+    'Practice neither starts a saved adventure nor writes learning records');
+  await page.locator('.tier-start').waitFor();
+  await page.reload();
+  await page.locator('.scene-view[aria-busy="false"]').waitFor({timeout:25000});
+  assert.equal(await page.locator('.tutorial-dialog').count(), 0, 'Completing practice dismisses it on future visits');
   await capture('title-desktop');
   await page.getByRole('button',{name:'새 모험',exact:false}).click();
   await page.getByRole('button',{name:'던전 입장'}).click();

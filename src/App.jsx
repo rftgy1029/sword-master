@@ -4,6 +4,8 @@ import AdventureDialog from './components/AdventureDialog.jsx';
 import ReviewDialog from './components/ReviewDialog.jsx';
 import SettingsDialog from './components/SettingsDialog.jsx';
 import VocabularyDialog from './components/VocabularyDialog.jsx';
+import TutorialDialog from './components/TutorialDialog.jsx';
+import { rememberTutorial, shouldShowTutorial } from './game/tutorial.js';
 import SurveyDialog from './components/SurveyDialog.jsx';
 import { SURVEY_FORM_URL, surveyUnlocked } from './survey.js';
 import { DEFAULT_SETTINGS, hasChosenGraphicsQuality, normalizeSettings, readSettings, saveSettings } from './settings.js';
@@ -40,6 +42,7 @@ function GameApp({ settings, setSettings }) {
   const admin = useAdmin();
   const [selected, setSelected] = useState(0);
   const [openedMenu, setOpenedMenu] = useState(null);
+  const [tutorialOpen, setTutorialOpen] = useState(() => shouldShowTutorial(ACTIVE_PROGRESS_KEY));
   const [settingsSaved, setSettingsSaved] = useState(null);
   const { progress, dispatch, error, resetProgress } = useProgress({
     storageKey: ACTIVE_PROGRESS_KEY,
@@ -72,13 +75,15 @@ function GameApp({ settings, setSettings }) {
     error: '',
   }));
   const [titleSceneReady, setTitleSceneReady] = useState(() => !needsPreload || isTitlePreloadReady());
-  const wasDownloading = useRef(false);
+  const hadBlockingOverlay = useRef(false);
   const needsQualityChoice = !qualityChosen && settings.renderer !== '2d' && !graphics.unavailable;
   const titleAssetsReady = (!needsPreload || preloadState.ready) && !needsQualityChoice;
   const preloadBlocking = needsQualityChoice || (needsPreload && (!preloadState.ready || !titleSceneReady));
   const qualityPickerVisible = needsQualityChoice && openedMenu === null;
   const downloadVisible = !qualityPickerVisible && preloadBlocking && openedMenu === null;
-  const overlayVisible = qualityPickerVisible || downloadVisible;
+  const tutorialVisible = tutorialOpen && (!preloadBlocking || openedMenu === '설정');
+  const titleBlocked = preloadBlocking || tutorialOpen;
+  const overlayVisible = qualityPickerVisible || downloadVisible || tutorialVisible;
 
   useEffect(() => {
     if (!needsPreload) {
@@ -122,32 +127,32 @@ function GameApp({ settings, setSettings }) {
 
   useEffect(() => {
     if (overlayVisible) {
-      wasDownloading.current = true;
-    } else if (wasDownloading.current) {
-      wasDownloading.current = false;
+      hadBlockingOverlay.current = true;
+    } else if (hadBlockingOverlay.current) {
+      hadBlockingOverlay.current = false;
       if (openedMenu === null && !preloadBlocking) buttons.current[selected]?.focus({ preventScroll: true });
     }
   }, [overlayVisible, openedMenu, preloadBlocking, selected]);
 
   useEffect(() => {
-    if (!preloadBlocking && openedMenu === null) buttons.current[0]?.focus({ preventScroll: true });
+    if (!titleBlocked && openedMenu === null) buttons.current[0]?.focus({ preventScroll: true });
   }, []);
   useEffect(() => {
     if (!qualityChosen) return;
     setSettingsSaved(saveSettings(settings));
   }, [settings, qualityChosen]);
   useEffect(() => {
-    if (openedMenu !== null || preloadBlocking) return;
+    if (openedMenu !== null || titleBlocked) return;
     const indices = MENU.map((_, i) => i).filter(isEnabled);
     return listenForMenuNavigation(document, {
       menu: menu.current, buttons: indices.map((i) => buttons.current[i]), selected: Math.max(0, indices.indexOf(selected)),
       onSelect: (i) => setSelected(indices[i]),
     });
-  }, [openedMenu, preloadBlocking, selected, canContinue, canSurvey]);
+  }, [openedMenu, titleBlocked, selected, canContinue, canSurvey]);
 
   useEffect(() => () => clearTimeout(swing.current), []);
   useEffect(() => {
-    if (openedMenu !== null || preloadBlocking) { typedRef.current = ''; setTyped(''); return; }
+    if (openedMenu !== null || titleBlocked) { typedRef.current = ''; setTyped(''); return; }
     const enabled = MENU.map((_, i) => isEnabled(i));
     function onKey(event) {
       if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || swing.current) return;
@@ -171,7 +176,7 @@ function GameApp({ settings, setSettings }) {
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [openedMenu, preloadBlocking, canContinue, canSurvey, reducedMotion]);
+  }, [openedMenu, titleBlocked, canContinue, canSurvey, reducedMotion]);
 
   function focusMenu(index) {
     setSelected(index);
@@ -182,6 +187,16 @@ function GameApp({ settings, setSettings }) {
     setOpenedMenu(null);
     if (opener.current?.disabled) focusMenu(0);
     else opener.current?.focus({ preventScroll: true });
+  }
+
+  function closeTutorial(startAdventure) {
+    rememberTutorial(ACTIVE_PROGRESS_KEY);
+    setTutorialOpen(false);
+    if (startAdventure) {
+      opener.current = buttons.current[0];
+      setSelected(0);
+      setOpenedMenu('새 모험');
+    }
   }
 
   function closeAdventure(reason) {
@@ -198,9 +213,9 @@ function GameApp({ settings, setSettings }) {
     return <button ref={(element) => { buttons.current[index] = element; }}
       className={`menu-button${isContinue ? ' continue-button' : ''}${isSurvey ? ' survey-button' : ''}${selected === index ? ' is-selected' : ''}${match.index === index ? ' is-typed' : ''}`}
       disabled={!isEnabled(index)} onFocus={() => setSelected(index)}
-      onPointerEnter={(event) => { if (event.pointerType === 'mouse' && openedMenu === null && !preloadBlocking && isEnabled(index)) focusMenu(index); }}
+      onPointerEnter={(event) => { if (event.pointerType === 'mouse' && openedMenu === null && !titleBlocked && isEnabled(index)) focusMenu(index); }}
       onClick={(event) => {
-        if (openedMenu !== null || preloadBlocking) return;
+        if (openedMenu !== null || titleBlocked) return;
         setSelected(index);
         opener.current = event.currentTarget;
         transition(() => setOpenedMenu(MENU[index].label));
@@ -219,7 +234,7 @@ function GameApp({ settings, setSettings }) {
 
   return (
     <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect} data-background-motion={settings.backgroundMotion}>
-      <main className="start-screen" inert={preloadBlocking}>
+      <main className="start-screen" inert={titleBlocked}>
         <div className="title-backdrop">
           <TitleScene active={titleAssetsReady && (openedMenu === null || openedMenu === '설문 참여')} motionPreference={settings.backgroundMotion} heroAction={heroAction} onLoaded={() => setTitleSceneReady(true)} />
         </div>
@@ -244,7 +259,7 @@ function GameApp({ settings, setSettings }) {
         <p className="version">v{version}{ADMIN_MODE && <span className="version-admin-tag">ADMIN</span>}</p>
       </main>
       {openedMenu === '설정' ? (
-        <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu}
+        <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu} onTutorial={() => setTutorialOpen(true)}
           onChange={(key, value) => setSettings((current) => normalizeSettings({ ...current, [key]: value }))}
           onReset={() => setSettings({ ...DEFAULT_SETTINGS })} />
       ) : openedMenu === '단어장' ? <VocabularyDialog wordbooks={progress.wordbooks ?? []} error={error}
@@ -253,6 +268,7 @@ function GameApp({ settings, setSettings }) {
         : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
           : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
             shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onClose={closeAdventure} /> : null}
+      {tutorialVisible && <TutorialDialog replay={openedMenu === '설정'} onClose={closeTutorial} />}
       {qualityPickerVisible && (
         <GraphicsQualityOverlay
           recommended={graphics.recommendedQuality}
