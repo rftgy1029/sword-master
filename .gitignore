@@ -3,3 +3,4 @@ dist/
 artifacts/
 *.local
 dist-single/
+dist-single-admin/

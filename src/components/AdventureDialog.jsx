@@ -21,6 +21,7 @@ import { preloadCombatAssets } from '../game/assetPreload.js';
 import GameIcon from './ui/GameIcon.jsx';
 import RouteMap, { ROUTE_STATUS_TEXT, RouteLegend } from './RouteMap.jsx';
 import { ROUTE_LOOK, routeMapState } from '../game/routeMap.js';
+import { ADMIN_MODE, useAdmin } from '../admin/entry.js';
 import './adventure.css';
 
 const tierLabel = (id) => TIERS.find((t) => t.id === id)?.label;
@@ -163,6 +164,11 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
 }
 
 function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 'single', animateOpening, onOpeningDone }) {
+  const admin = useAdmin();
+  const infiniteEnergy = ADMIN_MODE && admin.cheats.infiniteEnergy;
+  const skipQuiz = ADMIN_MODE && admin.cheats.skipQuiz;
+  const invincible = ADMIN_MODE && admin.cheats.invincible;
+  const showAnswerHint = ADMIN_MODE && admin.cheats.showAnswer;
   const section = useRef(null);
   const dealCanvas = useRef(null);
   const shortcut = useRef(null);
@@ -219,7 +225,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
     ? summarizeCardEffect(run, selectedCard)
     : lastQuizCard.current?.summary ?? '';
   const hand = useMemo(() => b.hand.map((uid) => run.deck.find((c) => c.uid === uid)), [b.hand, run.deck]);
-  const playableCount = useMemo(() => hand.filter((card) => CARDS[card.type].cost <= b.energy).length, [hand, b.energy]);
+  const playableCount = useMemo(() => hand.filter((card) => infiniteEnergy || CARDS[card.type].cost <= b.energy).length, [hand, b.energy, infiniteEnergy]);
   const deal = useCardDeal({ section, canvas: dealCanvas, cards: hand, turn: b.turn, drawCount: b.draw.length,
     suspended: locked || skillBusy || loading, animateOpening,
     motionPreference: visualStatus === 'fallback' ? 'off' : motionPreference, onOpeningDone });
@@ -236,9 +242,9 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
   const previewCard = useMemo(() => {
     if (locked || busy || !previewUid) return null;
     const card = hand.find((item) => item.uid === previewUid);
-    if (!card || CARDS[card.type].cost > b.energy) return null;
+    if (!card || (!infiniteEnergy && CARDS[card.type].cost > b.energy)) return null;
     return card;
-  }, [locked, busy, previewUid, hand, b.energy]);
+  }, [locked, busy, previewUid, hand, b.energy, infiniteEnergy]);
 
   const cardPreview = useMemo(() => (
     previewCard ? previewCardPlay(run, previewCard, {
@@ -338,6 +344,10 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
 
   const playCard = (uid) => {
     if (busy || locked) return;
+    if (skipQuiz) {
+      if (dispatch({ type: 'ADMIN_SKIP_PLAY_CARD', uid }) && canAnimate) setSkillBusy(true);
+      return;
+    }
     dispatch({ type: 'SELECT_CARD', uid });
   };
 
@@ -345,6 +355,24 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
     if (loading || fatal || !pending) return;
     if (dispatch({ type: 'ANSWER', id: pending.question.id, answer }) && canAnimate) setSkillBusy(true);
   };
+
+  const handleAnswerRef = useRef(handleAnswer);
+  handleAnswerRef.current = handleAnswer;
+  useEffect(() => {
+    if (!ADMIN_MODE) return undefined;
+    return admin.registerBattleActions({
+      answer: (choice) => handleAnswerRef.current(choice),
+    });
+  }, [admin]);
+
+  useEffect(() => {
+    if (!ADMIN_MODE || feedback || pending || loading || skillBusy || b.enemy.hp > 0) return undefined;
+    const delay = canAnimate ? (reducedMotion ? 90 : 180) : (reducedMotion ? 150 : 280);
+    const timer = setTimeout(() => {
+      transition(() => dispatch({ type: 'ADMIN_FINISH_VICTORY' }));
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [feedback, pending, loading, skillBusy, b.enemy.hp, canAnimate, reducedMotion, dispatch, transition]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -355,24 +383,26 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
       if (!root || !(root.contains(target) || target === root.closest('dialog') || target === document.body)) return;
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
       const card = hand[index];
-      if (!card || CARDS[card.type].cost > b.energy) return;
+      if (!card || (!infiniteEnergy && CARDS[card.type].cost > b.energy)) return;
       event.preventDefault();
       const button = root.querySelectorAll('.card-hand .game-card')[index];
       confirmShortcut(shortcut, `card:${card.uid}`, button, () => playCard(card.uid), { mode: shortcutConfirm });
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [busy, locked, hand, b.energy, dispatch, shortcutConfirm]);
+  }, [busy, locked, hand, b.energy, dispatch, shortcutConfirm, infiniteEnergy, skipQuiz, canAnimate]);
 
   const endTurn = () => {
     if (busy || locked) return;
     if (!canAnimate) { dispatch({ type: 'END_TURN' }); return; }
     const id = b.effect.id + 1;
     if (intent.kind === 'attack') {
-      const impacts = enemyDamageImpacts(intent, b.block);
+      const impacts = invincible
+        ? enemyDamageImpacts(intent, intent.value * (intent.hits ?? 1) + 999)
+        : enemyDamageImpacts(intent, b.block);
       const amount = impacts.reduce((total, hit) => total + hit, 0);
       attackCue.current = { id, cue: enemyAttackCue(b.enemy, intent) };
-      if (amount >= run.hp) {
+      if (!invincible && amount >= run.hp) {
         setSkillBusy(true);
         setFatalEffect({ id, kind: 'hurt', amount, impacts });
         return;
@@ -486,8 +516,8 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
       <div className={`battle-controls battle-dock${inQuiz ? ' is-quiz-mode' : ''}`}>
         <div className="dock-side dock-left">
           <CombatEnergy energy={shownEnergy} playable={playableCount}
-            previewCost={cardPreview?.cost ?? 0}
-            previewAfter={cardPreview ? cardPreview.energyAfter : null} />
+            previewCost={infiniteEnergy ? 0 : (cardPreview?.cost ?? 0)}
+            previewAfter={infiniteEnergy ? null : (cardPreview ? cardPreview.energyAfter : null)} />
           <div className="deck-pile draw-pile" aria-label={`뽑을 카드 ${b.draw.length}장`} title={`뽑을 카드 ${b.draw.length}장`}>
             <span>✦</span><small>뽑기 <strong>{b.draw.length}</strong></small>
           </div>
@@ -504,13 +534,14 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
             busy={loading || skillBusy || fatal}
             shortcutMode={shortcutConfirm}
             revealDuration={feedback && !feedback.correct ? wrongRevealMs : 0}
+            showAnswerHint={showAnswerHint}
             onAnswer={handleAnswer}
             onSkipReveal={skipWrongReveal}
           />
         ) : (
           <div className="card-hand" data-keyboard-group aria-label="손에 든 카드">
             {hand.map((card, index) => {
-              const playable = CARDS[card.type].cost <= b.energy;
+              const playable = infiniteEnergy || CARDS[card.type].cost <= b.energy;
               return <Card key={card.uid} card={card} compact shortcut={index < 5 ? index + 1 : undefined}
                 liveEffects={liveCardEffects(run, card)}
                 hidden={deal.hidden.includes(card.uid)} disabled={locked || busy || !playable}
@@ -618,6 +649,7 @@ function Services({ run, dispatch }) {
 }
 
 function TierSelection({ progress, dispatch, onStarted }) {
+  const admin = useAdmin();
   const transition = useSceneTransition();
   const selection = useRef(null);
   const startButton = useRef(null);
@@ -626,7 +658,7 @@ function TierSelection({ progress, dispatch, onStarted }) {
   const wordbooks = progress.wordbooks ?? [];
   const personal = wordbooks.some((book) => book.id === tier);
   const pool = questionPool(tier, wordbooks);
-  const unlocked = unlockedTierIds(progress);
+  const unlocked = ADMIN_MODE && admin.cheats.unlockAllTiers ? TIERS.map((t) => t.id) : unlockedTierIds(progress);
   const selectedTier = TIERS.find((t) => t.id === tier) ?? { label: wordbooks.find((book) => book.id === tier)?.name, count: pool.length };
   return <section ref={selection} className="tier-selection" onKeyDown={(event) => navigateTiers(event, {
     tiers: [...selection.current.querySelectorAll('[data-tier]:not(:disabled)')], start: startButton.current, select: setTier,
@@ -691,30 +723,32 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
   const [inspect, setInspect] = useState(null);
   const previousPhase = useRef(null);
   const run = progress.run;
+  const activeInspect = run ? inspect : null;
+  useEffect(() => { if (!run && inspect) setInspect(null); }, [run, inspect]);
   const wordbooks = progress.wordbooks ?? [];
   const book = wordbooks.find(({ id }) => id === run?.tier);
   const scopeLabel = book?.name ?? tierLabel(run?.tier);
   const entranceScope = book ? { id: 'personal', label: book.name, count: book.words.length } : TIERS.find(({ id }) => id === run?.tier);
   const returnToTitle = () => transition(() => dialog.current.close(run?.tier === 'bronze' && run.result?.won ? 'bronze-clear' : ''));
   const phase = choosing ? 'tier' : entering ? 'entry' : run?.phase;
-  const inCombat = phase === 'battle' && !inspect;
+  const inCombat = phase === 'battle' && !activeInspect;
   const titles = { tier: '새 모험', entry: '던전 입장', map: '던전 경로', battle: '카드 전투', reward: '모험의 보상', rest: '휴식', forge: '강화와 구입', result: '도전 결과' };
   useEffect(() => { if (!dialog.current.open) dialog.current.showModal(); }, []);
   const quizId = run?.battle?.pending?.question.id;
   const feedback = !!run?.battle?.feedback;
   useEffect(() => {
     const target = dialog.current.querySelector('[data-initial-focus]:not(:disabled):not([inert] *)') ?? dialog.current.querySelector('.adventure-title');
-    const enteringBattle = phase === 'battle' && previousPhase.current !== 'battle' && !inspect && !quizId && !feedback;
+    const enteringBattle = phase === 'battle' && previousPhase.current !== 'battle' && !activeInspect && !quizId && !feedback;
     target?.focus({ preventScroll: enteringBattle || inCombat || ['entry', 'map'].includes(phase) });
-    if (phase === 'entry' || (phase === 'map' && !inspect && run.floor < 0) || (inCombat && !quizId && !feedback)) dialog.current.querySelector('.game-body').scrollTop = 0;
+    if (phase === 'entry' || (phase === 'map' && !activeInspect && run.floor < 0) || (inCombat && !quizId && !feedback)) dialog.current.querySelector('.game-body').scrollTop = 0;
     previousPhase.current = phase;
-  }, [phase, inspect, quizId, feedback, inCombat]);
+  }, [phase, activeInspect, quizId, feedback, inCombat]);
 
   return <dialog ref={dialog} className={`game-dialog${inCombat ? ' is-battle' : ''}${phase === 'entry' ? ' is-entering' : ''}`} aria-labelledby="adventure-title" onClose={(event) => onClose(event.currentTarget.returnValue)} onKeyDown={navigateGameButtons}
     onPointerDown={(event) => { if (battleMenu.current?.open && !battleMenu.current.contains(event.target)) battleMenu.current.open = false; }}
     onCancel={(event) => { if (battleMenu.current?.open) { event.preventDefault(); battleMenu.current.open = false; battleMenu.current.querySelector('summary').focus(); } else { event.preventDefault(); requestClose(); } }}>
     <header className="game-header"><div><p className="game-eyebrow">{phase === 'tier' ? '새 모험' : scopeLabel}</p>
-      <h2 id="adventure-title" className="adventure-title" tabIndex={-1}>{inspect === 'deck' ? '나의 덱' : inspect === 'relics' ? '보유 유물' : inspect === 'map' ? '던전 경로' : inspect === 'log' ? '전투 기록' : inCombat ? `${run.floor + 1}층 · 카드 전투` : titles[phase]}</h2></div>
+      <h2 id="adventure-title" className="adventure-title" tabIndex={-1}>{activeInspect === 'deck' ? '나의 덱' : activeInspect === 'relics' ? '보유 유물' : activeInspect === 'map' ? '던전 경로' : activeInspect === 'log' ? '전투 기록' : inCombat ? `${run.floor + 1}층 · 카드 전투` : titles[phase]}</h2></div>
       <div className="game-header-actions">{inCombat && <>
         <span className="battle-save-status" title={error || '선택할 때마다 자동 저장'}>{error ? '저장 확인' : '자동 저장'}</span>
         <details className="battle-menu" ref={battleMenu}>
@@ -729,11 +763,11 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
       </div></header>
     {error && <p role="alert" className="game-save-error">{error}</p>}
     {!choosing && run && !['result', 'entry'].includes(phase) && !inCombat && <div className="run-toolbar"><div><TierCrest tier={book ? 'personal' : run.tier} small /><span>{run.floor < 0 ? '입구' : `${run.floor + 1}층 / 8`}</span><span className="hp-text">HP {run.hp}/{run.maxHp}</span><span className="gold-text">◈ {run.gold}</span></div>
-      <div className="run-inspect-buttons">{[['deck', `덱 ${run.deck.length}`], ['relics', `유물 ${run.relics.length}`], ['map', '경로']].map(([id, label]) => <button key={id} className="game-secondary" aria-pressed={inspect === id} onClick={() => transition(() => { setAnimateBattle(false); setInspect(inspect === id ? null : id); })}>{label}</button>)}</div></div>}
+      <div className="run-inspect-buttons">{[['deck', `덱 ${run.deck.length}`], ['relics', `유물 ${run.relics.length}`], ['map', '경로']].map(([id, label]) => <button key={id} className="game-secondary" aria-pressed={activeInspect === id} onClick={() => transition(() => { setAnimateBattle(false); setInspect(activeInspect === id ? null : id); })}>{label}</button>)}</div></div>}
     <div className="game-body">
-      {inspect ? <section className="inspection"><button className="game-secondary inspect-back" data-initial-focus onClick={() => transition(() => setInspect(null))}>← 모험으로 돌아가기</button>
-        {inspect === 'deck' ? <div className="deck-inspection">{run.deck.map((card) => <div className="deck-item" key={card.uid}><strong>{CARDS[card.type].name}{card.upgraded && '+'}</strong><span>에너지 {CARDS[card.type].cost} · {CARDS[card.type].rarity}</span><p>{describeCard(card)}</p></div>)}</div>
-          : inspect === 'relics' ? run.relics.map((relic) => <Relic key={relic.id} relic={relic} />) : inspect === 'log' ? <BattleLog battle={run.battle} /> : <DungeonMap run={run} inspecting motionPreference={motionPreference} />}
+      {activeInspect ? <section className="inspection"><button className="game-secondary inspect-back" data-initial-focus onClick={() => transition(() => setInspect(null))}>← 모험으로 돌아가기</button>
+        {activeInspect === 'deck' ? <div className="deck-inspection">{run.deck.map((card) => <div className="deck-item" key={card.uid}><strong>{CARDS[card.type].name}{card.upgraded && '+'}</strong><span>에너지 {CARDS[card.type].cost} · {CARDS[card.type].rarity}</span><p>{describeCard(card)}</p></div>)}</div>
+          : activeInspect === 'relics' ? run.relics.map((relic) => <Relic key={relic.id} relic={relic} />) : activeInspect === 'log' ? <BattleLog battle={run.battle} /> : <DungeonMap run={run} inspecting motionPreference={motionPreference} />}
       </section> : choosing ? <TierSelection progress={progress} dispatch={dispatch} onStarted={() => { setChoosing(false); setEntering(true); }} />
         : phase === 'entry' ? <DungeonEntrance tier={entranceScope} motionPreference={motionPreference} onComplete={() => transition(() => setEntering(false))} />
         : phase === 'map' ? <DungeonMap key={run.floor} run={run} motionPreference={motionPreference} onSelect={(id) => transition(() => { if (dispatch({ type: 'SELECT_NODE', id })) setAnimateBattle(true); })} />

@@ -8,7 +8,9 @@ import SurveyDialog from './components/SurveyDialog.jsx';
 import { SURVEY_FORM_URL, surveyUnlocked } from './survey.js';
 import { DEFAULT_SETTINGS, hasChosenGraphicsQuality, normalizeSettings, readSettings, saveSettings } from './settings.js';
 import { listenForMenuNavigation } from './menuNavigation.js';
+import { gameReducer } from './game/engine.js';
 import { useProgress } from './game/useProgress.js';
+import { ACTIVE_PROGRESS_KEY, ADMIN_MODE, AdminOverlay, AdminProvider, useAdmin } from './admin/entry.js';
 import { TIERS } from './vocabulary.js';
 import { SceneTransitionProvider, useSceneTransition } from './components/SceneTransition.jsx';
 import { GraphicsProvider, useGraphics } from './components/GraphicsContext.jsx';
@@ -35,10 +37,17 @@ const TYPED_SWING = 650; // 단어를 끝까지 치면 기사가 칼을 휘두�
 function GameApp({ settings, setSettings }) {
   const transition = useSceneTransition();
   const graphics = useGraphics();
+  const admin = useAdmin();
   const [selected, setSelected] = useState(0);
   const [openedMenu, setOpenedMenu] = useState(null);
   const [settingsSaved, setSettingsSaved] = useState(null);
-  const { progress, dispatch, error } = useProgress();
+  const { progress, dispatch, error, resetProgress } = useProgress({
+    storageKey: ACTIVE_PROGRESS_KEY,
+    reducer: admin.createReducer(gameReducer),
+  });
+  useEffect(() => {
+    if (ADMIN_MODE) document.title = 'S’word Master · 관리자';
+  }, []);
   const canContinue = !!progress.run && progress.run.phase !== 'result';
   const canSurvey = surveyUnlocked(progress);
   // 이어하기는 잠긴 채 보이고, 설문은 열리기 전까지 숨긴다. 둘 다 키보드·단어 입력 대상에서 빠진다.
@@ -232,7 +241,7 @@ function GameApp({ settings, setSettings }) {
           {error && openedMenu === null && <p className="title-save-error" role="alert">{error}</p>}
         </section>
         <p className="title-place" aria-hidden="true">황혼의 석문</p>
-        <p className="version">v{version}</p>
+        <p className="version">v{version}{ADMIN_MODE && <span className="version-admin-tag">ADMIN</span>}</p>
       </main>
       {openedMenu === '설정' ? (
         <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu}
@@ -269,11 +278,14 @@ function GameApp({ settings, setSettings }) {
           }}
         />
       )}
+      {ADMIN_MODE && (
+        <AdminOverlay progress={progress} dispatch={dispatch} resetProgress={resetProgress} openedMenu={openedMenu} />
+      )}
     </div>
   );
 }
 
 export default function App() {
   const [settings, setSettings] = useState(readSettings);
-  return <GraphicsProvider settings={settings}><SceneTransitionProvider motionPreference={settings.backgroundMotion}><GameApp settings={settings} setSettings={setSettings} /></SceneTransitionProvider></GraphicsProvider>;
+  return <AdminProvider><GraphicsProvider settings={settings}><SceneTransitionProvider motionPreference={settings.backgroundMotion}><GameApp settings={settings} setSettings={setSettings} /></SceneTransitionProvider></GraphicsProvider></AdminProvider>;
 }

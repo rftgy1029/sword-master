@@ -5,6 +5,7 @@ import { normalizeText } from '../game/wordbooks.js';
 import { navigateGameButtons } from './AdventureDialog.jsx';
 import QuizPanel from './QuizPanel.jsx';
 import { TransitionVeil, useSceneTransition } from './SceneTransition.jsx';
+import { ADMIN_MODE, useAdmin } from '../admin/entry.js';
 
 const STATUS_FILTERS = [
   ['all', '전체 오답'],
@@ -26,6 +27,7 @@ function LearningSummary({ stats, quizWords, totalWords }) {
 }
 
 export default function ReviewDialog({ progress, dispatch, error, onClose }) {
+  const admin = useAdmin();
   const dialog = useRef(null);
   const body = useRef(null);
   const opener = useRef(null);
@@ -86,6 +88,7 @@ export default function ReviewDialog({ progress, dispatch, error, onClose }) {
           {review.session && <p role="status">연속 복습 {review.session.index + 1} / {review.session.ids.length}</p>}
         </div>
         <QuizPanel question={review.question} feedback={review.feedback} wordbooks={wordbooks} cardName="오답 복습"
+          showAnswerHint={ADMIN_MODE && admin.cheats.showAnswer}
           continueLabel={review.session && review.session.index + 1 < review.session.ids.length ? '다음 문제' : '목록으로 돌아가기'}
           onAnswer={(answer) => dispatch({ type: 'REVIEW_ANSWER', id: review.question.id, answer })}
           onContinue={() => dispatch({ type: 'REVIEW_NEXT', id: review.question.id, seed: seed() })} />
