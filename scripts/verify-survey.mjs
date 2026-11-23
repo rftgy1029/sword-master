@@ -64,6 +64,7 @@ async function openFixture(fixture, spec) {
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto(BASE_URL);
+  await page.getByRole('button', { name: '건너뛰기', exact: true }).click();
   assert.equal(await page.locator('.survey-dialog').count(), 0, 'No survey before clearing a dungeon');
   await page.getByRole('button', { name: /^이어하기/ }).click();
   await page.locator('.battle-screen[aria-busy="false"]').waitFor({ timeout: 25000 });
@@ -76,7 +77,6 @@ async function winBoss(page, uid) {
   const question = (await read(page)).run.battle.pending.question;
   const answerIndex = question.options.findIndex((option) => questionById(question.id).answers.includes(option));
   await page.locator('.quiz-options button').nth(answerIndex).click();
-  await page.locator('.quiz-feedback .game-primary:not(:disabled)').click();
   await page.locator('.run-result').waitFor();
   await settle(page);
   assert.equal((await read(page)).run.result.won, true);

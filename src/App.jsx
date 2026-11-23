@@ -5,7 +5,6 @@ import ReviewDialog from './components/ReviewDialog.jsx';
 import SettingsDialog from './components/SettingsDialog.jsx';
 import VocabularyDialog from './components/VocabularyDialog.jsx';
 import TutorialDialog from './components/TutorialDialog.jsx';
-import { rememberTutorial, shouldShowTutorial } from './game/tutorial.js';
 import SurveyDialog from './components/SurveyDialog.jsx';
 import { SURVEY_FORM_URL, surveyUnlocked } from './survey.js';
 import { DEFAULT_SETTINGS, hasChosenGraphicsQuality, normalizeSettings, readSettings, saveSettings } from './settings.js';
@@ -42,7 +41,7 @@ function GameApp({ settings, setSettings }) {
   const admin = useAdmin();
   const [selected, setSelected] = useState(0);
   const [openedMenu, setOpenedMenu] = useState(null);
-  const [tutorialOpen, setTutorialOpen] = useState(() => shouldShowTutorial(ACTIVE_PROGRESS_KEY));
+  const [tutorialOpen, setTutorialOpen] = useState(true);
   const [settingsSaved, setSettingsSaved] = useState(null);
   const { progress, dispatch, error, resetProgress } = useProgress({
     storageKey: ACTIVE_PROGRESS_KEY,
@@ -135,9 +134,6 @@ function GameApp({ settings, setSettings }) {
   }, [overlayVisible, openedMenu, preloadBlocking, selected]);
 
   useEffect(() => {
-    if (!titleBlocked && openedMenu === null) buttons.current[0]?.focus({ preventScroll: true });
-  }, []);
-  useEffect(() => {
     if (!qualityChosen) return;
     setSettingsSaved(saveSettings(settings));
   }, [settings, qualityChosen]);
@@ -190,12 +186,12 @@ function GameApp({ settings, setSettings }) {
   }
 
   function closeTutorial(startAdventure) {
-    rememberTutorial(ACTIVE_PROGRESS_KEY);
     setTutorialOpen(false);
     if (startAdventure) {
-      opener.current = buttons.current[0];
-      setSelected(0);
-      setOpenedMenu('새 모험');
+      const index = canContinue ? CONTINUE : 0;
+      opener.current = buttons.current[index];
+      setSelected(index);
+      setOpenedMenu(MENU[index].label);
     }
   }
 
@@ -268,7 +264,7 @@ function GameApp({ settings, setSettings }) {
         : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
           : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
             shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onClose={closeAdventure} /> : null}
-      {tutorialVisible && <TutorialDialog replay={openedMenu === '설정'} onClose={closeTutorial} />}
+      {tutorialVisible && <TutorialDialog replay={openedMenu === '설정'} canContinue={canContinue} onClose={closeTutorial} />}
       {qualityPickerVisible && (
         <GraphicsQualityOverlay
           recommended={graphics.recommendedQuality}

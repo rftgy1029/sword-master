@@ -46,7 +46,7 @@ try{
   await page.locator('.tier-start').waitFor();
   await page.reload();
   await page.locator('.scene-view[aria-busy="false"]').waitFor({timeout:25000});
-  assert.equal(await page.locator('.tutorial-dialog').count(), 0, 'Completing practice dismisses it on future visits');
+  await tutorial.getByRole('button', { name: '건너뛰기', exact: true }).click();
   await capture('title-desktop');
   await page.getByRole('button',{name:'새 모험',exact:false}).click();
   await page.getByRole('button',{name:'던전 입장'}).click();
@@ -111,8 +111,13 @@ try{
         await page.locator('.battle-dock .battle-quiz-dock').waitFor();
         await capture('quiz-desktop');
         await page.getByRole('button',{name:'모험 닫고 타이틀로',exact:true}).click();
+        await page.evaluate(() => localStorage.setItem('sword-master.adventure.v1.tutorial', 'seen'));
         await page.reload();
-        await page.getByRole('button',{name:/^이어하기/}).click();
+        await tutorial.locator('.game-card').click();
+        await options.getByText(source.word.meaning, { exact: true }).click();
+        await tutorial.getByRole('button', { name: '턴 종료', exact: true }).click();
+        await tutorial.getByRole('button', { name: '모험 이어하기', exact: true }).click();
+        assert.deepEqual(await read(), p, 'Replaying the tutorial preserves the entire saved adventure');
         await page.locator('.quiz-options button:not(:disabled)').first().waitFor({timeout:20000});
         const resumed=await read();assert.deepEqual(resumed.run.battle.pending,old);assert.equal(resumed.run.battle.energy,energy);
         restored=true;console.log('unanswered quiz reload: exact question, card and energy preserved');
