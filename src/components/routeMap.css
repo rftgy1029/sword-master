@@ -2,8 +2,8 @@
    규칙 하나만 기억하면 된다: 주황색 칸 = 지금 갈 수 있는 곳. 장소 종류는 아이콘과 아이콘 색으로 구분한다. */
 
 /* 배치 */
-.game-body:has(.dungeon-map) { display: flex; overflow: hidden; padding: 18px 22px; }
-.inspection:has(> .dungeon-map) { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
+.game-body.is-map { display: flex; overflow: hidden; padding: 18px 22px; }
+.inspection.is-map { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
 .dungeon-map.living-map { display: flex; flex: 1; flex-direction: column; width: 100%; max-width: 1440px; min-width: 0; min-height: 0; margin-inline: auto; }
 .living-map .map-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(270px, 310px); flex: 1; gap: 20px; min-height: 0; }
 .living-map .map-overview { position: relative; min-width: 0; min-height: 0; margin: 0; container-type: size; overflow: hidden;
@@ -154,7 +154,7 @@
 
 /* 휴대폰: 지도 아래에 고를 길을 가로로 놓는다. */
 @media (max-width: 700px) {
-  .game-body:has(.dungeon-map) { padding: 10px 12px; }
+  .game-body.is-map { padding: 10px 12px; }
   .living-map .map-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(120px, 1fr) auto; gap: 12px; }
   .living-map .map-selection { gap: 10px; overflow: visible; padding: 0 2px 2px; }
   .game-dialog .map-selection-head h4 { font-size: calc(15px * var(--text-scale, 1)); }
@@ -176,7 +176,7 @@
   .game-dialog .map-place-summary { padding: 8px 10px; }
 }
 @media (max-height: 560px) {
-  .game-body:has(.dungeon-map) { padding: 8px 12px; }
+  .game-body.is-map { padding: 8px 12px; }
   .game-dialog .map-place-summary { display: none; }
   .living-map .map-route-option { min-height: 50px; padding: 7px 10px; }
   .route-option-text small { display: none; }

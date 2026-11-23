@@ -33,6 +33,74 @@ function forgeFixture(){
   throw new Error('Forge fixture did not complete');
 }
 
+function treasureMapFixture(){
+  let p=gameReducer(emptyProgress(),{type:'START',tier:'bronze',seed:42});
+  for(let step=0;step<300;step++){
+    const r=p.run,b=r.battle;
+    if(r.phase==='map'&&reachableNodes(r).some(node=>node.type==='treasure'))return p;
+    let action;
+    if(r.phase==='map')action={type:'SELECT_NODE',id:reachableNodes(r)[0].id};
+    else if(r.phase==='reward')action=!r.reward.cardTaken?{type:'SKIP_CARD'}:!r.reward.relicTaken?{type:'TAKE_RELIC'}:{type:'LEAVE_REWARD'};
+    else if(b.feedback)action={type:'ACK'};
+    else if(b.pending){const q=b.pending.question;action={type:'ANSWER',id:q.id,answer:q.options.find(s=>questionById(q.id).answers.includes(s))};}
+    else{
+      const cards=b.hand.map(uid=>r.deck.find(c=>c.uid===uid)).filter(c=>CARDS[c.type].cost<=b.energy);
+      const best=cards.find(card=>CARDS[card.type].damage)??cards[0];
+      action=best?{type:'SELECT_CARD',uid:best.uid}:{type:'END_TURN'};
+    }
+    p=gameReducer(p,action);
+  }
+  throw new Error('Treasure map fixture did not complete');
+}
+
+function eliteRewardFixture(){
+  let p=gameReducer(emptyProgress(),{type:'START',tier:'bronze',seed:42});
+  for(let step=0;step<400;step++){
+    const r=p.run,b=r.battle;
+    if(r.phase==='reward'&&r.reward.cards.length>0&&r.reward.relic)return p;
+    let action;
+    if(r.phase==='map'){
+      const order={elite:100,battle:10,rest:5,treasure:5,forge:5,boss:1};
+      action={type:'SELECT_NODE',id:reachableNodes(r).sort((a,b)=>(order[b.type]??0)-(order[a.type]??0))[0].id};
+    }else if(r.phase==='reward')action=!r.reward.cardTaken?{type:'SKIP_CARD'}:!r.reward.relicTaken?{type:'TAKE_RELIC'}:{type:'LEAVE_REWARD'};
+    else if(r.phase==='rest')action={type:'REST'};
+    else if(r.phase==='forge')action={type:'LEAVE_FORGE'};
+    else if(b.feedback)action={type:'ACK'};
+    else if(b.pending){const q=b.pending.question;action={type:'ANSWER',id:q.id,answer:q.options.find(s=>questionById(q.id).answers.includes(s))};}
+    else{
+      const cards=b.hand.map(uid=>r.deck.find(c=>c.uid===uid)).filter(c=>CARDS[c.type].cost<=b.energy);
+      const intent=intentFor(b.enemy);
+      const score=card=>{const c=cardDetails(card);if(c.heal)return r.hp<r.maxHp-7?100:-1;if(c.focus)return cards.some(other=>other.uid!==card.uid&&cardDetails(other).damage)?90:-1;if(c.strength)return b.turn<4?50:1;if(c.block&&!c.damage)return intent.kind==='attack'&&b.block<intent.value?40:0;return(c.damage+b.strength+b.focus)*(c.hits||1)/(c.cost||1)+10;};
+      cards.sort((a,b)=>score(b)-score(a));action=cards.length&&score(cards[0])>0?{type:'SELECT_CARD',uid:cards[0].uid}:{type:'END_TURN'};
+    }
+    p=gameReducer(p,action);
+  }
+  throw new Error('Elite reward fixture did not complete');
+}
+
+function restFixture(){
+  let p=gameReducer(emptyProgress(),{type:'START',tier:'bronze',seed:17});
+  for(let step=0;step<400;step++){
+    const r=p.run,b=r.battle;
+    if(r.phase==='rest'){r.hp=Math.min(r.hp,44);return p;}
+    let action;
+    if(r.phase==='map'){
+      const order={rest:100,battle:10,treasure:5,forge:5,elite:0,boss:1};
+      action={type:'SELECT_NODE',id:reachableNodes(r).sort((a,b)=>(order[b.type]??0)-(order[a.type]??0))[0].id};
+    }else if(r.phase==='reward')action=!r.reward.cardTaken?{type:'SKIP_CARD'}:!r.reward.relicTaken?{type:'TAKE_RELIC'}:{type:'LEAVE_REWARD'};
+    else if(r.phase==='forge')action={type:'LEAVE_FORGE'};
+    else if(b.feedback)action={type:'ACK'};
+    else if(b.pending){const q=b.pending.question;action={type:'ANSWER',id:q.id,answer:q.options.find(s=>questionById(q.id).answers.includes(s))};}
+    else{
+      const cards=b.hand.map(uid=>r.deck.find(c=>c.uid===uid)).filter(c=>CARDS[c.type].cost<=b.energy);
+      const best=cards.find(card=>CARDS[card.type].damage)??cards[0];
+      action=best?{type:'SELECT_CARD',uid:best.uid}:{type:'END_TURN'};
+    }
+    p=gameReducer(p,action);
+  }
+  throw new Error('Rest fixture did not complete');
+}
+
 let fixture=gameReducer(emptyProgress(),{type:'START',tier:'bronze',seed:42});
 fixture=gameReducer(fixture,{type:'SELECT_NODE',id:reachableNodes(fixture.run)[0].id});
 fixture=gameReducer(fixture,{type:'SELECT_CARD',uid:fixture.run.battle.hand[0]});
@@ -101,8 +169,8 @@ try{
   await page.setViewportSize({width:360,height:740});await shot('title-mobile');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   console.log('settings: 2D -> 3D retries and reading preferences preserve all progress');
-  for(const kind of ['map','forge']){
-    const progress=kind==='forge'?forgeFixture():gameReducer(emptyProgress(),{type:'START',tier:'bronze',seed:42});
+  for(const kind of ['tier','map','treasure','elite-reward','rest','forge']){
+    const progress=kind==='forge'?forgeFixture():kind==='rest'?restFixture():kind==='treasure'?treasureMapFixture():kind==='elite-reward'?eliteRewardFixture():gameReducer(emptyProgress(),{type:'START',tier:'bronze',seed:42});
     const other=await browser.newContext({viewport:{width:1366,height:768}});
     await other.addInitScript(p=>{
       localStorage.setItem('sword-master.adventure.v1',JSON.stringify({version:1,progress:p}));
@@ -110,6 +178,31 @@ try{
     },progress);
     const view=await other.newPage();view.on('pageerror',e=>errors.push(e.message));
     await view.goto(BASE_URL);
+    if(kind==='tier'){
+      await view.getByRole('button',{name:/^새 모험/}).click();
+      const skip=view.locator('.tutorial-dialog[open] .tutorial-skip');
+      await skip.waitFor({timeout:5000});
+      await skip.click();
+      await view.locator('.tutorial-dialog[open]').waitFor({state:'detached'});
+      await view.locator('.tier-selection .tier-choice').first().waitFor({timeout:10000});
+      const tierCheck=await view.evaluate(()=>{
+        const scroll=document.querySelector('.tier-selection-scroll');
+        const card=document.querySelector('.tier-choice').getBoundingClientRect();
+        const start=document.querySelector('.tier-start').getBoundingClientRect();
+        return {
+          noScroll:scroll.scrollHeight<=scroll.clientHeight+2,
+          cardH:Math.round(card.height),
+          startInView:start.top>=0&&start.bottom<=innerHeight,
+        };
+      });
+      assert.equal(tierCheck.noScroll,true,'Tier selection fits in one view without scrolling');
+      assert.ok(tierCheck.cardH>=200,'Tier cards have generous desktop proportions');
+      assert.equal(tierCheck.startInView,true,'Tier entry CTA stays visible without scrolling');
+      await view.screenshot({path:`${artifactRoot}3d-tier-select.png`});
+      console.log('tier selection: generous 5-tier cards, scope brief, and entry button fit in one view');
+      await other.close();
+      continue;
+    }
     await view.getByRole('button',{name:/^이어하기/}).click();
     if(kind==='map'){
       await view.locator('.map-overview .route-map').waitFor({timeout:20000});
@@ -134,8 +227,114 @@ try{
       const saved=await view.evaluate(()=>JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress);
       assert.equal(saved.run.floor,0);assert.equal(saved.run.phase,'battle');
       console.log('route map room selects the real dungeon node; rooms and next routes fit without overlap or scrolling');
+    }else if(kind==='treasure'){
+      const treasure=reachableNodes(progress.run).find(node=>node.type==='treasure');
+      await view.locator(`.map-route-options .map-node[data-node-id="${treasure.id}"]`).click();
+      await view.locator('.reward-screen .scene-view[aria-busy="false"]').waitFor({timeout:20000});
+      await view.locator('.run-inspect-buttons').getByRole('button',{name:'경로'}).click();
+      await view.locator('.inspection.is-map .dungeon-map').waitFor();
+      await view.getByRole('button',{name:'← 모험으로 돌아가기'}).click();
+      await view.locator('.reward-screen .scene-view[aria-busy="false"]').waitFor({timeout:20000});
+      const beforeLevel=await view.locator('.relic-item h4').innerText();
+      await view.getByRole('button',{name:/유물 획득|유물 Lv.2로 강화/}).click();
+      const afterLevel=await view.locator('.relic-item h4').innerText();
+      assert.equal(afterLevel,beforeLevel,'Claimed relic keeps its acquired level label');
+      const rewardNext=await view.evaluate(()=>{
+        const scroll=document.querySelector('.phase-scroll');
+        const content=document.querySelector('.phase-content');
+        const btn=document.querySelector('.phase-next-action');
+        const r=btn.getBoundingClientRect();
+        const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+        return {
+          noScroll:scroll.scrollHeight<=scroll.clientHeight+2,
+          contentWidth:Math.round(content.getBoundingClientRect().width),
+          inViewport:r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth,
+          clickable:btn.contains(hit),
+          disabled:btn.disabled,
+          focused:document.activeElement===btn,
+        };
+      });
+      assert.equal(rewardNext.noScroll,true,'Treasure reward fits in a single view without vertical scrolling');
+      assert.ok(rewardNext.contentWidth>=900,'Reward content keeps full desktop width after map transitions');
+      assert.equal(rewardNext.inViewport,true,'Reward next-route button stays visible inside the viewport');
+      assert.equal(rewardNext.clickable,true,'Reward next-route button is not occluded');
+      assert.equal(rewardNext.disabled,false,'Reward next-route button enables once relic is claimed');
+      assert.equal(rewardNext.focused,true,'Reward next-route button receives focus once ready');
+      await view.screenshot({path:`${artifactRoot}3d-treasure-reward.png`});
+      await view.locator('.phase-next-action').click();
+      await view.locator('.dungeon-map').waitFor();
+      console.log('treasure reward: map -> reward -> inspect -> reward fits in one view with always-visible next button');
+    }else if(kind==='elite-reward'){
+      await view.locator('.reward-screen .scene-view[aria-busy="false"]').waitFor({timeout:20000});
+      const singleView=await view.evaluate(()=>{
+        const scroll=document.querySelector('.phase-scroll');
+        const sr=scroll.getBoundingClientRect();
+        const cards=[...document.querySelectorAll('.reward-cards .game-card')];
+        const artLoaded=[...document.querySelectorAll('.reward-cards .card-art-img')].every(img=>img.complete&&img.naturalWidth>100);
+        const relic=document.querySelector('.relic-reward');
+        const rr=relic.getBoundingClientRect();
+        const btn=document.querySelector('.phase-next-action');
+        const br=btn.getBoundingClientRect();
+        return {
+          noScroll:scroll.scrollHeight<=scroll.clientHeight+2,
+          cardsCount:cards.length,
+          artLoaded,
+          cardsInView:cards.every(el=>{const cr=el.getBoundingClientRect();return cr.top>=sr.top-2&&cr.bottom<=sr.bottom+2;}),
+          relicInView:rr.top>=sr.top-2&&rr.bottom<=sr.bottom+2,
+          btnInView:br.top>=0&&br.bottom<=innerHeight,
+          btnDisabled:btn.disabled,
+        };
+      });
+      assert.equal(singleView.noScroll,true,'Elite reward (cards + relic + next button) fits in one view without scrolling');
+      assert.equal(singleView.cardsCount,3,'Elite reward displays all 3 card choices');
+      assert.equal(singleView.artLoaded,true,'All reward card illustrations load cleanly');
+      assert.equal(singleView.cardsInView,true,'All 3 reward cards are visible without scrolling');
+      assert.equal(singleView.relicInView,true,'Elite relic reward is visible without scrolling');
+      assert.equal(singleView.btnInView,true,'Next-route button is visible before claiming');
+      assert.equal(singleView.btnDisabled,true,'Next-route button stays disabled until card and relic are claimed');
+      await view.locator('.reward-cards .game-card').first().click();
+      assert.equal(await view.locator('.reward-card-slot.is-picked').count(),1,'Chosen reward card stays highlighted');
+      await view.getByRole('button',{name:/유물 획득|유물 Lv.2로 강화/}).click();
+      const done=await view.evaluate(()=>{
+        const btn=document.querySelector('.phase-next-action');
+        return {disabled:btn.disabled,focused:document.activeElement===btn};
+      });
+      assert.equal(done.disabled,false,'Next-route button enables once both card and relic are claimed');
+      assert.equal(done.focused,true,'Next-route button receives focus once both rewards are claimed');
+      await view.screenshot({path:`${artifactRoot}3d-elite-reward.png`});
+      await view.locator('.phase-next-action').click();
+      await view.locator('.dungeon-map').waitFor();
+      console.log('elite reward: 3D scene, relic, 3 illustrated cards and next-route button fit in one view without scrolling');
+    }else if(kind==='rest'){
+      await view.locator('.rest-screen .scene-view[aria-busy="false"]').waitFor({timeout:20000});
+      const restView=await view.evaluate(()=>{
+        const scroll=document.querySelector('.phase-scroll');
+        const heal=document.querySelector('.rest-action').getBoundingClientRect();
+        const col=document.querySelector('.rest-forge-col').getBoundingClientRect();
+        return {
+          noScroll:scroll.scrollHeight<=scroll.clientHeight+2,
+          healInView:heal.top>=0&&heal.bottom<=innerHeight,
+          upgradeInView:col.top>=0&&col.bottom<=innerHeight,
+        };
+      });
+      assert.equal(restView.noScroll,true,'Rest screen fits in one view without outer page scrolling');
+      assert.equal(restView.healInView,true,'Rest heal action stays visible without scrolling');
+      assert.equal(restView.upgradeInView,true,'Rest free upgrade panel stays visible without scrolling');
+      await view.screenshot({path:`${artifactRoot}3d-rest.png`});
+      console.log('3D rest: campfire heal and free upgrade list fit side-by-side in one view');
     }else{
       await view.locator('.location-scene .scene-view[aria-busy="false"]').waitFor({timeout:20000});
+      const forgeView=await view.evaluate(()=>{
+        const scroll=document.querySelector('.phase-scroll');
+        const btn=document.querySelector('.phase-next-action');
+        const r=btn.getBoundingClientRect();
+        return {
+          noScroll:scroll.scrollHeight<=scroll.clientHeight+2,
+          nextVisible:r.top>=0&&r.bottom<=innerHeight&&btn.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)),
+        };
+      });
+      assert.equal(forgeView.noScroll,true,'Forge fits in one view without outer page scrolling');
+      assert.equal(forgeView.nextVisible,true,'Forge next-route button stays visible without scrolling');
       const oldGold=progress.run.gold;
       await view.locator('.upgrade-list .upgrade-item:not(:disabled)').first().click();
       let saved=await view.evaluate(()=>JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress);
@@ -145,11 +344,18 @@ try{
       if(saved.run.gold>=45){await relic.click();const next=await view.evaluate(()=>JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress);assert.equal(next.run.gold,saved.run.gold-45);saved=next;}
       else assert.equal(await relic.isDisabled(),true);
       await view.getByRole('button',{name:/^카드 구입/}).click();
+      const shopFits=await view.evaluate(()=>{
+        const scroll=document.querySelector('.phase-scroll');
+        const sr=scroll.getBoundingClientRect();
+        const cards=[...document.querySelectorAll('.forge-shop-cards .game-card')];
+        return scroll.scrollHeight<=scroll.clientHeight+2&&cards.every(el=>{const r=el.getBoundingClientRect();return r.top>=sr.top-2&&r.bottom<=sr.bottom+2;});
+      });
+      assert.equal(shopFits,true,'Forge shop displays all 3 illustrated cards without scrolling');
       const stock=view.locator('.reward-cards button');
       if(saved.run.gold>=35){await stock.first().click();const next=await view.evaluate(()=>JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress);assert.equal(next.run.gold,saved.run.gold-35);}
       else for(const button of await stock.all())assert.equal(await button.isDisabled(),true);
       await view.screenshot({path:`${artifactRoot}3d-forge.png`});
-      console.log('3D forge: card upgrade, relic upgrade and shop follow real gold costs');
+      console.log('3D forge: card upgrade, relic upgrade and single-view illustrated shop follow real gold costs');
     }
     await other.close();
   }

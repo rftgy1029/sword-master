@@ -10,12 +10,14 @@ const MAX_VOICES = 16;
 export function createCombatAudio() {
   let context, master, noise;
   let enabled = false;
+  let targetGain = 0;
   const voices = new Set();
 
   function configure(sound, volume) {
-    enabled = sound && volume > 0;
+    enabled = Boolean(sound && volume > 0);
+    targetGain = enabled ? volume * .01 * .54 : 0;
     if (!master || context.state === 'closed') return;
-    master.gain.setTargetAtTime(enabled ? volume * .01 * .54 : 0, context.currentTime, .018);
+    master.gain.setTargetAtTime(targetGain, context.currentTime, .018);
   }
 
   function unlock() {
@@ -27,7 +29,7 @@ export function createCombatAudio() {
         context = new Audio();
         master = context.createGain();
         const limiter = context.createDynamicsCompressor();
-        master.gain.value = 0;
+        master.gain.value = targetGain;
         master.connect(limiter);
         limiter.connect(context.destination);
         noise = context.createBuffer(1, Math.ceil(context.sampleRate * .7), context.sampleRate);
@@ -111,6 +113,14 @@ export function createCombatAudio() {
       notes?.forEach((frequency, index) => play({
         frequency, length: .34, level: .18, delay: index * .065,
         waveform: ['guard', 'empower', 'oath'].includes(plan.cardType) ? 'triangle' : 'sine',
+      }));
+    },
+    reward(kind = 'claim') {
+      const notes = kind === 'relic' ? [440, 659.25, 880] : [523.25, 659.25, 783.99];
+      const step = kind === 'relic' ? .065 : .055;
+      const length = kind === 'relic' ? .3 : .24;
+      notes.forEach((frequency, index) => play({
+        frequency, length, level: kind === 'relic' ? .12 : .105, delay: index * step, waveform: 'triangle',
       }));
     },
     dispose() {

@@ -461,6 +461,52 @@ function SceneReady({ callback }) {
   return null;
 }
 
+function RewardTreasureAura({ quality, reduced }) {
+  const light = useRef(null);
+  const points = useRef(null);
+  const count = quality.level === 'lowest' ? 0 : quality.level === 'low' ? 8 : 14;
+  const seeds = useMemo(() => Array.from({ length: count }, (_, i) => ({
+    angle: (i / Math.max(1, count)) * Math.PI * 2 + (i % 3) * .35,
+    radius: .14 + (i % 4) * .11,
+    speed: .32 + (i % 5) * .06,
+    phase: (i * .37) % 1,
+  })), [count]);
+  const positions = useMemo(() => {
+    const arr = new Float32Array(count * 3);
+    seeds.forEach((s, i) => {
+      arr[i * 3] = 1.2 + Math.cos(s.angle) * s.radius;
+      arr[i * 3 + 1] = .25 + s.phase * 1.15;
+      arr[i * 3 + 2] = Math.sin(s.angle) * s.radius;
+    });
+    return arr;
+  }, [count, seeds]);
+  useFrame(({ clock }) => {
+    if (reduced || document.hidden) return;
+    const t = clock.elapsedTime;
+    if (light.current) light.current.intensity = 2.05 + Math.sin(t * 2.4) * .35;
+    if (points.current && count > 0) {
+      const attr = points.current.geometry.attributes.position;
+      const arr = attr.array;
+      for (let i = 0; i < count; i++) {
+        const s = seeds[i];
+        const p = (s.phase + t * s.speed) % 1;
+        const drift = s.angle + t * .45;
+        arr[i * 3] = 1.2 + Math.cos(drift) * (s.radius * (1 + p * .45));
+        arr[i * 3 + 1] = .22 + p * 1.2;
+        arr[i * 3 + 2] = Math.sin(drift) * (s.radius * (1 + p * .45));
+      }
+      attr.needsUpdate = true;
+    }
+  });
+  return <>
+    {quality.pointLights !== false && <pointLight ref={light} position={[1.2, 1.1, .3]} color="#ffdc8c" intensity={2.1} distance={3.4} />}
+    {count > 0 && <points ref={points}>
+      <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
+      <pointsMaterial color="#ffe08f" size={.055} transparent opacity={.72} sizeAttenuation depthWrite={false} />
+    </points>}
+  </>;
+}
+
 export default function World({ mode='battle', state, playback, quality, reduced=false, run, onSelect, inspecting, onHighlight, highlightedNodeId, onComplete, won=true, onSceneReady, heroAction='idle', onAnchors, cameraView, studying=false, danger=false }) {
   const variant=mode==='forge'||['ember','scarab','ravager','boss'].includes(state?.enemy.type)?'forge':['bat','wisp','watcher','mushroom'].includes(state?.enemy.type)?'library':'hall';
   const motesCount = quality.motes ?? quality.particles;
@@ -475,11 +521,11 @@ export default function World({ mode='battle', state, playback, quality, reduced
       {mode==='battle'?<BattleActors state={state} director={playback} quality={quality} reduced={reduced} onAnchors={onAnchors} />
         :mode==='entry'?<EntranceActor reduced={reduced} onComplete={onComplete} outlines={quality.outlines !== false} />
           :mode==='map'?null:mode==='title'?<Actor position={[.9,0,.9]} rotation={-.38} action={heroAction} still={reduced} outlines={quality.outlines !== false} />
-            :<Actor position={[-1.3,0,0]} rotation={Math.PI/3} action={mode==='result'?won?'victory':'death':'idle'} still={reduced} outlines={quality.outlines !== false} />}
+            :<Actor position={[-1.3,0,0]} rotation={Math.PI/3} action={mode==='reward'?'victory':mode==='result'?won?'victory':'death':'idle'} still={reduced} outlines={quality.outlines !== false} />}
       <SceneReady callback={onSceneReady}/>
     </Suspense>
     {['rest','forge'].includes(mode)&&<Camp forge={mode==='forge'} light={quality.pointLights !== false} />}
-    {mode==='reward'&&quality.pointLights!==false&&<pointLight position={[1.2,1.1,.3]} color="#ffdc8c" intensity={2} distance={3} />}
+    {mode==='reward'&&<RewardTreasureAura quality={quality} reduced={reduced} />}
     {motesCount > 0 && <Motes count={motesCount} still={reduced} />}
   </>;
 }

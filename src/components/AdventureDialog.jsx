@@ -18,6 +18,8 @@ import { CombatEnergy, CombatHealthBar, EnemyIntent } from './CombatIndicators.j
 import SceneView from './SceneView.jsx';
 import { useGraphics } from './GraphicsContext.jsx';
 import { preloadCombatAssets } from '../game/assetPreload.js';
+import { createCombatAudio } from '../game/combatAudio.js';
+import { cardArtUrl } from '../game/cardArt.js';
 import GameIcon from './ui/GameIcon.jsx';
 import FloatingTooltip, { useTooltipTrigger } from './ui/FloatingTooltip.jsx';
 import RouteMap, { ROUTE_STATUS_TEXT, RouteLegend } from './RouteMap.jsx';
@@ -67,6 +69,7 @@ export function Card({
 }) {
   const c = cardDetails(card);
   const role = cardRoleTone(card.type);
+  const artSrc = cardArtUrl(card.type);
   const plainDesc = describeCard(card);
   const spokenDesc = liveEffects ? liveEffects.map((part) => part.text).join(', ') : plainDesc;
   return <button data-card-uid={card.uid} style={style}
@@ -82,9 +85,17 @@ export function Card({
     aria-label={`${shortcut ? `단축키 ${shortcut}, ` : ''}${c.name}${card.upgraded ? '+' : ''}, 에너지 ${c.cost}, ${spokenDesc}${actionLabel ? `, ${actionLabel}` : ''}`}>
     <span className="card-cost" title="필요 에너지">{c.cost}</span>
     {shortcut && <span className="card-shortcut" aria-hidden="true">{shortcut}</span>}
-    <span className="card-banner"><strong>{c.name}{card.upgraded && '+'}</strong></span>
+    <span className="card-banner">
+      <i className="card-rarity-gem" aria-hidden="true" />
+      <strong>{c.name}{card.upgraded && '+'}</strong>
+    </span>
     <span className="card-frame" aria-hidden="true">
-      <span className="card-art"><span/><GameIcon name={card.type}/><i/></span>
+      <span className="card-art">
+        {artSrc
+          ? <img className="card-art-img" src={artSrc} alt="" draggable={false} decoding="async" />
+          : <GameIcon name={card.type} />}
+        <span className="card-art-vignette" />
+      </span>
       <span className="card-kind-pill">{compact ? c.kind : `${c.rarity} · ${c.kind}`}</span>
     </span>
     <span className="card-description">
@@ -479,7 +490,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
       ? (combatEffect.kind === 'hurt' ? '적의 공격!' : '적이 행동하는 중…')
       : '';
 
-  return <>
+  return <div className={`battle-host${loading ? ' is-loading' : ''}`}>
     {loading && <div className="battle-loading" role="status">
       <span className="battle-loading-ring" aria-hidden="true" />
       <span>전투를 불러오는 중…</span>
@@ -627,7 +638,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
 
       <div ref={dealCanvas} className="card-deal-canvas" aria-hidden="true" />
     </section>
-  </>;
+  </div>;
 }
 
 function BattleLog({ battle }) {
@@ -640,24 +651,156 @@ function BattleLog({ battle }) {
 }
 
 function Reward({ run, dispatch }) {
+  const graphics = useGraphics();
   const [picked, setPicked] = useState(null);
+  const [relicBurst, setRelicBurst] = useState(false);
+  const [readyPulse, setReadyPulse] = useState(false);
+  const nextButton = useRef(null);
+  const relicButton = useRef(null);
+  const audio = useRef(null);
+  const burstTimer = useRef(null);
+  const readyTimer = useRef(null);
   const reward = run.reward;
+  const hasCards = reward.cards.length > 0;
+  const hasRelic = Boolean(reward.relic);
   const existingRelic = run.relics.find((r) => r.id === reward.relic);
-  return <section className="reward-screen"><p className="game-eyebrow">SPOILS OF THE DUNGEON</p><h3>{reward.cards.length ? '전투 승리' : '보물 발견'}</h3>
-    <div className="location-scene"><SceneView mode="reward"/></div>
-    <p>금화 <strong className="gold-text">+{reward.gold}</strong>를 받았습니다. 덱을 완성할 다음 선택을 하세요.</p>
-    {reward.cards.length > 0 && <><h4>{reward.cardTaken ? '카드 선택 완료' : '카드 한 장을 선택하세요'}</h4>
-      <div className="reward-cards" data-keyboard-group>{reward.cards.map((type) => <Card key={type} card={{ type }} disabled={reward.cardTaken}
-        actionLabel="덱에 추가" onClick={() => { if (dispatch({ type: 'TAKE_CARD', card: type })) setPicked(type); }} initialFocus={!reward.cardTaken} />)}</div>
-      {picked && <p className="loot-toast" role="status">{CARDS[picked].name} — 덱에 새겨졌습니다</p>}
-      {!reward.cardTaken && <button className="game-secondary" onClick={() => dispatch({ type: 'SKIP_CARD' })}>덱을 유지하고 카드 건너뛰기</button>}</>}
-    {reward.relic && <div className="relic-reward"><Relic relic={{ id: reward.relic, level: existingRelic ? 2 : 1 }}>
-      <button className="game-secondary" disabled={reward.relicTaken} onClick={() => dispatch({ type: 'TAKE_RELIC' })}>
-        {reward.relicTaken ? '획득 완료' : existingRelic ? '유물 Lv.2로 강화' : '유물 획득'}</button>
-    </Relic></div>}
-    {reward.relic && reward.relicTaken && <p className="loot-toast" role="status">✧ 유물의 힘이 용사에게 깃듭니다</p>}
-    <button className="game-primary" disabled={!reward.cardTaken || !reward.relicTaken} data-initial-focus={reward.cardTaken && reward.relicTaken ? '' : undefined}
-      onClick={() => dispatch({ type: 'LEAVE_REWARD' })}>다음 경로로 <span aria-hidden="true">▸</span></button>
+  const relicLevel = reward.relicTaken ? (existingRelic?.level ?? 1) : (existingRelic ? 2 : 1);
+  const canLeave = reward.cardTaken && reward.relicTaken;
+  const wasReady = useRef(canLeave);
+  const wasCardTaken = useRef(reward.cardTaken);
+
+  useEffect(() => {
+    const sound = createCombatAudio();
+    audio.current = sound;
+    return () => {
+      clearTimeout(burstTimer.current);
+      clearTimeout(readyTimer.current);
+      sound.dispose();
+      audio.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const soundOn = graphics.combatSound !== 'off';
+    const volume = graphics.combatVolume ?? 60;
+    audio.current?.configure(soundOn, volume);
+    const unlock = () => {
+      audio.current?.configure(soundOn, volume);
+      audio.current?.unlock();
+    };
+    window.addEventListener('pointerdown', unlock, { capture: true });
+    window.addEventListener('keydown', unlock, { capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock, { capture: true });
+      window.removeEventListener('keydown', unlock, { capture: true });
+    };
+  }, [graphics.combatSound, graphics.combatVolume]);
+
+  useEffect(() => {
+    if (canLeave && !wasReady.current) {
+      setReadyPulse(true);
+      clearTimeout(readyTimer.current);
+      readyTimer.current = setTimeout(() => setReadyPulse(false), 750);
+      nextButton.current?.focus({ preventScroll: true });
+    } else if (reward.cardTaken && !wasCardTaken.current && hasRelic && !reward.relicTaken) {
+      relicButton.current?.focus({ preventScroll: true });
+    }
+    wasReady.current = canLeave;
+    wasCardTaken.current = reward.cardTaken;
+  }, [canLeave, reward.cardTaken, hasRelic, reward.relicTaken]);
+
+  const playChime = (kind) => {
+    audio.current?.configure(graphics.combatSound !== 'off', graphics.combatVolume ?? 60);
+    audio.current?.unlock();
+    audio.current?.reward(kind);
+  };
+
+  const takeCard = (type) => {
+    if (dispatch({ type: 'TAKE_CARD', card: type })) {
+      setPicked(type);
+      playChime('claim');
+    }
+  };
+
+  const takeRelic = () => {
+    if (dispatch({ type: 'TAKE_RELIC' })) {
+      setRelicBurst(true);
+      clearTimeout(burstTimer.current);
+      burstTimer.current = setTimeout(() => setRelicBurst(false), 650);
+      playChime('relic');
+    }
+  };
+
+  const statusText = canLeave
+    ? (hasRelic && reward.relicTaken
+      ? '✧ 유물의 힘이 용사에게 깃듭니다'
+      : picked
+        ? `${CARDS[picked].name} — 덱에 새겨졌습니다`
+        : '보상 선택을 마쳤습니다. 다음 경로로 이동하세요.')
+    : !reward.cardTaken && !reward.relicTaken
+      ? '카드와 유물을 선택한 뒤 다음 경로로 이동할 수 있어요.'
+      : !reward.cardTaken
+        ? '카드를 선택하거나 건너뛴 뒤 다음 경로로 이동할 수 있어요.'
+        : '유물을 획득한 뒤 다음 경로로 이동할 수 있어요.';
+
+  return <section className={`reward-screen phase-layout${hasCards ? ' has-cards' : ''}${hasRelic ? ' has-relic' : ''}${!hasCards && hasRelic ? ' is-treasure' : ''}`}>
+    <div className="phase-scroll"><div className="phase-content reward-stage">
+      <div className="reward-hero">
+        <div className="location-scene reward-scene">
+          <SceneView mode="reward" />
+          <span className="reward-scene-glow" aria-hidden="true" />
+        </div>
+        <div className="reward-hero-info">
+          <div className="reward-title-row">
+            <div className="reward-title-copy">
+              <p className="game-eyebrow">SPOILS OF THE DUNGEON</p>
+              <h3><span className="reward-emblem" aria-hidden="true">✦</span>{hasCards ? '전투 승리' : '보물 발견'}</h3>
+            </div>
+            <div className="reward-gold-pill" aria-label={`금화 ${reward.gold} 획득`}>
+              <GameIcon name="coin" />
+              <strong>+{reward.gold}</strong>
+              <small>금화</small>
+            </div>
+          </div>
+          {!hasRelic && <p className="reward-lead">금화 <strong className="gold-text">+{reward.gold}</strong>를 받았습니다. 덱을 완성할 카드를 고르세요.</p>}
+          {hasRelic && <div className={`relic-reward${reward.relicTaken ? ' is-claimed' : ''}${relicBurst ? ' is-bursting' : ''}`}>
+            <Relic relic={{ id: reward.relic, level: relicLevel }}>
+              <button ref={relicButton}
+                className={`reward-claim-btn ${reward.relicTaken ? 'game-secondary is-claimed' : 'game-primary'}`}
+                disabled={reward.relicTaken}
+                data-initial-focus={reward.cardTaken && !reward.relicTaken ? '' : undefined}
+                onClick={takeRelic}>
+                {reward.relicTaken ? '✓ 획득 완료' : existingRelic ? '유물 Lv.2로 강화' : '유물 획득'}</button>
+            </Relic>
+            {relicBurst && <span className="reward-sparks" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <i key={i} style={{ '--spark': i }} />)}</span>}
+          </div>}
+        </div>
+      </div>
+
+      {hasCards && <div className="reward-cards-panel">
+        <div className="reward-cards-head">
+          <h4>{reward.cardTaken ? '카드 선택 완료' : '카드 한 장을 선택하세요'}</h4>
+          {!reward.cardTaken && <button className="game-secondary reward-skip-btn" onClick={() => dispatch({ type: 'SKIP_CARD' })}>덱을 유지하고 카드 건너뛰기</button>}
+        </div>
+        <div className={`reward-cards${reward.cardTaken ? ' is-resolved' : ''}`} data-keyboard-group>
+          {reward.cards.map((type, index) => {
+            const isPicked = picked === type;
+            return <div key={type} className={`reward-card-slot${isPicked ? ' is-picked' : reward.cardTaken ? ' is-dimmed' : ''}`} style={{ '--deal-index': index }}>
+              <Card card={{ type }} disabled={reward.cardTaken}
+                actionLabel={isPicked ? '✓ 덱에 추가됨' : '덱에 추가'}
+                onClick={() => takeCard(type)}
+                initialFocus={!reward.cardTaken && index === 0} />
+              {isPicked && <span className="reward-sparks" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <i key={i} style={{ '--spark': i }} />)}</span>}
+            </div>;
+          })}
+        </div>
+      </div>}
+    </div></div>
+    <div className={`phase-actions${canLeave ? ' is-ready' : ''}${readyPulse ? ' is-just-ready' : ''}`}><div className="phase-actions-content">
+      <p key={statusText} className={`phase-action-status${canLeave ? ' is-ready' : ''}`} role="status" aria-live="polite">{statusText}</p>
+      <button ref={nextButton} className="game-primary phase-next-action" disabled={!canLeave} data-initial-focus={canLeave ? '' : undefined}
+        onClick={() => dispatch({ type: 'LEAVE_REWARD' })}>다음 경로로 <span aria-hidden="true">▸</span></button>
+    </div></div>
   </section>;
 }
 
@@ -674,28 +817,102 @@ function Services({ run, dispatch }) {
       pending.current = setTimeout(() => { pending.current = null; dispatch(action); }, 300);
     } else if (dispatch(action)) setSpark({ id: Date.now(), kind: 'forging' });
   };
-  return <section className="service-screen"><p className="game-eyebrow">{rest ? 'A MOMENT OF REST' : 'DUNGEON FORGE'}</p><h3>{rest ? '돌불 쉼터' : '불씨 대장간'}</h3>
-    <div className="location-scene"><SceneView mode={rest?'rest':'forge'}/></div>
-    <div className={`service-fire${rest ? ' campfire' : ''}`} aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ '--spark': i }} />)}<span>♨</span></div>
-    {spark && <div key={spark.id} className={`service-burst ${spark.kind}`} role="status">{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ '--spark': i }} />)}<span>{spark.kind === 'healing' ? '✚ 생명이 차오릅니다' : '✦ 새로운 힘이 새겨집니다'}</span></div>}
-    <p>{rest ? '회복과 카드 강화 중 하나를 선택하세요.' : '금화로 덱과 유물을 다듬으세요. 구입은 한 번, 강화는 금화가 허용하는 만큼 가능합니다.'}</p>
-    {rest ? <button className="game-primary rest-action" data-initial-focus onClick={() => perform({ type: 'REST' })}>♨ HP 24 회복 <small>{run.hp} → {Math.min(run.maxHp, run.hp + 24)} / {run.maxHp}</small></button>
-      : <div className="service-tabs" data-keyboard-group role="group" aria-label="대장간 분류">{[['cards', '카드 강화 · 30'], ['relics', '유물 강화 · 45'], ['shop', '카드 구입 · 35']].map(([id, label], i) =>
-        <button key={id} className="game-secondary" aria-pressed={tab === id} data-initial-focus={i === 0 ? '' : undefined} onClick={() => setTab(id)}>{label}</button>)}</div>}
-    {(rest || tab === 'cards') && <><h4>{rest ? '또는 카드 한 장 무료 강화' : '카드 강화'}</h4><div className="upgrade-list" data-keyboard-group>
-      {run.deck.map((card) => <button key={card.uid} className="upgrade-item" disabled={card.upgraded || (!rest && run.gold < 30)}
-        onClick={() => perform({ type: 'UPGRADE_CARD', uid: card.uid })}>
-        <span><strong>{CARDS[card.type].name}{card.upgraded && '+'}</strong><small>{describeCard(card)}</small>
-          {!card.upgraded && <small className="upgrade-preview">강화 후: {describeCard({ ...card, upgraded: true })}</small>}</span><span>{card.upgraded ? '강화 완료' : rest ? '무료 강화' : '30 금화'}</span>
-      </button>)}
-    </div></>}
-    {!rest && tab === 'relics' && <div className="upgrade-list">{run.relics.map((relic) => <Relic key={relic.id} relic={relic}>
-      {relic.level === 1 && <p className="upgrade-preview">강화 후: {RELICS[relic.id].describe(2)}</p>}
-      <button className="game-secondary" disabled={relic.level === 2 || run.gold < 45} onClick={() => perform({ type: 'UPGRADE_RELIC', id: relic.id })}>{relic.level === 2 ? '최대 강화' : '45 금화 · Lv.2 강화'}</button>
-    </Relic>)}</div>}
-    {!rest && tab === 'shop' && <div className="reward-cards" data-keyboard-group>{run.service.stock.map((type) => <Card key={type} card={{ type }} actionLabel={run.service.bought ? '이번 방문 구입 완료' : '35 금화 · 구입'}
-      disabled={run.service.bought || run.gold < 35} onClick={() => perform({ type: 'BUY_CARD', card: type })} />)}</div>}
-    {!rest && <button className="game-primary" onClick={() => perform({ type: 'LEAVE_FORGE' })}>다음 경로로 <span aria-hidden="true">▸</span></button>}
+  const nextHp = Math.min(run.maxHp, run.hp + 24);
+  const upgradableCount = run.deck.filter((card) => !card.upgraded).length;
+  const burst = spark && <div key={spark.id} className={`service-burst ${spark.kind}`} role="status">
+    {Array.from({ length: 18 }, (_, i) => <i key={i} style={{ '--spark': i }} />)}
+    <span>{spark.kind === 'healing' ? '✚ 생명이 차오릅니다' : '✦ 새로운 힘이 새겨집니다'}</span>
+  </div>;
+
+  if (rest) {
+    return <section className="service-screen rest-screen phase-layout">
+      {burst}
+      <div className="phase-scroll rest-scroll"><div className="phase-content rest-stage">
+        <div className="rest-hearth-col">
+          <div className="location-scene service-scene"><SceneView mode="rest" /></div>
+          <div className="rest-hearth-copy">
+            <p className="game-eyebrow">A MOMENT OF REST</p>
+            <h3>돌불 쉼터</h3>
+            <p className="service-lead">모닥불 앞에서 체력을 회복하거나, 카드 한 장을 무료로 강화할 수 있습니다.</p>
+          </div>
+          <button className="game-primary rest-action" data-initial-focus onClick={() => perform({ type: 'REST' })}>
+            <span className="rest-action-title">♨ HP 24 회복</span>
+            <small className="rest-action-meta">{run.hp} → {nextHp} / {run.maxHp}</small>
+            <span className="rest-hp-bar" aria-hidden="true">
+              <i className="rest-hp-gain" style={{ width: `${Math.round(nextHp / run.maxHp * 100)}%` }} />
+              <b className="rest-hp-now" style={{ width: `${Math.round(run.hp / run.maxHp * 100)}%` }} />
+            </span>
+          </button>
+        </div>
+        <div className="rest-forge-col">
+          <div className="service-panel-head">
+            <h4>또는 카드 한 장 무료 강화</h4>
+            <span className="service-panel-count">강화 가능 {upgradableCount}장</span>
+          </div>
+          <div className="upgrade-list service-list" data-keyboard-group>
+            {run.deck.map((card) => <button key={card.uid} className="upgrade-item" disabled={card.upgraded}
+              onClick={() => perform({ type: 'UPGRADE_CARD', uid: card.uid })}>
+              <img className="upgrade-thumb" src={cardArtUrl(card.type)} alt="" aria-hidden="true" decoding="async" />
+              <span className="upgrade-copy"><strong>{CARDS[card.type].name}{card.upgraded && '+'}</strong><small>{describeCard(card)}</small>
+                {!card.upgraded && <small className="upgrade-preview">강화 후: {describeCard({ ...card, upgraded: true })}</small>}</span>
+              <span className="upgrade-cost-tag">{card.upgraded ? '강화 완료' : '무료 강화'}</span>
+            </button>)}
+          </div>
+        </div>
+      </div></div>
+    </section>;
+  }
+
+  return <section className="service-screen forge-screen phase-layout">
+    {burst}
+    <div className="phase-scroll forge-scroll"><div className="phase-content forge-stage">
+      <div className="service-hero">
+        <div className="location-scene service-scene"><SceneView mode="forge" /></div>
+        <div className="service-hero-info">
+          <div className="reward-title-row">
+            <div className="reward-title-copy">
+              <p className="game-eyebrow">DUNGEON FORGE</p>
+              <h3>불씨 대장간</h3>
+            </div>
+            <div className="reward-gold-pill" aria-label={`보유 금화 ${run.gold}`}>
+              <GameIcon name="coin" />
+              <strong>{run.gold}</strong>
+              <small>금화</small>
+            </div>
+          </div>
+          <p className="service-lead">금화로 덱과 유물을 다듬으세요. 구입은 한 번, 강화는 금화가 허용하는 만큼 가능합니다.</p>
+          <div className="service-tabs" data-keyboard-group role="group" aria-label="대장간 분류">
+            {[['cards', '카드 강화 · 30'], ['relics', '유물 강화 · 45'], ['shop', '카드 구입 · 35']].map(([id, label], i) =>
+              <button key={id} className="game-secondary" aria-pressed={tab === id} data-initial-focus={i === 0 ? '' : undefined} onClick={() => setTab(id)}>{label}</button>)}
+          </div>
+        </div>
+      </div>
+      <div className={`forge-panel is-tab-${tab}`}>
+        {tab === 'cards' && <div className="upgrade-list service-list forge-grid" data-keyboard-group>
+          {run.deck.map((card) => <button key={card.uid} className="upgrade-item" disabled={card.upgraded || run.gold < 30}
+            onClick={() => perform({ type: 'UPGRADE_CARD', uid: card.uid })}>
+            <img className="upgrade-thumb" src={cardArtUrl(card.type)} alt="" aria-hidden="true" decoding="async" />
+            <span className="upgrade-copy"><strong>{CARDS[card.type].name}{card.upgraded && '+'}</strong><small>{describeCard(card)}</small>
+              {!card.upgraded && <small className="upgrade-preview">강화 후: {describeCard({ ...card, upgraded: true })}</small>}</span>
+            <span className="upgrade-cost-tag">{card.upgraded ? '강화 완료' : '30 금화'}</span>
+          </button>)}
+        </div>}
+        {tab === 'relics' && <div className="upgrade-list service-list forge-relic-grid">
+          {run.relics.map((relic) => <Relic key={relic.id} relic={relic}>
+            {relic.level === 1 && <p className="upgrade-preview">강화 후: {RELICS[relic.id].describe(2)}</p>}
+            <button className="game-secondary" disabled={relic.level === 2 || run.gold < 45} onClick={() => perform({ type: 'UPGRADE_RELIC', id: relic.id })}>{relic.level === 2 ? '최대 강화' : '45 금화 · Lv.2 강화'}</button>
+          </Relic>)}
+        </div>}
+        {tab === 'shop' && <div className="reward-cards forge-shop-cards" data-keyboard-group>
+          {run.service.stock.map((type) => <Card key={type} card={{ type }} actionLabel={run.service.bought ? '이번 방문 구입 완료' : '35 금화 · 구입'}
+            disabled={run.service.bought || run.gold < 35} onClick={() => perform({ type: 'BUY_CARD', card: type })} />)}
+        </div>}
+      </div>
+    </div></div>
+    <div className="phase-actions is-ready"><div className="phase-actions-content">
+      <p className="phase-action-status">보유 금화 <strong className="gold-text">◈ {run.gold}</strong> · 정비를 마쳤다면 다음 경로로 이동하세요.</p>
+      <button className="game-primary phase-next-action" onClick={() => perform({ type: 'LEAVE_FORGE' })}>다음 경로로 <span aria-hidden="true">▸</span></button>
+    </div></div>
   </section>;
 }
 
@@ -709,13 +926,19 @@ function TierSelection({ progress, dispatch, onStarted, onTutorial }) {
   const wordbooks = progress.wordbooks ?? [];
   const personal = wordbooks.some((book) => book.id === tier);
   const pool = questionPool(tier, wordbooks);
+  const wordCount = new Set(pool.map((q) => q.wordId)).size;
   const unlocked = ADMIN_MODE && admin.cheats.unlockAllTiers ? TIERS.map((t) => t.id) : unlockedTierIds(progress);
   const selectedTier = TIERS.find((t) => t.id === tier) ?? { label: wordbooks.find((book) => book.id === tier)?.name, count: pool.length };
+  const selectedClears = personal ? (progress.learning.clears[tier] ?? 0) : (progress.learning.clears[tier] ?? 0);
   return <section ref={selection} className="tier-selection" onKeyDown={(event) => navigateTiers(event, {
     tiers: [...selection.current.querySelectorAll('[data-tier]:not(:disabled)')], start: startButton.current, select: setTier,
   })}>
     <div className="tier-selection-scroll"><div className="tier-selection-content">
-      <div className="tier-selection-heading"><h3>학습 범위</h3>
+      <div className="tier-selection-heading">
+        <div className="tier-heading-copy">
+          <h3>학습 범위 선택</h3>
+          <p className="tier-selection-help">{personal ? '내 단어장이 선택되어 있어요. 아래 버튼으로 입장하세요.' : unlocked.length === 1 ? '브론즈부터 보스를 쓰러뜨리면 다음 티어가 열립니다. 바로 입장해 보세요.' : '티어는 누적 학습 범위예요. 도전할 범위를 고르고 던전에 입장하세요.'}</p>
+        </div>
         <div className="tier-heading-actions">
           {wordbooks.length > 0 && <select className="tier-book-select" aria-label="내 단어장 선택" value={personal ? tier : ''} onChange={(event) => setTier(event.target.value || 'bronze')}>
             <option value="">내 단어장</option>
@@ -724,26 +947,59 @@ function TierSelection({ progress, dispatch, onStarted, onTutorial }) {
           {onTutorial && <button type="button" className="tier-tutorial-button" aria-label="모험 튜토리얼" onClick={onTutorial}>
             <span className="tier-guide-title">모험 </span>튜토리얼
           </button>}
-          <details className="tier-guide"><summary aria-label="모험 정보와 출제 안내"><span className="tier-guide-title">모험 </span>안내</summary><div className="tier-guide-content">
-            <div className="adventure-brief"><p><span>시작 덱</span><strong>12장 · 에너지 3 · HP 72</strong></p><p><span>던전</span><strong>8층 · 갈림길 · 보스 1체</strong></p><p><span>출제 범위</span><strong>단어 {new Set(pool.map((q) => q.wordId)).size}개 · 문제 {pool.length}개</strong></p></div>
+          <details className="tier-guide"><summary aria-label="모험 정보와 출제 안내"><span className="tier-guide-title">출제 </span>안내</summary><div className="tier-guide-content">
+            <div className="adventure-brief"><p><span>시작 덱</span><strong>12장 · 에너지 3 · HP 72</strong></p><p><span>던전</span><strong>8층 · 갈림길 · 보스 1체</strong></p><p><span>출제 범위</span><strong>단어 {wordCount}개 · 문제 {pool.length}개</strong></p></div>
             <p className="game-help">{personal ? '선택한 단어장에서 뜻 문제가 나옵니다. 클리어 기록은 내 단어장에 쌓입니다.' : '브론즈부터 보스를 쓰러뜨리면 다음 티어가 열립니다. 티어 범위의 모든 단어가 뜻 문제로 나오고, 일부 단어는 유의어·반의어 문제도 나옵니다. 전투 난도는 티어와 무관합니다.'}</p>
           </div></details>
         </div>
       </div>
-      <p className="tier-selection-help">{personal ? '내 단어장이 선택되어 있어요. 아래 버튼으로 입장하세요.' : unlocked.length === 1 ? '브론즈가 선택되어 있어 바로 입장할 수 있어요.' : '티어는 누적 학습 범위예요. 범위를 고르고 입장하세요.'}</p>
       <div className="adventure-tiers" role="group" aria-label="모험 티어" data-keyboard-group>
-        {TIERS.map((t, i) => <button key={t.id} data-tier={t.id} className={`tier-choice tier-${t.id}${!unlocked.includes(t.id) ? ' is-locked' : ''}`} disabled={!unlocked.includes(t.id)} aria-pressed={t.id === tier} data-initial-focus={i === 0 ? '' : undefined} onClick={() => setTier(t.id)}
-          aria-label={`${t.label}, 누적 ${t.count.toLocaleString()}개 단어, ${!unlocked.includes(t.id) ? `${TIERS[i - 1].label} 클리어 후 해금` : t.id === tier ? '선택됨' : '선택 가능'}`}>
-          <TierCrest tier={t.id} /><span><strong>{t.label}</strong><small>{t.english}</small></span><span className="tier-word-count">누적 {t.count.toLocaleString()}개</span>
-          <small className="tier-condition"><span className="tier-condition-full">{!unlocked.includes(t.id) ? `🔒 ${TIERS[i - 1].label} 클리어 후 해금` : t.id === tier ? '✓ 선택됨' : progress.learning.clears[t.id] ? '클리어 · 선택 가능' : '선택 가능'}</span>
-            <span className="tier-condition-compact" aria-hidden="true">{!unlocked.includes(t.id) ? '🔒' : t.id === tier ? '✓ 선택됨' : '선택 가능'}</span></small>
-        </button>)}
+        {TIERS.map((t, i) => {
+          const isUnlocked = unlocked.includes(t.id);
+          const isSelected = t.id === tier;
+          const clears = progress.learning.clears[t.id] ?? 0;
+          return <button key={t.id} data-tier={t.id} className={`tier-choice tier-${t.id}${!isUnlocked ? ' is-locked' : ''}`} disabled={!isUnlocked} aria-pressed={isSelected} data-initial-focus={i === 0 ? '' : undefined} onClick={() => setTier(t.id)}
+            aria-label={`${t.label}, 누적 ${t.count.toLocaleString()}개 단어, ${!isUnlocked ? `${TIERS[i - 1].label} 클리어 후 해금` : isSelected ? '선택됨' : '선택 가능'}`}>
+            <span className="tier-accent-bar" aria-hidden="true" />
+            <span className="tier-crest-wrap"><TierCrest tier={t.id} /></span>
+            <span className="tier-card-title"><strong>{t.label}</strong><small>{t.english}</small></span>
+            <span className="tier-word-count">누적 {t.count.toLocaleString()}개</span>
+            <small className="tier-condition">
+              <span className="tier-condition-full">{!isUnlocked ? `🔒 ${TIERS[i - 1].label} 클리어 후 해금` : isSelected ? '✓ 선택됨' : clears > 0 ? `★ 클리어 ${clears}회` : '선택 가능'}</span>
+              <span className="tier-condition-compact" aria-hidden="true">{!isUnlocked ? '🔒' : isSelected ? '✓ 선택' : clears > 0 ? `★${clears}` : '가능'}</span>
+            </small>
+          </button>;
+        })}
+      </div>
+      <div className="tier-brief-strip" aria-label="선택한 범위 요약">
+        <div className="tier-brief-cell">
+          <span>출제 범위</span>
+          <strong>단어 {wordCount.toLocaleString()}개 · 문제 {pool.length.toLocaleString()}개</strong>
+        </div>
+        <div className="tier-brief-cell">
+          <span>출제 유형</span>
+          <strong>{personal ? '내 단어장 뜻 문제' : '뜻 · 유의어 · 반의어'}</strong>
+        </div>
+        <div className="tier-brief-cell">
+          <span>던전 구성</span>
+          <strong>8층 · 갈림길 · 보스 1체</strong>
+        </div>
+        <div className="tier-brief-cell">
+          <span>시작 장비 · 기록</span>
+          <strong>덱 12장 · HP 72 · {selectedClears > 0 ? `${selectedClears}회 클리어` : '첫 도전'}</strong>
+        </div>
       </div>
     </div></div>
     <div className="tier-entry-actions"><div className="tier-entry-content">
       {ongoing && <p id="tier-restart-notice" className="game-notice"><strong>{tierLabel(progress.run.tier) ?? wordbooks.find((book) => book.id === progress.run.tier)?.name} 모험 교체</strong><span>덱·유물 초기화 · 학습 기록 유지</span></p>}
       <div className="tier-entry-row">
-        <div className="tier-entry-summary"><p className="game-eyebrow">선택한 범위로 입장</p><p aria-live="polite" aria-atomic="true"><strong>{selectedTier.label}</strong><span>{personal ? '단어' : '누적'} {selectedTier.count.toLocaleString()}개{!personal && ' 단어'}</span></p></div>
+        <div className="tier-entry-summary">
+          <TierCrest tier={personal ? 'personal' : tier} />
+          <div>
+            <p className="game-eyebrow">선택한 범위로 입장</p>
+            <p aria-live="polite" aria-atomic="true"><strong>{selectedTier.label}</strong><span>{personal ? '단어' : '누적'} {selectedTier.count.toLocaleString()}개{!personal && ' 단어'}</span></p>
+          </div>
+        </div>
         <button ref={startButton} className="game-primary tier-start" aria-describedby={ongoing ? 'tier-restart-notice' : undefined} onClick={() => transition(() => { if (dispatch({ type: 'START', tier, seed: seed() })) onStarted(); })}>{ongoing ? '모험 교체 후 입장' : '던전 입장하기'} <span aria-hidden="true">▸</span></button>
       </div>
     </div></div>
@@ -752,17 +1008,34 @@ function TierSelection({ progress, dispatch, onStarted, onTutorial }) {
 
 function Result({ run, scopeLabel, progress, onClose }) {
   const nextTier = TIERS.find((tier) => tier.id === run.result.unlockedTier);
-  return <section className="run-result"><span className="result-sigil" aria-hidden="true">{run.result.won ? '♛' : '◇'}</span><p className="game-eyebrow">{run.result.won ? '석문 돌파' : '모험의 끝'}</p>
-    <div className="location-scene"><SceneView mode="result" won={run.result.won}/></div>
-    <h3>{run.result.won ? '석문을 돌파했습니다' : '다음 도전을 준비하세요'}</h3>
-    <p>{scopeLabel} · {run.fights}회 전투 승리 · 정답 {run.correct}/{run.answers}</p>
-    <p>이번 덱 {run.result.cards}장 · 유물 {run.result.relics}개</p>
-    {run.result.won && nextTier && <div className="unlock-notice tier-unlock">{nextTier.label} 던전의 문이 열렸습니다.<br /><small>다음 새 모험에서 선택할 수 있어요.</small></div>}
-    {run.result.unlocked && <div className="unlock-notice">전설 카드 ‘불멸의 서약’ 해금<br /><small>다음 모험부터 카드 보상과 상점에 등장합니다.</small></div>}
-    {run.result.won && TIERS.some(({ id }) => id === run.tier) && schoolClearCount(progress) === 1 &&
-      <div className="unlock-notice survey-unlock">타이틀 메뉴에 ‘설문 참여’가 열렸습니다.<br /><small>직접 플레이해 본 느낌을 사용자 경험 조사로 들려주세요.</small></div>}
-    <p>누적 학습 {progress.learning.attempts}문제 · 약점 {Object.values(progress.learning.entries).filter((e) => e.active).length}문제<br /><span className="game-muted">학습·오답·클리어 기록은 보존됩니다. 임시 카드와 유물은 다음 모험에 이월되지 않습니다.</span></p>
-    <button className="game-primary" data-initial-focus onClick={onClose}>타이틀로 돌아가기</button>
+  const showSurveyNotice = run.result.won && TIERS.some(({ id }) => id === run.tier) && schoolClearCount(progress) === 1;
+  const hasUnlocks = (run.result.won && nextTier) || run.result.unlocked || showSurveyNotice;
+  const weakCount = Object.values(progress.learning.entries).filter((e) => e.active).length;
+  return <section className={`run-result phase-layout${run.result.won ? ' is-won' : ' is-lost'}`}>
+    <div className="phase-scroll"><div className="phase-content result-stage">
+      <div className="result-hero">
+        <div className="location-scene result-scene"><SceneView mode="result" won={run.result.won} /></div>
+        <div className="result-summary-col">
+          <p className="game-eyebrow">{run.result.won ? '석문 돌파' : '모험의 끝'}</p>
+          <h3>{run.result.won ? '석문을 돌파했습니다' : '다음 도전을 준비하세요'}</h3>
+          <div className="result-metrics">
+            <div><span>범위</span><strong>{scopeLabel}</strong></div>
+            <div><span>전투 승리</span><strong>{run.fights}회</strong></div>
+            <div><span>단어 정답</span><strong>{run.correct} / {run.answers}</strong></div>
+            <div><span>덱 · 유물</span><strong>{run.result.cards}장 · {run.result.relics}개</strong></div>
+          </div>
+          <p className="result-learning-note">누적 학습 <strong>{progress.learning.attempts}문제</strong> · 약점 <strong>{weakCount}문제</strong><br /><span className="game-muted">학습·오답·클리어 기록은 보존됩니다. 임시 카드와 유물은 다음 모험에 이월되지 않습니다.</span></p>
+        </div>
+      </div>
+      {hasUnlocks && <div className="result-unlocks">
+        {run.result.won && nextTier && <div className="unlock-notice tier-unlock"><strong>{nextTier.label} 던전의 문이 열렸습니다</strong><small>다음 새 모험에서 선택할 수 있어요.</small></div>}
+        {run.result.unlocked && <div className="unlock-notice"><strong>전설 카드 ‘불멸의 서약’ 해금</strong><small>다음 모험부터 카드 보상과 상점에 등장합니다.</small></div>}
+        {showSurveyNotice && <div className="unlock-notice survey-unlock"><strong>타이틀 메뉴에 ‘설문 참여’가 열렸습니다</strong><small>직접 플레이해 본 느낌을 사용자 경험 조사로 들려주세요.</small></div>}
+      </div>}
+    </div></div>
+    <div className="phase-actions is-ready"><div className="phase-actions-content">
+      <button className="game-primary phase-next-action" data-initial-focus onClick={onClose}>타이틀로 돌아가기</button>
+    </div></div>
   </section>;
 }
 
@@ -787,25 +1060,37 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
   const returnToTitle = () => transition(() => dialog.current.close(run?.tier === 'bronze' && run.result?.won ? 'bronze-clear' : ''));
   const phase = choosing ? 'tier' : entering ? 'entry' : run?.phase;
   const inCombat = phase === 'battle' && !activeInspect;
+  const isMapView = activeInspect === 'map' || (!activeInspect && !choosing && phase === 'map');
+  const isEntryView = !activeInspect && !choosing && phase === 'entry';
+  const isTierView = !activeInspect && choosing;
+  const isPinnedView = isTierView || (Boolean(activeInspect) && activeInspect !== 'map') || (!activeInspect && !choosing && ['reward', 'rest', 'forge', 'result'].includes(phase));
+  const bodyClass = `game-body${inCombat ? ' is-battle' : isMapView ? ' is-map' : isEntryView ? ' is-entry' : isPinnedView ? ' is-pinned' : ''}`;
+  const showRunStats = !choosing && run && !['result', 'entry'].includes(phase) && !inCombat;
   useEffect(() => { if (!inCombat) setBattleHeroHp(null); }, [inCombat]);
   const topHeroHp = inCombat && battleHeroHp !== null ? battleHeroHp : (run?.hp ?? 0);
   const openInspect = (id) => {
     if (battleMenu.current?.open) battleMenu.current.open = false;
     transition(() => { setAnimateBattle(false); setInspect(id); });
   };
-  const titles = { tier: '새 모험', entry: '던전 입장', map: '던전 경로', battle: '카드 전투', reward: '모험의 보상', rest: '휴식', forge: '강화와 구입', result: '도전 결과' };
+  const titles = { tier: '새 모험', entry: '던전 입장', map: '던전 경로', battle: '카드 전투', reward: '모험의 보상', rest: '돌불 쉼터', forge: '불씨 대장간', result: '도전 결과' };
+  const headingTitle = activeInspect === 'deck' ? '나의 덱' : activeInspect === 'relics' ? '보유 유물' : activeInspect === 'map' ? '던전 경로' : activeInspect === 'log' ? '전투 기록' : titles[phase];
   useEffect(() => { if (!dialog.current.open) dialog.current.showModal(); }, []);
   const quizId = run?.battle?.pending?.question.id;
   const feedback = !!run?.battle?.feedback;
   useEffect(() => {
     const target = dialog.current.querySelector('[data-initial-focus]:not(:disabled):not([inert] *)') ?? dialog.current.querySelector('.adventure-title');
     const enteringBattle = phase === 'battle' && previousPhase.current !== 'battle' && !activeInspect && !quizId && !feedback;
-    target?.focus({ preventScroll: enteringBattle || inCombat || ['entry', 'map'].includes(phase) });
-    if (phase === 'entry' || (phase === 'map' && !activeInspect && run.floor < 0) || (inCombat && !quizId && !feedback)) dialog.current.querySelector('.game-body').scrollTop = 0;
+    target?.focus({ preventScroll: enteringBattle || inCombat || Boolean(activeInspect) || ['entry', 'map', 'reward', 'rest', 'forge', 'result'].includes(phase) });
+    if (!inCombat || (!quizId && !feedback)) {
+      const body = dialog.current.querySelector('.game-body');
+      if (body) body.scrollTop = 0;
+      const scroll = dialog.current.querySelector('.phase-scroll');
+      if (scroll) scroll.scrollTop = 0;
+    }
     previousPhase.current = phase;
   }, [phase, activeInspect, quizId, feedback, inCombat]);
 
-  return <dialog ref={dialog} className={`game-dialog${inCombat ? ' is-battle' : ''}${phase === 'entry' ? ' is-entering' : ''}`} aria-labelledby="adventure-title" onClose={(event) => onClose(event.currentTarget.returnValue)} onKeyDown={navigateGameButtons}
+  return <dialog ref={dialog} className={`game-dialog${inCombat ? ' is-battle' : ''}${phase === 'entry' ? ' is-entering' : ''}${isTierView ? ' is-tier' : ''}`} aria-labelledby="adventure-title" onClose={(event) => onClose(event.currentTarget.returnValue)} onKeyDown={navigateGameButtons}
     onPointerDown={(event) => { if (battleMenu.current?.open && !battleMenu.current.contains(event.target)) battleMenu.current.open = false; }}
     onCancel={(event) => { if (battleMenu.current?.open) { event.preventDefault(); battleMenu.current.open = false; battleMenu.current.querySelector('summary').focus(); } else { event.preventDefault(); requestClose(); } }}>
     {inCombat ? (
@@ -846,26 +1131,56 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
         </div>
       </header>
     ) : (
-      <header className="game-header"><div><p className="game-eyebrow">{phase === 'tier' ? '새 모험' : scopeLabel}</p>
-        <h2 id="adventure-title" className="adventure-title" tabIndex={-1}>{activeInspect === 'deck' ? '나의 덱' : activeInspect === 'relics' ? '보유 유물' : activeInspect === 'map' ? '던전 경로' : activeInspect === 'log' ? '전투 기록' : titles[phase]}</h2></div>
-        <div className="game-header-actions">
-          <button className="settings-close" aria-label="모험 닫고 타이틀로" onClick={requestClose}>×</button>
-        </div></header>
+      <header className={`game-header is-adventure-topbar${showRunStats ? ' has-run-stats' : ''}`}>
+        <div className="adventure-bar-lead">
+          {!choosing && run && <TierCrest tier={book ? 'personal' : run.tier} small />}
+          <h2 id="adventure-title" className="adventure-title" tabIndex={-1}>{headingTitle}</h2>
+          {phase !== 'tier' && scopeLabel && <span className="topbar-phase-scope">{scopeLabel}</span>}
+        </div>
+        {showRunStats && <div className="adventure-bar-stats">
+          <span className="topbar-floor" title={run.floor < 0 ? '던전 입구' : `${run.floor + 1}층 / 전체 8층`}>
+            <GameIcon name="stairs" /><strong>{run.floor < 0 ? '입구' : run.floor + 1}</strong>{run.floor >= 0 && <small>/8층</small>}
+          </span>
+          <span className={`topbar-stat is-hp${run.hp <= run.maxHp * 0.3 ? ' is-low' : ''}`} title={`체력 ${run.hp} / ${run.maxHp}`}>
+            <GameIcon name="heart" /><strong>{run.hp}/{run.maxHp}</strong>
+          </span>
+          <span className="topbar-stat is-gold" title={`보유 금화 ${run.gold}`}>
+            <GameIcon name="coin" /><strong>{run.gold}</strong>
+          </span>
+        </div>}
+        <div className="game-header-actions adventure-bar-actions">
+          {showRunStats && <div className="run-inspect-buttons">
+            {[['deck', `덱 ${run.deck.length}`], ['relics', `유물 ${run.relics.length}`], ['map', '경로']].map(([id, label]) =>
+              <button key={id} className="game-secondary topbar-tab-btn" aria-pressed={activeInspect === id} onClick={() => transition(() => { setAnimateBattle(false); setInspect(activeInspect === id ? null : id); })}>{label}</button>)}
+          </div>}
+          <button className="settings-close" aria-label="모험 닫고 타이틀로" title="모험 닫고 타이틀로" onClick={requestClose}>×</button>
+        </div>
+      </header>
     )}
     {error && <p role="alert" className="game-save-error">{error}</p>}
-    {!choosing && run && !['result', 'entry'].includes(phase) && !inCombat && <div className="run-toolbar"><div><TierCrest tier={book ? 'personal' : run.tier} small /><span>{run.floor < 0 ? '입구' : `${run.floor + 1}층 / 8`}</span><span className="hp-text">HP {run.hp}/{run.maxHp}</span><span className="gold-text">◈ {run.gold}</span></div>
-      <div className="run-inspect-buttons">{[['deck', `덱 ${run.deck.length}`], ['relics', `유물 ${run.relics.length}`], ['map', '경로']].map(([id, label]) => <button key={id} className="game-secondary" aria-pressed={activeInspect === id} onClick={() => transition(() => { setAnimateBattle(false); setInspect(activeInspect === id ? null : id); })}>{label}</button>)}</div></div>}
-    <div className="game-body">
-      {activeInspect ? <section className="inspection"><button className="game-secondary inspect-back" data-initial-focus onClick={() => transition(() => setInspect(null))}>← 모험으로 돌아가기</button>
-        {activeInspect === 'deck' ? <div className="deck-inspection">{run.deck.map((card) => <div className="deck-item" key={card.uid}><strong>{CARDS[card.type].name}{card.upgraded && '+'}</strong><span>에너지 {CARDS[card.type].cost} · {CARDS[card.type].rarity}</span><p>{describeCard(card)}</p></div>)}</div>
-          : activeInspect === 'relics' ? run.relics.map((relic) => <Relic key={relic.id} relic={relic} />) : activeInspect === 'log' ? <BattleLog battle={run.battle} /> : <DungeonMap run={run} inspecting motionPreference={motionPreference} />}
-      </section> : choosing ? <TierSelection progress={progress} dispatch={dispatch} onTutorial={onTutorial} onStarted={() => { setChoosing(false); setEntering(true); }} />
-        : phase === 'entry' ? <DungeonEntrance tier={entranceScope} motionPreference={motionPreference} onComplete={() => transition(() => setEntering(false))} />
-        : phase === 'map' ? <DungeonMap key={run.floor} run={run} motionPreference={motionPreference} onSelect={(id) => transition(() => { if (dispatch({ type: 'SELECT_NODE', id })) setAnimateBattle(true); })} />
-          : phase === 'battle' ? <Battle key={run.floor} run={run} wordbooks={wordbooks} dispatch={dispatch} motionPreference={motionPreference} shortcutConfirm={shortcutConfirm} animateOpening={animateBattle} onOpeningDone={() => setAnimateBattle(false)} onInspect={openInspect} onHeroHpChange={setBattleHeroHp} />
-            : phase === 'reward' ? <Reward run={run} dispatch={(action) => action.type === 'LEAVE_REWARD' ? transition(() => dispatch(action)) : dispatch(action)} />
-              : ['rest', 'forge'].includes(phase) ? <Services key={`${phase}-${run.floor}`} run={run} dispatch={(action) => action.type === 'LEAVE_FORGE' || phase === 'rest' ? transition(() => dispatch(action)) : dispatch(action)} />
-                : phase === 'result' ? <Result run={run} scopeLabel={scopeLabel} progress={progress} onClose={returnToTitle} /> : <p>이어서 진행할 모험이 없습니다.</p>}
+    <div className={bodyClass}>
+      {activeInspect === 'map' ? <section className="inspection is-map">
+        <button className="game-secondary inspect-back" data-initial-focus onClick={() => transition(() => setInspect(null))}>← 모험으로 돌아가기</button>
+        <DungeonMap run={run} inspecting motionPreference={motionPreference} />
+      </section>
+        : activeInspect ? <section className="inspection phase-layout">
+          <div className="phase-scroll"><div className="phase-content">
+            {activeInspect === 'deck' ? <div className="deck-inspection">{run.deck.map((card) => <div className="deck-item" key={card.uid}><img className="upgrade-thumb" src={cardArtUrl(card.type)} alt="" aria-hidden="true" decoding="async" /><div className="deck-item-copy"><strong>{CARDS[card.type].name}{card.upgraded && '+'}</strong><span>에너지 {CARDS[card.type].cost} · {CARDS[card.type].rarity} · {CARDS[card.type].kind}</span><p>{describeCard(card)}</p></div></div>)}</div>
+              : activeInspect === 'relics' ? <div className="relic-inspection">{run.relics.map((relic) => <Relic key={relic.id} relic={relic} />)}</div>
+                : <BattleLog battle={run.battle} />}
+          </div></div>
+          <div className="phase-actions is-ready"><div className="phase-actions-content">
+            <p className="phase-action-status">{activeInspect === 'deck' ? `보유 카드 총 ${run.deck.length}장` : activeInspect === 'relics' ? `보유 유물 총 ${run.relics.length}개` : '이번 전투의 행동 기록입니다.'}</p>
+            <button className="game-secondary inspect-back phase-next-action" data-initial-focus onClick={() => transition(() => setInspect(null))}>← 모험으로 돌아가기</button>
+          </div></div>
+        </section>
+          : choosing ? <TierSelection progress={progress} dispatch={dispatch} onTutorial={onTutorial} onStarted={() => { setChoosing(false); setEntering(true); }} />
+            : phase === 'entry' ? <DungeonEntrance tier={entranceScope} motionPreference={motionPreference} onComplete={() => transition(() => setEntering(false))} />
+              : phase === 'map' ? <DungeonMap key={run.floor} run={run} motionPreference={motionPreference} onSelect={(id) => transition(() => { if (dispatch({ type: 'SELECT_NODE', id })) setAnimateBattle(true); })} />
+                : phase === 'battle' ? <Battle key={run.floor} run={run} wordbooks={wordbooks} dispatch={dispatch} motionPreference={motionPreference} shortcutConfirm={shortcutConfirm} animateOpening={animateBattle} onOpeningDone={() => setAnimateBattle(false)} onInspect={openInspect} onHeroHpChange={setBattleHeroHp} />
+                  : phase === 'reward' ? <Reward run={run} dispatch={(action) => action.type === 'LEAVE_REWARD' ? transition(() => dispatch(action)) : dispatch(action)} />
+                    : ['rest', 'forge'].includes(phase) ? <Services key={`${phase}-${run.floor}`} run={run} dispatch={(action) => action.type === 'LEAVE_FORGE' || phase === 'rest' ? transition(() => dispatch(action)) : dispatch(action)} />
+                      : phase === 'result' ? <Result run={run} scopeLabel={scopeLabel} progress={progress} onClose={returnToTitle} /> : <p>이어서 진행할 모험이 없습니다.</p>}
     </div>
     {!inCombat && !['tier', 'entry', 'map'].includes(phase) && <footer className="game-footer"><span><kbd>방향키</kbd> 항목 이동 <kbd>Enter</kbd> 선택 <kbd>Esc</kbd> 타이틀</span><span>{error ? '저장 상태를 확인하세요' : '선택할 때마다 자동 저장'}</span></footer>}
     <TransitionVeil />

@@ -6,6 +6,7 @@ import '../styles.css';
 import './styles/premium.css';
 import './styles/dusk.css';
 import './styles/battleFocus.css';
+import './styles/dungeonCraft.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode><GameErrorBoundary><App /></GameErrorBoundary></StrictMode>,
