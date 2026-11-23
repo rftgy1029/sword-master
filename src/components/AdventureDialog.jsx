@@ -31,8 +31,17 @@ const seed = () => globalThis.crypto.getRandomValues(new Uint32Array(1))[0];
 export function navigateGameButtons(event) {
   if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing || event.defaultPrevented) return;
   const group = event.target.closest('[data-keyboard-group]');
-  if (!group || !event.target.matches('button')) return;
+  if (!group) return;
   const buttons = [...group.querySelectorAll('button:not(:disabled)')];
+  if (!buttons.length) return;
+  if (event.target === group) {
+    const first = { ArrowDown: 0, ArrowRight: 0, Home: 0, ArrowUp: buttons.length - 1, ArrowLeft: buttons.length - 1, End: buttons.length - 1 }[event.key];
+    if (first === undefined) return;
+    event.preventDefault();
+    buttons[first]?.focus();
+    return;
+  }
+  if (!event.target.matches('button')) return;
   const index = buttons.indexOf(event.target);
   const next = { ArrowDown: (index + 1) % buttons.length, ArrowRight: (index + 1) % buttons.length,
     ArrowUp: (index - 1 + buttons.length) % buttons.length, ArrowLeft: (index - 1 + buttons.length) % buttons.length,
@@ -477,28 +486,37 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
     </div>}
     <section ref={section} className={`battle-screen${busy ? ' is-animating' : ''}${inQuiz ? ' is-quizzing' : ''}`} aria-label="턴제 카드 전투" aria-busy={busy} inert={loading}>
       <div className="battle-stage">
+        <div className="combat-hud is-slim">
+          <section className="combatant-hud player-hud" aria-label="모험가 상태">
+            <div className="combatant-heading"><h3>모험가</h3></div>
+            <CombatHealthBar value={shownPlayerHP} max={run.maxHp} label="모험가 체력" motionPreference={motionPreference}
+              block={shownBlock} previewBlockGain={cardPreview?.blockGain ?? 0}
+              previewValue={cardPreview && cardPreview.healGain > 0 ? cardPreview.playerHpAfter : null}
+              previewKind={playerPreviewKind} previewLabel={playerPreviewLabel} />
+          </section>
+          <span className="battle-turn" aria-label={`${b.turn}턴`}>TURN <strong>{String(b.turn).padStart(2, '0')}</strong></span>
+          <section className="combatant-hud enemy-hud" aria-label="적 상태">
+            <div className="combatant-heading"><h3>{MONSTERS[b.enemy.type].name}</h3></div>
+            <CombatHealthBar value={shownEnemyHP} max={b.enemy.maxHp} label="적 체력" motionPreference={motionPreference}
+              block={b.enemy.block}
+              previewValue={cardPreview && cardPreview.hpDamage > 0 ? cardPreview.enemyHpAfter : null}
+              previewKind={enemyPreviewKind} previewLabel={enemyPreviewLabel} />
+          </section>
+        </div>
+
         <div className="battlefield">
           <CombatScene enemy={b.enemy} effect={combatEffect} playerDead={fatal} cue={cue} motionPreference={motionPreference}
-            playerIndicators={shownPlayerHP > 0 && cardPreview && cardPreview.heroBadges.length > 0 && <div className="hero-preview-pills" aria-hidden="true">
-              {cardPreview.heroBadges.map((badge) => <span key={badge.text} className={`hero-preview-pill tone-${badge.kind}`}>{badge.text}</span>)}
-            </div>}
-            enemyIndicators={shownEnemyHP > 0 && <EnemyIntent intent={shownIntent} acting={enemyActing}
-              playerBlock={shownBlock} playerHp={shownPlayerHP} locked={false} preview={cardPreview} />}
-            playerUnderbar={shownPlayerHP > 0 && <section className="combatant-underbar player-hud" aria-label="모험가 상태">
-              <CombatHealthBar value={shownPlayerHP} max={run.maxHp} label="모험가 체력" motionPreference={motionPreference}
-                block={shownBlock} previewBlockGain={cardPreview?.blockGain ?? 0}
-                previewValue={cardPreview && cardPreview.healGain > 0 ? cardPreview.playerHpAfter : null}
-                previewKind={playerPreviewKind} previewLabel={playerPreviewLabel} />
-              <StatusBadges battle={b} compact hideBlock busy={skillBusy} />
-            </section>}
-            enemyUnderbar={shownEnemyHP > 0 && <section className="combatant-underbar enemy-hud" aria-label="적 상태">
-              <span className="underbar-name">{MONSTERS[b.enemy.type].name}</span>
-              <CombatHealthBar value={shownEnemyHP} max={b.enemy.maxHp} label="적 체력" motionPreference={motionPreference}
-                block={b.enemy.block}
-                previewValue={cardPreview && cardPreview.hpDamage > 0 ? cardPreview.enemyHpAfter : null}
-                previewKind={enemyPreviewKind} previewLabel={enemyPreviewLabel} />
-              <StatusBadges battle={b} enemy compact hideBlock busy={skillBusy} />
-            </section>}
+            playerIndicators={shownPlayerHP > 0 && <>
+              {cardPreview && cardPreview.heroBadges.length > 0 && <div className="hero-preview-pills" aria-hidden="true">
+                {cardPreview.heroBadges.map((badge) => <span key={badge.text} className={`hero-preview-pill tone-${badge.kind}`}>{badge.text}</span>)}
+              </div>}
+              <StatusBadges battle={b} compact busy={skillBusy} />
+            </>}
+            enemyIndicators={shownEnemyHP > 0 && <>
+              <EnemyIntent intent={shownIntent} acting={enemyActing}
+                playerBlock={shownBlock} playerHp={shownPlayerHP} locked={false} preview={cardPreview} />
+              <StatusBadges battle={b} enemy compact busy={skillBusy} />
+            </>}
             studying={Boolean(pending)} playerHealth={shownPlayerHP / run.maxHp}
             onReady={() => setVisualStatus('ready')} onError={() => setVisualStatus('fallback')}
             onImpact={(_, target, hit) => {
@@ -558,7 +576,9 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
             onSkipReveal={skipWrongReveal}
           />
         ) : (
-          <div className="card-hand" style={{ '--hand-count': hand.length }} data-keyboard-group aria-label="손에 든 카드">
+          <div className="card-hand" style={{ '--hand-count': hand.length }} tabIndex={-1}
+            data-initial-focus={!inQuiz && playableCount > 0 ? '' : undefined}
+            data-keyboard-group aria-label="손에 든 카드">
             {hand.map((card, index) => {
               const playable = infiniteEnergy || CARDS[card.type].cost <= b.energy;
               const offset = index - (hand.length - 1) / 2;
@@ -570,6 +590,10 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
                   if (event.type === 'focus') {
                     if (event.currentTarget.matches(':focus-visible')) setFocusedCardUid(card.uid);
                   } else {
+                    const active = document.activeElement;
+                    if (active instanceof HTMLElement && active !== event.currentTarget && active.matches('.card-hand .game-card')) {
+                      active.blur();
+                    }
                     setHoveredCardUid(card.uid);
                   }
                 }}
@@ -577,8 +601,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
                   if (event.type === 'blur') setFocusedCardUid((curr) => (curr === card.uid ? null : curr));
                   else setHoveredCardUid((curr) => (curr === card.uid ? null : curr));
                 }}
-                onClick={() => playCard(card.uid)}
-                initialFocus={!inQuiz && playable} />;
+                onClick={() => playCard(card.uid)} />;
             })}
             {!hand.length && <p className="empty-hand game-muted">손에 든 카드가 없어요. 턴을 종료해 새 카드를 뽑으세요.</p>}
           </div>
@@ -796,7 +819,6 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
           <span className="topbar-stat is-gold" title={`보유 금화 ${run.gold}`}>
             <GameIcon name="coin" /><strong>{run.gold}</strong>
           </span>
-          <span className="topbar-turn" aria-label={`${run.battle.turn}턴`}>{run.battle.turn}턴</span>
         </div>
         <div className="topbar-center">
           <span className="topbar-floor" title={`${run.floor + 1}층 / 전체 8층`}>

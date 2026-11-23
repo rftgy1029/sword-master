@@ -1,8 +1,8 @@
 /*
  * 전투 집중 UI/UX (Slay the Spire 레이아웃 + 하이퀄리티 다크 판타지 마감).
  * 핵심:
- * - 상단 슬림 메탈릭 스테이터스 바(체력·금화·턴·층·지도·덱·메뉴) + 좌상단 유물 메달
- * - 풀블리드 3D/2D 전장 + 캐릭터 발밑 장갑 체력바·상태 아이콘 + 적 머리 위 다음 행동
+ * - 상단 슬림 메탈릭 스테이터스 바(체력·금화·층·지도·덱·메뉴) + 상단 슬림 모험가/적 HP·TURN 스트립 + 좌상단 유물 메달
+ * - 풀블리드 3D/2D 전장 + 캐릭터 위 다음 행동·상태 아이콘
  * - 하단 아치형 부채꼴 카드 손패(Hover/Focus 시 정면 확대 스포트라이트) + 좌하단 에너지 오브·뽑기 더미 + 우하단 턴 종료·소멸·버림 더미
  * - 퀴즈 중에도 전장을 밝게 유지하는 하단 인라인 퀴즈 도크
  */
@@ -60,14 +60,6 @@
   z-index: 2;
   pointer-events: none;
   background: linear-gradient(180deg, transparent 0%, #120d1966 48%, #120d19 100%);
-}
-
-.game-dialog.is-battle .combat-scene {
-  --underbar-bottom-safe: 38px;
-}
-
-.game-dialog.is-battle .battle-screen.is-quizzing .combat-scene {
-  --underbar-bottom-safe: 88px;
 }
 
 /* ---------- 슬림 다크 슬레이트 상단바 (Slay the Spire 스타일) ---------- */
@@ -157,19 +149,6 @@
 .topbar-stat.is-gold strong {
   color: #ffe28c;
   font-weight: 700;
-}
-
-.topbar-turn {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 9px;
-  border-radius: 999px;
-  border: 1px solid #695343;
-  background: linear-gradient(180deg, #322434, #1e1624);
-  color: #f5cf86;
-  font-size: calc(11px * var(--text-scale));
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .topbar-center {
@@ -361,64 +340,79 @@
   line-height: 1;
 }
 
-/* ---------- 캐릭터 발밑 장갑 체력바 + 상태 아이콘 (Slay the Spire 배치) ---------- */
-.combat-underbars {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  pointer-events: none;
-  transition: opacity 180ms ease;
+/* ---------- 상단 슬림 전황 HP 스트립: [모험가 HP]  TURN  [적 HP] ---------- */
+.game-dialog .battle-stage > .combat-hud.is-slim {
+  position: relative;
+  inset: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(8px, 1.6vw, 20px);
+  padding: 6px clamp(12px, 2vw, 22px);
+  border-bottom: 1.5px solid #4e3f4c;
+  background:
+    radial-gradient(ellipse at 50% 100%, #37253d99 0%, transparent 64%),
+    linear-gradient(180deg, #1d1a29, #14111d);
+  box-shadow: inset 0 1px #ffffff10, 0 4px 16px #06040ab8;
+  z-index: 3;
 }
 
-.combat-underbars.is-busy {
-  opacity: 0.72;
+.game-dialog .combat-hud.is-slim .combatant-hud {
+  width: auto;
+  max-width: none;
+  padding: 5px 11px 6px;
+  border-radius: 10px;
+  border: 1.5px solid #4e4257;
+  background: linear-gradient(120deg, #2b2338e8, #191523f0 70%);
+  box-shadow: inset 0 1px #ffffff14, 0 2px 6px #08050db0;
 }
 
-.combat-underbar {
-  position: absolute;
-  left: 24%;
-  top: 72%;
-  transform: translate(-50%, 0);
-  display: flex;
+.game-dialog .combat-hud.is-slim .enemy-hud {
+  border-color: #63444d;
+  background: linear-gradient(240deg, #35212de8, #1a131ff0 70%);
+}
+
+.game-dialog .combat-hud.is-slim .combatant-heading {
+  margin-bottom: 4px;
+}
+
+.game-dialog .combat-hud.is-slim .combatant-heading h3 {
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.25;
+  color: #f6ecd9;
+  text-shadow: 0 1px 2px #000a;
+}
+
+.game-dialog .combat-hud.is-slim .enemy-hud .combatant-heading {
+  justify-content: flex-end;
+}
+
+.combat-hud.is-slim .battle-turn {
+  position: static;
+  transform: none;
+  display: inline-flex;
   flex-direction: column;
   align-items: center;
-  width: max-content;
-  max-width: calc(48% - 12px);
-}
-
-.combat-underbar.is-enemy {
-  left: 72%;
-}
-
-.combat-underbar:not([data-renderer]) {
-  visibility: hidden;
-}
-
-.combatant-underbar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.combatant-underbar .status-badges {
-  margin-top: 1px;
   justify-content: center;
-  pointer-events: auto;
+  gap: 1px;
+  min-width: 56px;
+  padding: 4px 10px;
+  border: 1.5px solid #8a6946;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #2d2336, #181320);
+  color: #d8c092;
+  font-size: 9px;
+  letter-spacing: 1.3px;
+  line-height: 1.1;
+  box-shadow: inset 0 1px #ffffff16, 0 3px 0 #0b0812;
 }
 
-.underbar-name {
-  padding: 1px 9px;
-  border-radius: 999px;
-  border: 1px solid #59445688;
-  background: #140e1cc8;
-  color: #f6ead6;
-  font-size: calc(10.5px * var(--text-scale));
+.combat-hud.is-slim .battle-turn strong {
+  color: var(--sun);
+  font-family: var(--font-ui);
+  font-size: 16px;
   font-weight: 700;
-  line-height: 1.3;
-  letter-spacing: 0.2px;
-  text-shadow: 0 1px 2px #000;
-  white-space: nowrap;
+  letter-spacing: 0;
 }
 
 /* ---------- 장갑 체력바 + 방어 쉴드 + 카드 Hover 미리보기 ---------- */
@@ -431,8 +425,13 @@
   min-width: 0;
 }
 
-.combatant-underbar .combat-health-wrap {
-  width: clamp(146px, 14.5vw, 200px);
+.enemy-hud .combat-health-wrap {
+  flex-direction: row-reverse;
+}
+
+.enemy-hud .health-shield-chip {
+  margin-right: 0;
+  margin-left: -8px;
 }
 
 .combat-health-wrap .combat-health-bar {
@@ -440,7 +439,7 @@
   flex: 1;
   min-width: 0;
   margin-top: 0;
-  height: 20px;
+  height: 22px;
   overflow: hidden;
   border-radius: 999px;
   border: 1.5px solid #493846;
@@ -462,7 +461,7 @@
 
 .combat-health-bar > .health-current,
 .enemy-hud .combat-health-bar > .health-current,
-.combatant-underbar .combat-health-bar > .health-current {
+.combatant-hud .combat-health-bar > .health-current {
   position: absolute;
   inset: 0 auto 0 0;
   background: linear-gradient(180deg, #f25f52 0%, #c72f29 55%, #961e1e 100%);
@@ -1345,6 +1344,11 @@
   pointer-events: none;
 }
 
+.battle-dock .card-hand:focus,
+.battle-dock .card-hand:focus-visible {
+  outline: none;
+}
+
 .battle-dock .card-hand > :first-child { margin-left: 0; }
 .battle-dock .card-hand > :last-child { margin-right: 0; }
 
@@ -1743,8 +1747,10 @@
 /* ---------- 낮은 세로 화면 (노트북 1366×768 등) 최적화 ---------- */
 @media (min-width: 741px) and (max-height: 820px) {
   .game-dialog.is-battle .battle-stage { flex-basis: calc(100% - 118px); }
-  .game-dialog.is-battle .combat-scene { --underbar-bottom-safe: 52px; }
-  .game-dialog.is-battle .battle-screen.is-quizzing .combat-scene { --underbar-bottom-safe: 88px; }
+  .game-dialog .battle-stage > .combat-hud.is-slim { padding: 4px 14px; }
+  .game-dialog .combat-hud.is-slim .combatant-hud { padding: 4px 10px 5px; }
+  .game-dialog .combat-hud.is-slim .combatant-heading { margin-bottom: 3px; }
+  .combat-health-wrap .combat-health-bar { height: 20px; }
   .game-dialog .battle-dock .card-hand .game-card {
     min-height: 170px;
     padding: 7px 8px 8px;
@@ -1814,11 +1820,6 @@
     height: 15px;
   }
 
-  .topbar-turn {
-    padding: 2px 6px;
-    font-size: calc(10px * var(--text-scale));
-  }
-
   .game-dialog .topbar-icon-btn,
   .is-battle-topbar .battle-menu summary,
   .is-battle-topbar .settings-close {
@@ -1853,21 +1854,44 @@
     min-height: 160px;
   }
 
+  .game-dialog .battle-stage > .combat-hud.is-slim {
+    gap: 6px;
+    padding: 5px 8px;
+  }
+
+  .game-dialog .combat-hud.is-slim .combatant-hud {
+    padding: 4px 7px 5px;
+    border-radius: 8px;
+  }
+
+  .game-dialog .combat-hud.is-slim .combatant-heading {
+    margin-bottom: 3px;
+  }
+
+  .game-dialog .combat-hud.is-slim .combatant-heading h3 {
+    font-size: calc(11px * var(--text-scale));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .combat-hud.is-slim .battle-turn {
+    min-width: 44px;
+    padding: 3px 6px;
+    border-radius: 8px;
+    font-size: 8px;
+  }
+
+  .combat-hud.is-slim .battle-turn strong {
+    font-size: 13px;
+  }
+
   .game-dialog.is-battle .battlefield {
-    min-height: 150px;
+    min-height: 140px;
   }
 
   .game-dialog.is-battle .battlefield::after {
     height: 36px;
-  }
-
-  .game-dialog.is-battle .combat-scene,
-  .game-dialog.is-battle .battle-screen.is-quizzing .combat-scene {
-    --underbar-bottom-safe: 6px;
-  }
-
-  .combatant-underbar .combat-health-wrap {
-    width: clamp(114px, 38vw, 152px);
   }
 
   .combat-health-wrap .combat-health-bar {
@@ -1886,14 +1910,14 @@
     font-size: calc(9.5px * var(--text-scale));
   }
 
+  .enemy-hud .health-shield-chip {
+    margin-right: 0;
+    margin-left: -6px;
+  }
+
   .health-shield-chip .game-icon {
     width: 11px;
     height: 11px;
-  }
-
-  .underbar-name {
-    font-size: calc(9.5px * var(--text-scale));
-    padding: 1px 6px;
   }
 
   /* 모바일 하단 도크: 전장 아래에 겹치지 않게 배치(상단 에너지·더미·턴종료 + 하단 카드/퀴즈) */

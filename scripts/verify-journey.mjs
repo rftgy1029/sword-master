@@ -67,7 +67,7 @@ try{
   await page.locator('.dungeon-map').waitFor({timeout:25000});
   await page.locator('.map-overview .route-map').waitFor();
   await capture('map');
-  let restored=false,realAttack=false,rewardShot=false,battleShot=false;
+  let restored=false,realAttack=false,rewardShot=false,battleShot=false,postQuizFocusChecked=false;
   for(let step=0;step<650;step++){
     await page.waitForFunction(()=>!document.querySelector('.scene-transition'));
     const p=await read();const r=p.run,b=r.battle;
@@ -148,6 +148,16 @@ try{
     }else{
       await settle();
       if(!battleShot){
+        const initialBattleState = await page.evaluate(() => {
+          const hud = document.querySelector('.battle-stage > .combat-hud.is-slim')?.getBoundingClientRect();
+          const field = document.querySelector('.battlefield')?.getBoundingClientRect();
+          const focusedCard = document.querySelector('.card-hand .game-card:focus, .card-hand .game-card:focus-visible');
+          const previewTags = document.querySelectorAll('.health-preview-tag').length;
+          return { hudBottom: hud?.bottom ?? Infinity, fieldTop: field?.top ?? 0, hasFocusedCard: Boolean(focusedCard), previewTags };
+        });
+        assert.equal(initialBattleState.hudBottom <= initialBattleState.fieldTop + 2, true, 'Top combat HP bar strip sits cleanly above the battlefield');
+        assert.equal(initialBattleState.hasFocusedCard, false, 'No hand card is automatically focused or lifted on battle start');
+        assert.equal(initialBattleState.previewTags, 0, 'No card damage preview activates before hover or keyboard selection');
         await capture('battle-desktop');
         const attackCard=b.hand.map(uid=>r.deck.find(c=>c.uid===uid)).find(c=>CARDS[c.type].damage&&CARDS[c.type].cost<=b.energy);
         if(attackCard){
@@ -155,8 +165,16 @@ try{
           await page.locator('.enemy-hud .health-preview-tag').waitFor({timeout:5000});
           await capture('battle-hover-preview');
           await page.mouse.move(10,10);
+          await page.waitForFunction(() => document.querySelectorAll('.health-preview-tag').length === 0, {}, { timeout: 5000 });
         }
+        await page.keyboard.press('ArrowRight');
+        assert.equal(await page.evaluate(() => document.activeElement?.matches('.card-hand .game-card') ?? false), true, 'ArrowRight moves keyboard focus into the card hand');
+        await page.evaluate(() => document.querySelector('.card-hand')?.focus({ preventScroll: true }));
         await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);await capture('battle-mobile');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.setViewportSize({width:1440,height:900});battleShot=true;
+      } else if (restored && !postQuizFocusChecked) {
+        const focusedCard = await page.evaluate(() => Boolean(document.querySelector('.card-hand .game-card:focus, .card-hand .game-card:focus-visible')));
+        assert.equal(focusedCard, false, 'No hand card is automatically focused or lifted after finishing a quiz');
+        postQuizFocusChecked = true;
       }
       const cards=b.hand.map(uid=>r.deck.find(c=>c.uid===uid)).filter(c=>CARDS[c.type].cost<=b.energy);
       const intent=intentFor(b.enemy);
