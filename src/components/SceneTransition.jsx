@@ -24,7 +24,9 @@ export function SceneTransitionProvider({ motionPreference, children }) {
         later(() => {
           active.current = false;
           setStage('');
-          const target = document.querySelector('dialog[open] [data-initial-focus]:not(:disabled)') ?? document.querySelector('dialog[open] h2') ?? document.querySelector('.menu-button.is-selected');
+          const openDialogs = document.querySelectorAll('dialog[open]');
+          const topDialog = openDialogs[openDialogs.length - 1];
+          const target = topDialog?.querySelector('[data-initial-focus]:not(:disabled)') ?? topDialog?.querySelector('h2') ?? document.querySelector('.menu-button.is-selected');
           target?.focus({ preventScroll: true });
         }, mode === 'reduced' ? 140 : 380);
       }

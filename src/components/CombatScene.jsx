@@ -8,7 +8,7 @@ import LegacyCombatScene from './LegacyCombatScene.jsx';
 
 export default function CombatScene({
   enemy, effect, playerDead = false, cue, motionPreference, onBusy, onReady, onError, onImpact, onController,
-  playerIndicators, enemyIndicators, cameraView, studying = false, playerHealth = 1,
+  playerIndicators, enemyIndicators, playerUnderbar, enemyUnderbar, cameraView, studying = false, playerHealth = 1,
 }) {
   const latest = useRef(null);
   latest.current = { onBusy, onImpact };
@@ -16,46 +16,77 @@ export default function CombatScene({
   const scene = useRef(null);
   const overlay = useRef(null);
   const overheads = useRef({});
-  const bounds = useRef({ width: 0, height: 0, player: {}, enemy: {} });
+  const underbars = useRef({});
+  const bounds = useRef({ width: 0, height: 0, bottomSafe: 0, player: {}, enemy: {}, playerUnder: {}, enemyUnder: {} });
   const anchors = useRef(null);
-  const applied = useRef({ player: null, enemy: null });
+  const applied = useRef({ player: null, enemy: null, playerUnder: null, enemyUnder: null });
   const positionIndicators = useCallback((points, force = false) => {
     anchors.current = points;
     const box = bounds.current;
     if (!points || !box.width || !box.height) return;
+    const renderer = points.renderer;
+    const safeBottom = Math.max(0, Math.min(box.height * 0.48, box.bottomSafe || 0));
     for (const side of ['player', 'enemy']) {
-      const node = overheads.current[side], point = points[side], size = box[side];
-      if (!node || !point) continue;
-      const x = Math.max(size.width / 2 + 6, Math.min(box.width - size.width / 2 - 6, point.x * box.width));
-      const y = Math.max(size.height + 6, Math.min(box.height - 6, point.y * box.height));
+      const point = points[side];
+      if (!point) continue;
       const visible = point.visible !== false;
-      const renderer = points.renderer;
-      const prev = applied.current[side];
-      if (!force && prev && prev.visible === visible && prev.renderer === renderer
-        && Math.abs(prev.x - x) < 0.4 && Math.abs(prev.y - y) < 0.4) continue;
-      applied.current[side] = { x, y, visible, renderer };
-      node.style.left = `${x.toFixed(1)}px`;
-      node.style.top = `${y.toFixed(1)}px`;
-      node.style.visibility = visible ? 'visible' : 'hidden';
-      node.dataset.renderer = renderer;
+
+      const node = overheads.current[side], size = box[side];
+      if (node && size) {
+        const x = Math.max(size.width / 2 + 8, Math.min(box.width - size.width / 2 - 8, point.x * box.width));
+        const maxTop = Math.max(size.height + 10, box.height - safeBottom - 16);
+        const y = Math.max(size.height + 8, Math.min(maxTop, point.y * box.height));
+        const prev = applied.current[side];
+        if (force || !prev || prev.visible !== visible || prev.renderer !== renderer
+          || Math.abs(prev.x - x) >= 0.4 || Math.abs(prev.y - y) >= 0.4) {
+          applied.current[side] = { x, y, visible, renderer };
+          node.style.left = `${x.toFixed(1)}px`;
+          node.style.top = `${y.toFixed(1)}px`;
+          node.style.visibility = visible ? 'visible' : 'hidden';
+          node.dataset.renderer = renderer;
+        }
+      }
+
+      const underKey = side === 'player' ? 'playerUnder' : 'enemyUnder';
+      const uNode = underbars.current[side], uSize = box[underKey];
+      if (uNode && uSize) {
+        const fx = (point.footX ?? point.x) * box.width;
+        const fy = (point.footY ?? Math.min(0.84, point.y + 0.28)) * box.height;
+        const ux = Math.max(uSize.width / 2 + 10, Math.min(box.width - uSize.width / 2 - 10, fx));
+        const maxY = Math.max(48, box.height - safeBottom - uSize.height - 8);
+        const uy = Math.max(48, Math.min(maxY, fy + 10));
+        const prevU = applied.current[underKey];
+        if (force || !prevU || prevU.visible !== visible || prevU.renderer !== renderer
+          || Math.abs(prevU.x - ux) >= 0.4 || Math.abs(prevU.y - uy) >= 0.4) {
+          applied.current[underKey] = { x: ux, y: uy, visible, renderer };
+          uNode.style.left = `${ux.toFixed(1)}px`;
+          uNode.style.top = `${uy.toFixed(1)}px`;
+          uNode.style.visibility = visible ? 'visible' : 'hidden';
+          uNode.dataset.renderer = renderer;
+        }
+      }
     }
   }, []);
   useEffect(() => {
     const measure = () => {
       const host = overlay.current, player = overheads.current.player, enemy = overheads.current.enemy;
       if (!host || !player || !enemy) return;
+      const pUnder = underbars.current.player, eUnder = underbars.current.enemy;
+      const bottomSafe = parseFloat(getComputedStyle(host).getPropertyValue('--underbar-bottom-safe')) || 0;
       bounds.current = {
-        width: host.clientWidth, height: host.clientHeight,
+        width: host.clientWidth, height: host.clientHeight, bottomSafe,
         player: { width: player.offsetWidth, height: player.offsetHeight },
         enemy: { width: enemy.offsetWidth, height: enemy.offsetHeight },
+        playerUnder: pUnder ? { width: pUnder.offsetWidth, height: pUnder.offsetHeight } : { width: 0, height: 0 },
+        enemyUnder: eUnder ? { width: eUnder.offsetWidth, height: eUnder.offsetHeight } : { width: 0, height: 0 },
       };
       positionIndicators(anchors.current, true);
     };
     const observer = new ResizeObserver(measure);
-    [overlay.current, ...Object.values(overheads.current)].forEach(node => observer.observe(node));
+    [overlay.current, ...Object.values(overheads.current), ...Object.values(underbars.current)].filter(Boolean).forEach(node => observer.observe(node));
     measure();
     return () => observer.disconnect();
-  }, [positionIndicators]);
+  }, [positionIndicators, studying]);
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -166,6 +197,10 @@ export default function CombatScene({
       <div ref={node => { overheads.current.player = node; }} className="combat-overhead is-player">{playerIndicators}</div>
       <div ref={node => { overheads.current.enemy = node; }} className="combat-overhead is-enemy">{enemyIndicators}</div>
     </div>
+    {(playerUnderbar || enemyUnderbar) && <div className={`combat-underbars${busy ? ' is-busy' : ''}`}>
+      <div ref={node => { underbars.current.player = node; }} className="combat-underbar is-player">{playerUnderbar}</div>
+      <div ref={node => { underbars.current.enemy = node; }} className="combat-underbar is-enemy">{enemyUnderbar}</div>
+    </div>}
     {results.map((result) => <span key={result.id}
       className={`combat-hit-number${result.target === 'player' ? ' is-player' : ''}${result.heavy ? ' is-heavy' : ''}${result.blocked ? ' is-blocked' : ''}`}
       style={{ left: result.left === undefined ? undefined : `${result.left}%`, top: result.top === undefined ? undefined : `${result.top}%`, '--hit-x': `${(result.index % 2 ? 1 : -1) * (result.index ? 28 : 0)}px`, '--hit-y': `${-result.index * 18}px` }}

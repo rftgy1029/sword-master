@@ -64,7 +64,6 @@ async function openFixture(fixture, spec) {
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto(BASE_URL);
-  await page.getByRole('button', { name: '건너뛰기', exact: true }).click();
   assert.equal(await page.locator('.survey-dialog').count(), 0, 'No survey before clearing a dungeon');
   await page.getByRole('button', { name: /^이어하기/ }).click();
   await page.locator('.battle-screen[aria-busy="false"]').waitFor({ timeout: 25000 });
@@ -112,6 +111,8 @@ try {
     await settle(page);
     assert.equal(await page.locator('.menu-button.is-selected').evaluate((node) => node === document.activeElement), true);
     await page.getByRole('button', { name: /^새 모험/ }).click();
+    await page.locator('.tutorial-dialog[open]').waitFor();
+    await page.getByRole('button', { name: '건너뛰기', exact: true }).click();
     await page.getByRole('button', { name: '모험 닫고 타이틀로', exact: true }).click();
     await page.locator('.game-dialog').waitFor({ state: 'detached' });
     await settle(page);

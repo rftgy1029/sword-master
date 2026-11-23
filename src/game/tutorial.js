@@ -1,5 +1,9 @@
 import { emptyProgress, gameReducer, reachableNodes } from './engine.js';
 
+export function shouldOpenTutorialForMenu(menuLabel) {
+  return menuLabel === '새 모험';
+}
+
 export function createPracticeBattle() {
   // Give the learner one strike and a repeatable bronze question, even after a retry.
   const practice = gameReducer(emptyProgress(), { type: 'START', tier: 'bronze', seed: 180 });

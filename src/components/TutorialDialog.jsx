@@ -8,13 +8,14 @@ import { Card, navigateGameButtons } from './AdventureDialog.jsx';
 import BattleQuizDock from './BattleQuizDock.jsx';
 import { CombatHealthBar } from './CombatIndicators.jsx';
 import { useGraphics } from './GraphicsContext.jsx';
+import { TransitionVeil } from './SceneTransition.jsx';
 import './tutorial.css';
 
-function lessonFor(battle, attack, newAdventure) {
+function lessonFor(battle, attack, replay) {
   if (battle.turn > 1) return {
     step: 3, title: '첫 전투 연습 완료!',
-    hint: newAdventure ? '지도에서 주황색 방을 고르면 첫 전투가 시작돼요.'
-      : '새 턴이 시작됐어요. 실전에서도 적의 다음 행동을 보고 공격과 방어 카드를 골라 보세요.',
+    hint: replay ? '새 턴이 시작됐어요. 실전에서도 적의 다음 행동을 보고 공격과 방어 카드를 골라 보세요.'
+      : '이제 학습 범위를 고르고 던전에 입장해 보세요. 지도에서 주황색 방을 고르면 첫 전투가 시작돼요.',
   };
   if (battle.feedback?.correct) return {
     step: 3, title: '첫 공격 성공!',
@@ -34,7 +35,7 @@ function lessonFor(battle, attack, newAdventure) {
   };
 }
 
-export default function TutorialDialog({ replay, canContinue, onClose }) {
+export default function TutorialDialog({ replay, onClose }) {
   const dialog = useRef(null);
   const settings = useGraphics();
   const [practice, setPractice] = useState(createPracticeBattle);
@@ -45,8 +46,7 @@ export default function TutorialDialog({ replay, canContinue, onClose }) {
   const monster = MONSTERS[enemy.type];
   const sprite = MONSTER_ROWS.indexOf(monster.art);
   const finished = turn > 1;
-  const { step, title, hint } = lessonFor(battle, attack, !replay && !canContinue);
-  const adventureLabel = canContinue ? '모험 이어하기' : '새 모험 시작';
+  const { step, title, hint } = lessonFor(battle, attack, replay);
   const word = feedback && questionById(feedback.question.id).word;
 
   useEffect(() => {
@@ -71,9 +71,9 @@ export default function TutorialDialog({ replay, canContinue, onClose }) {
 
   return <dialog ref={dialog} className="game-dialog tutorial-dialog" aria-labelledby="tutorial-title"
     aria-describedby="tutorial-description" onKeyDown={navigateGameButtons}
-    onClose={(event) => onClose(event.currentTarget.returnValue === 'adventure')}>
+    onClose={() => onClose()}>
     <header className="tutorial-header">
-      <span>첫 전투 튜토리얼</span>
+      <span>모험 튜토리얼</span>
       <button type="button" className="tutorial-skip" onClick={() => dialog.current.close()}>
         {finished || replay ? '닫기' : '건너뛰기'}
       </button>
@@ -111,8 +111,9 @@ export default function TutorialDialog({ replay, canContinue, onClose }) {
         {feedback && !feedback.correct && <button className="game-primary" data-initial-focus
           onClick={() => setPractice(playCard(createPracticeBattle()))}>같은 문제 다시 풀기</button>}
         {finished && <button className="game-primary" data-initial-focus
-          onClick={() => dialog.current.close(replay ? '' : 'adventure')}>{replay ? '설정으로 돌아가기' : adventureLabel}</button>}
+          onClick={() => dialog.current.close()}>{replay ? '설정으로 돌아가기' : '새 모험 시작'}</button>}
       </section>
     </div>
+    <TransitionVeil />
   </dialog>;
 }

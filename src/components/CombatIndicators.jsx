@@ -54,7 +54,7 @@ export function CombatHealthBar({
         style={{ left: percent(previewValue), width: `${clampPct(value) - clampPct(previewValue)}%` }} aria-hidden="true" />}
       {hasHealPreview && <span className="health-preview-band is-heal"
         style={{ left: percent(value), width: `${clampPct(previewValue) - clampPct(value)}%` }} aria-hidden="true" />}
-      <span className="health-value" aria-hidden="true">HP {value} / {max}</span>
+      <span className="health-value" aria-hidden="true">{value}/{max}</span>
       {previewLabel && <span className={`health-preview-tag is-${previewKind}`} aria-hidden="true">{previewLabel}</span>}
     </div>
   </div>;
@@ -66,8 +66,11 @@ export function CombatEnergy({ energy, maxEnergy = 3, playable, previewCost = 0,
     aria-label={`에너지 ${energy}, 이번 턴 낼 수 있는 카드 ${playable}장`}>
     <div className="sts-energy-orb" title={`에너지 ${energy} / ${maxEnergy} (매 턴 ${maxEnergy} 회복)`}>
       <span className="sts-energy-ring" aria-hidden="true" />
-      <strong className="sts-energy-current">{energy}</strong>
-      <small className="sts-energy-max">/{maxEnergy}</small>
+      <span className="sts-energy-core" aria-hidden="true" />
+      <span className="sts-energy-readout">
+        <strong className="sts-energy-current">{energy}</strong>
+        <small className="sts-energy-max">/{maxEnergy}</small>
+      </span>
       {hasPreview && <em className="sts-energy-preview" aria-hidden="true">→{previewAfter}</em>}
     </div>
     <div className="energy-meta">
@@ -78,7 +81,7 @@ export function CombatEnergy({ energy, maxEnergy = 3, playable, previewCost = 0,
           return <span key={index} className={`energy-gem${filled ? ' is-filled' : ''}${willSpend ? ' is-spending' : ''}`} />;
         })}
       </div>
-      <span className="energy-label">에너지{playable > 0 ? ` · ${playable}장 가능` : ' · 턴 종료'}</span>
+      <span className="energy-label">에너지{playable > 0 ? ` · ${playable}장` : ' · 종료'}</span>
     </div>
   </div>;
 }

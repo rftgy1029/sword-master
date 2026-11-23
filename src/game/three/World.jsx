@@ -297,6 +297,7 @@ function BattleActors({ state, director, quality, reduced, onAnchors }) {
   const impact = useRef({ heroX: -2.3, enemyX: ENEMY_HOME });
   const heroAnchor = useRef(null), enemyAnchor = useRef(null);
   const projected = useRef(new THREE.Vector3());
+  const footProjected = useRef(new THREE.Vector3());
   const anchors = useRef({ renderer: '3d', player: {}, enemy: {} });
   const lastActive = useRef(null);
   useFrame(({ clock }, delta) => {
@@ -346,7 +347,17 @@ function BattleActors({ state, director, quality, reduced, onAnchors }) {
     for (const [side, anchor] of [['player', heroAnchor.current], ['enemy', enemyAnchor.current]]) {
       anchor.head.updateWorldMatrix(true, false);
       const point = projected.current.copy(anchor.point).applyMatrix4(anchor.head.matrixWorld).project(camera);
-      Object.assign(anchors.current[side], { x: (point.x + 1) / 2, y: (1 - point.y) / 2, visible: anchor.root.visible });
+      anchor.root.updateWorldMatrix(true, false);
+      const foot = footProjected.current.setFromMatrixPosition(anchor.root.matrixWorld);
+      foot.y = 0;
+      foot.project(camera);
+      Object.assign(anchors.current[side], {
+        x: (point.x + 1) / 2,
+        y: (1 - point.y) / 2,
+        footX: (foot.x + 1) / 2,
+        footY: (1 - foot.y) / 2,
+        visible: anchor.root.visible,
+      });
     }
     onAnchors(anchors.current);
   });

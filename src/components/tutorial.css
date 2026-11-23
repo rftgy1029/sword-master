@@ -80,11 +80,11 @@ dialog.game-dialog.tutorial-dialog::backdrop { background: #100b1bbf; }
 .tutorial-progress [aria-current] { border-color: var(--sun); color: var(--sun); font-weight: 700; }
 .tutorial-dialog #tutorial-title { font-size: calc(22px * var(--text-scale)); font-weight: 700; line-height: 1.45; word-break: keep-all; }
 .tutorial-dialog #tutorial-description { margin: 6px 0 16px; line-height: 1.65; word-break: keep-all; }
-.tutorial-hand { display: flex; align-items: center; gap: clamp(12px, 3vw, 22px); margin-top: 14px; }
+.tutorial-hand { display: flex; align-items: center; gap: clamp(12px, 3vw, 22px); margin-top: 14px; padding-left: 6px; }
 .tutorial-hand small { color: var(--muted); font-size: calc(12px * var(--text-scale)); word-break: keep-all; }
 .tutorial-hand div > small { display: block; line-height: 1.6; }
-.tutorial-hand .game-card { min-height: 0; flex: 0 0 130px; gap: 5px; }
-.tutorial-hand .card-art { height: 35px; min-height: 0; }
+.tutorial-hand .game-card { min-height: 0; flex: 0 0 138px; gap: 5px; }
+.tutorial-hand .game-card .card-art { height: 42px; min-height: 0; }
 .tutorial-dialog .tutorial-word {
   padding: 10px 14px;
   border-left: 3px solid var(--sun);
@@ -98,5 +98,5 @@ dialog.game-dialog.tutorial-dialog::backdrop { background: #100b1bbf; }
   .tutorial-lesson { padding-top: 12px; }
   .tutorial-stage { height: 118px; }
   .tutorial-duel > :is(img, span) { width: 96px; }
-  .tutorial-hand .game-card { flex-basis: 111px; }
+  .tutorial-hand .game-card { flex-basis: 120px; }
 }

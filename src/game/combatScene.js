@@ -228,6 +228,8 @@ export function startCombatScene(parent, monsterType, { playback, initialEffectI
         const point = anchors[side];
         point.x = (this.stage.x + actor.x * this.stage.scaleX) / this.scale.width;
         point.y = (this.stage.y + (actor.y - head * actor.scaleY) * this.stage.scaleY) / this.scale.height;
+        point.footX = point.x;
+        point.footY = (this.stage.y + this.floor * this.stage.scaleY) / this.scale.height;
         point.visible = actor.alpha > .1;
       }
       onAnchors(anchors);

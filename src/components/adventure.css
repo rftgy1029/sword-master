@@ -81,10 +81,12 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .tier-selection-scroll { display: flex; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 14px 24px; }
 .tier-selection-content, .tier-entry-content { width: 100%; max-width: 900px; margin: 0 auto; }
 .tier-selection-content { position: relative; display: flex; flex-direction: column; gap: 10px; margin: auto; }
-.tier-selection-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tier-selection-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 10px; }
 .game-dialog .tier-selection-heading h3 { margin: 0; font-size: calc(21px * var(--text-scale)); }
-.tier-heading-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tier-heading-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .tier-book-select { width: 190px; max-width: 100%; min-width: 0; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); color: var(--ivory); font: inherit; font-size: calc(12px * var(--text-scale)); }
+.game-dialog .tier-tutorial-button { min-height: 40px; padding: 8px 12px; border: 1px solid #8a6c47; border-radius: 8px; background: var(--plum-raised, #2e2438); color: var(--sun, var(--amber)); font: inherit; font-size: calc(12px * var(--text-scale)); line-height: 1.2; white-space: nowrap; cursor: pointer; }
+.game-dialog .tier-tutorial-button:hover { border-color: var(--sun, var(--amber)); background: var(--plum-hover, #3d2e4c); color: var(--ivory); }
 .game-dialog .tier-selection-help { margin: 0; font-size: calc(13px * var(--text-scale)); }
 .tier-selection .adventure-tiers { margin: 0; }
 .adventure-tiers { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; margin: 26px 0; }
@@ -126,6 +128,7 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .game-dialog .tier-selection-heading h3 { font-size: calc(16px * var(--text-scale)); white-space: nowrap; }
   .tier-heading-actions { gap: 6px; }
   .tier-book-select { width: 110px; min-height: 36px; padding: 5px; font-size: calc(11px * var(--text-scale)); }
+  .game-dialog .tier-tutorial-button { min-height: 36px; padding: 6px 8px; font-size: calc(11px * var(--text-scale)); }
   .tier-guide summary { min-height: 36px; padding: 6px; font-size: calc(11px * var(--text-scale)); }
   .tier-guide-title, .game-dialog .tier-selection-help { display: none; }
   .tier-selection .adventure-tiers { grid-template-columns: 1fr; }
@@ -158,7 +161,7 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .tier-selection .tier-condition-compact { display: inline; }
   .tier-selection .tier-choice { min-height: 72px; padding: 6px 4px; gap: 3px; }
   .tier-selection .tier-choice strong { font-size: calc(12px * var(--text-scale)); }
-  .tier-guide summary, .tier-book-select { min-height: 32px; padding-block: 4px; }
+  .game-dialog .tier-tutorial-button, .tier-guide summary, .tier-book-select { min-height: 32px; padding-block: 4px; }
   .tier-entry-actions { padding: 8px 16px 10px; }
   .tier-entry-summary > .game-eyebrow { display: none; }
 }

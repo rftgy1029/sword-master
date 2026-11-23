@@ -48,7 +48,7 @@ const read=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('sword-master.a
 const shot=name=>page.screenshot({path:`${artifactRoot}3d-${name}.png`});
 try{
   await page.goto(BASE_URL);
-  await page.getByRole('button', { name: '건너뛰기', exact: true }).click();
+  assert.equal(await page.locator('.tutorial-dialog[open]').count(), 0, 'Title screen opens without blocking tutorial');
   await page.getByRole('button',{name:/^이어하기/}).click();
   await page.locator('.quiz-options button:not(:disabled)').nth(3).waitFor({timeout:20000});
   assert.equal(await page.locator('.battle-quiz-backdrop').count(),0,'Inline quiz renders without a dimmed modal backdrop');
@@ -110,7 +110,6 @@ try{
     },progress);
     const view=await other.newPage();view.on('pageerror',e=>errors.push(e.message));
     await view.goto(BASE_URL);
-    await view.getByRole('button', { name: '건너뛰기', exact: true }).click();
     await view.getByRole('button',{name:/^이어하기/}).click();
     if(kind==='map'){
       await view.locator('.map-overview .route-map').waitFor({timeout:20000});
@@ -169,11 +168,11 @@ try{
   },defeat);
   const loss=await last.newPage();loss.on('pageerror',e=>errors.push(e.message));
   await loss.goto(BASE_URL);
-  await loss.getByRole('button', { name: '건너뛰기', exact: true }).click();
   await loss.getByRole('button',{name:/^이어하기/}).click();
   await loss.locator('.end-turn:not(:disabled)').waitFor({timeout:20000});
+  await loss.waitForFunction(()=>!document.querySelector('.scene-transition'));
   await loss.locator('.end-turn').click();
-  await loss.locator('.run-result .scene-view[aria-busy="false"]').waitFor({timeout:20000});
+  await loss.locator('.run-result .scene-view[aria-busy="false"]').waitFor({timeout:35000});
   const lost=await loss.evaluate(()=>JSON.parse(localStorage.getItem('sword-master.adventure.v1')).progress);
   assert.equal(lost.run.phase,'result');assert.equal(lost.run.result.won,false);assert.equal(lost.run.hp,0);
   await loss.screenshot({path:artifactRoot+'3d-defeat.png'});
@@ -193,7 +192,6 @@ try{
   await survey.locator('.graphics-setup-actions .game-primary').click();
   await survey.locator('.graphics-setup-card').waitFor({state:'detached',timeout:15000});
   await survey.locator('.scene-view[aria-busy="false"]').waitFor({timeout:25000});
-  await survey.getByRole('button', { name: '건너뛰기', exact: true }).click();
   const surveyButton=survey.getByRole('button',{name:/^설문 참여/});
   await surveyButton.waitFor();
   assert.equal(await survey.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
