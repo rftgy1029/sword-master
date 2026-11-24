@@ -8,6 +8,7 @@ import { Card, navigateGameButtons } from './AdventureDialog.jsx';
 import BattleQuizDock from './BattleQuizDock.jsx';
 import { CombatHealthBar } from './CombatIndicators.jsx';
 import { useGraphics } from './GraphicsContext.jsx';
+import { ADMIN_MODE, useAdmin } from '../admin/entry.js';
 import { TransitionVeil } from './SceneTransition.jsx';
 import './tutorial.css';
 
@@ -38,6 +39,7 @@ function lessonFor(battle, attack, replay) {
 export default function TutorialDialog({ replay, onClose }) {
   const dialog = useRef(null);
   const settings = useGraphics();
+  const admin = useAdmin();
   const [practice, setPractice] = useState(createPracticeBattle);
   const { deck, battle } = practice.run;
   const { enemy, feedback, pending, turn, energy } = battle;
@@ -102,7 +104,7 @@ export default function TutorialDialog({ replay, onClose }) {
           <div><p id="tutorial-description">{hint}</p><small>연습 결과는 학습 기록에 남지 않아요.</small></div>
         </div> : <p id="tutorial-description">{hint}</p>}
         {pending && <BattleQuizDock question={pending.question} card={card} cardName={attack.name}
-          shortcutMode={settings.shortcutConfirm} onAnswer={answerQuestion} />}
+          shortcutMode={settings.shortcutConfirm} showAnswerHint={ADMIN_MODE && admin.cheats.showAnswer} onAnswer={answerQuestion} />}
         {feedback && <p className="tutorial-word" role="status"><strong lang="en">{word.term}</strong> {word.meaning}</p>}
         {feedback?.correct && <>
           <p className="tutorial-intent">적의 다음 행동 · {intentFor(enemy).label}</p>

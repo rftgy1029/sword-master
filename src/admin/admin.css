@@ -432,6 +432,11 @@
     top: 56px;
     bottom: clamp(248px, 31svh, 286px);
   }
+
+  .game-dialog:has(.route-map) .admin-fab {
+    top: auto;
+    bottom: 168px;
+  }
 }
 
 .admin-drawer-foot {

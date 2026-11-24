@@ -319,7 +319,7 @@ function GameApp({ settings, setSettings }) {
         />
       )}
       {ADMIN_MODE && (
-        <AdminOverlay progress={progress} dispatch={dispatch} resetProgress={resetProgress} openedMenu={openedMenu} />
+        <AdminOverlay progress={progress} dispatch={dispatch} resetProgress={resetProgress} openedMenu={openedMenu} tutorialOpen={tutorialVisible} />
       )}
     </div>
   );

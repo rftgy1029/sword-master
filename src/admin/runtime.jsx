@@ -146,7 +146,8 @@ export function useAdmin() {
   return ctx;
 }
 
-function describeContext(progress, openedMenu) {
+function describeContext(progress, openedMenu, tutorialOpen = false) {
+  if (tutorialOpen) return '모험 튜토리얼';
   const run = progress?.run;
   const review = progress?.review;
   if (openedMenu === '오답 복습') {
@@ -167,7 +168,7 @@ function describeContext(progress, openedMenu) {
   return '타이틀 화면';
 }
 
-export function AdminOverlay({ progress, dispatch, resetProgress, openedMenu }) {
+export function AdminOverlay({ progress, dispatch, resetProgress, openedMenu, tutorialOpen = false }) {
   const admin = useAdmin();
   const [portalTarget, setPortalTarget] = useState(() => document.body);
   const [notice, setNotice] = useState('');
@@ -201,7 +202,7 @@ export function AdminOverlay({ progress, dispatch, resetProgress, openedMenu }) 
       attributeFilter: ['open'],
     });
     return () => observer.disconnect();
-  }, [openedMenu]);
+  }, [openedMenu, tutorialOpen]);
 
   const run = progress?.run;
   const wordbooks = progress?.wordbooks ?? [];
@@ -306,7 +307,7 @@ export function AdminOverlay({ progress, dispatch, resetProgress, openedMenu }) 
           </header>
 
           <div className="admin-context-bar">
-            <span>현재 상태 · <strong>{describeContext(progress, openedMenu)}</strong></span>
+            <span>현재 상태 · <strong>{describeContext(progress, openedMenu, tutorialOpen)}</strong></span>
             {notice && <p className="admin-feedback" role="status">{notice}</p>}
           </div>
 
