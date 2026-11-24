@@ -3,6 +3,8 @@ import { useLayoutEffect, useRef, useState } from 'react';
 export function useCardDeal({ section, canvas, cards, turn, drawCount, suspended, animateOpening, motionPreference, onOpeningDone }) {
   const [hidden, setHidden] = useState(() => animateOpening ? cards.map((card) => card.uid) : []);
   const [busy, setBusy] = useState(animateOpening);
+  // 아직 뽑기 더미를 떠나지 않은 카드(더미 숫자를 한 장씩 줄여 보여 주는 데 사용)
+  const [inDeck, setInDeck] = useState(() => animateOpening ? cards.map((card) => card.uid) : []);
   const previous = useRef(animateOpening ? null : { turn, drawCount, ids: cards.map((card) => card.uid) });
   const controller = useRef(null);
   const loader = useRef(null);
@@ -39,27 +41,25 @@ export function useCardDeal({ section, canvas, cards, turn, drawCount, suspended
     previous.current = { turn, drawCount, ids: cards.map((card) => card.uid) };
     const reduced = motionPreference !== 'normal' || matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!nextCards.length || reduced) {
-      setHidden([]); setBusy(false); onDone.current?.(); return;
+      setHidden([]); setInDeck([]); setBusy(false); onDone.current?.(); return;
     }
+    const reshuffle = !!before && before.drawCount < nextCards.length;
     drawing.current = true;
     setBusy(true); setHidden(nextCards.map((card) => card.uid));
+    setInDeck(reshuffle ? [] : nextCards.map((card) => card.uid));
     const finish = () => {
       if (!alive.current || generation.current !== currentGeneration) return;
-      drawing.current = false; setHidden([]); setBusy(false); onDone.current?.();
+      drawing.current = false; setHidden([]); setInDeck([]); setBusy(false); onDone.current?.();
     };
     loader.current.then((renderer) => {
       if (!alive.current || generation.current !== currentGeneration || !renderer) return;
-      const bounds = canvas.current.getBoundingClientRect();
-      const point = (element) => {
-        const box = element.getBoundingClientRect();
-        return { x: box.left + box.width / 2 - bounds.left, y: box.top + box.height / 2 - bounds.top, width: box.width, height: box.height };
-      };
-      const source = point(section.current.querySelector('.draw-pile'));
-      const discard = point(section.current.querySelector('.discard-pile'));
-      const targets = nextCards.map((card) => point(section.current.querySelector('[data-card-uid="' + card.uid + '"]')));
-      return renderer.play({ cards: nextCards, targets, source, discard, reshuffle: !!before && before.drawCount < nextCards.length,
+      const root = section.current;
+      const source = root.querySelector('.draw-pile');
+      const targets = nextCards.map((card) => root.querySelector('[data-card-uid="' + card.uid + '"]'));
+      return renderer.play({ cards: nextCards, targets, source, reshuffle,
+        onLaunch: (uid) => { if (alive.current) setInDeck((current) => current.filter((id) => id !== uid)); },
         onArrive: (uid) => { if (alive.current) setHidden((current) => current.filter((id) => id !== uid)); } });
     }).then(finish, finish);
   }, [ids, turn, drawCount, suspended, motionPreference, cards, canvas, section]);
-  return { hidden, busy };
+  return { hidden, busy, inDeck };
 }

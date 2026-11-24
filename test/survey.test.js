@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyProgress, gameReducer, reachableNodes } from '../src/game/engine.js';
+import { mapPaths } from '../src/game/dungeonMap.js';
 import { questionById } from '../src/game/quiz.js';
 import { validProgress } from '../src/game/storage.js';
 import { MENU_REACTIONS, MENU_WORDS, matchTyped } from '../src/titleWords.js';
@@ -21,7 +22,8 @@ function finishRun(progress, tier, won) {
   if (won) {
     p.run.floor = 7;
     p.run.lane = 1;
-    p.run.visited = p.run.map.slice(0, 8).map((row) => row.find((n) => n.lane === 1)?.id ?? row[0].id);
+    // 지나온 길은 지도에 실제로 이어진 경로여야 한다.
+    p.run.visited = mapPaths(p.run.map)[0].map((n) => n.id);
     p.run.battle.enemy.hp = 0;
     return gameReducer(p, { type: 'ACK' });
   }

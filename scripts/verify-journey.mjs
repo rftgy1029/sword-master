@@ -122,6 +122,7 @@ try{
         assert.equal(await page.locator('.battle-quiz-backdrop').count(),0,'Inline dock quiz never covers the battlefield');
         await page.locator('.battle-dock .battle-quiz-dock').waitFor();
         await capture('quiz-desktop');
+        await page.locator('.is-battle-topbar .battle-menu summary').click();
         await page.getByRole('button',{name:'모험 닫고 타이틀로',exact:true}).click();
         await page.evaluate(() => localStorage.setItem('sword-master.adventure.v1.tutorial', 'seen'));
         await page.reload();

@@ -79,6 +79,7 @@
 - 모델·이미지 원본, 생성 스크립트, 실행용 산출물의 관계를 확인한다. 재생성으로 덮어쓰는 자산은 원본이나 생성 절차에도 변경을 반영한다.
   - 몬스터 12종 GLB(`public/models/*.glb`, `manifest.json`)와 `.blend`(`assets/models/*.blend`): `scripts/create_3d_assets.py` · `mesh_sculpt.py` · `monsters_wild.py` · `monsters_guardian.py` (`npm run assets:models`, Blender 4.3+). `.blend`를 직접 수정하면 재생성 시 덮어쓴다.
   - 용사(`public/models/hero.glb`): `scripts/import_kenney_hero.py` (`npm run assets:hero3d`), 던전 부품(`public/models/dungeon-kit.glb`): `scripts/build_kenney_dungeon.py` (`npm run assets:dungeon`).
+  - 경로 지도 미니어처(`public/models/map-tokens.glb`, `assets/models/map-tokens.blend`): `scripts/create_map_tokens.py` (`npm run assets:map`, MCP for Blender에서 exec 가능). 3D 경로 탑 단면은 `src/game/three/RouteTower.jsx`(지금 층·다음 층 확대, 계단·사다리, 오른쪽 전체 경로 미니맵 `RouteMiniMap`), 이동 규칙과 길 생성은 `src/game/dungeonMap.js`.
   - 전투 이펙트 텍스처(`public/effects/`): `scripts/export_combat_textures.py` (Pillow).
   - 카드 12종 일러스트(`assets/cards/*.webp`): `src/game/cardArt.js`로 Vite 번들에 포함.
   - 2D 일러스트·보관 픽셀 용사: `scripts/export_illustrations.mjs` (`npm run assets:illustrations`), `scripts/export_hero.py` (`npm run assets:hero`, `npm run assets:check`).

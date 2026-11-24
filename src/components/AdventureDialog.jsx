@@ -22,7 +22,7 @@ import { createCombatAudio } from '../game/combatAudio.js';
 import { cardArtUrl } from '../game/cardArt.js';
 import GameIcon from './ui/GameIcon.jsx';
 import FloatingTooltip, { useTooltipTrigger } from './ui/FloatingTooltip.jsx';
-import RouteMap, { ROUTE_STATUS_TEXT, RouteLegend } from './RouteMap.jsx';
+import RouteMap, { ROUTE_STATUS_TEXT, RouteLegend, RouteMiniMap } from './RouteMap.jsx';
 import { ROUTE_LOOK, routeMapState } from '../game/routeMap.js';
 import { ADMIN_MODE, useAdmin } from '../admin/entry.js';
 import './adventure.css';
@@ -127,6 +127,40 @@ function BattleRelicChip({ relic, onInspect }) {
   </span>;
 }
 
+const PILE_INFO = {
+  draw: {
+    className: 'draw-pile', label: '뽑기', title: '뽑을 카드 더미',
+    lines: ['매 턴 시작에 여기서 카드 5장을 뽑아 손패로 가져와요.', '더미가 비면 버린 카드를 섞어 다시 채워요.'],
+    hint: '클릭하면 내 덱 전체를 볼 수 있어요.',
+  },
+  discard: {
+    className: 'discard-pile', label: '버림', title: '버린 카드 더미',
+    lines: ['사용한 카드와 턴 종료 때 남은 손패가 여기에 쌓여요.', '뽑을 카드가 떨어지면 이 카드들을 섞어 뽑기 더미로 되돌려요.'],
+    hint: '클릭하면 전투 기록을 볼 수 있어요.',
+  },
+};
+
+function PileButton({ kind, count, exhaust = 0, onClick }) {
+  const info = PILE_INFO[kind];
+  const { open, setOpen, host, id, hostProps, buttonProps } = useTooltipTrigger(true);
+  const label = kind === 'draw' ? `뽑을 카드 ${count}장` : `버린 카드 ${count}장, 소멸 ${exhaust}장`;
+  return <span {...hostProps} className={`deck-pile-host is-${kind}`}>
+    <button type="button" className={`deck-pile ${info.className}`} aria-label={label}
+      {...buttonProps}
+      onClick={(event) => { buttonProps.onClick(event); onClick?.(); }}>
+      <span className="pile-stack" aria-hidden="true"><GameIcon name="deck" /></span>
+      <strong className="pile-count">{count}</strong>
+      <small className="pile-label">{info.label}</small>
+    </button>
+    {open && <FloatingTooltip anchor={host} id={id} className="pile-tooltip" onDismiss={() => setOpen(false)}>
+      <strong>{info.title} · {count}장</strong>
+      {info.lines.map((line) => <span key={line}>{line}</span>)}
+      {kind === 'discard' && exhaust > 0 && <span>소멸된 카드 {exhaust}장은 이번 전투에서 다시 나오지 않아요.</span>}
+      <em className="pile-tooltip-hint">{info.hint}</em>
+    </FloatingTooltip>}
+  </span>;
+}
+
 function Relic({ relic, children }) {
   const r = RELICS[relic.id];
   return <div className="relic-item"><span className="relic-icon" aria-hidden="true">{r.icon}</span><div>
@@ -141,6 +175,9 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
   const map = useMemo(() => routeMapState(run, { inspecting }), [run, inspecting]);
   const [destination, setDestination] = useState(null);
   const [highlight, setHighlight] = useState(null);
+  // 3D 보드가 준비되면 방들의 화면 위치(anchors)를 받아 DOM 버튼을 그 위에 겹친다. 실패·2D면 평면 지도 그대로.
+  const [boardReady, setBoardReady] = useState(false);
+  const [anchors, setAnchors] = useState(null);
   const timer = useRef(null);
   const selecting = useRef(false);
   const shortcut = useRef(null);
@@ -150,7 +187,8 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
     selecting.current = true;
     setDestination(node);
     const still = motionPreference !== 'normal' || matchMedia('(prefers-reduced-motion: reduce)').matches;
-    timer.current = setTimeout(() => onSelect(node.id), still ? 0 : 420);
+    // 3D 탑에서는 기사가 계단·사다리를 오르는 시간(CLIMB_MS)만큼 기다렸다가 이동한다.
+    timer.current = setTimeout(() => onSelect(node.id), still ? 0 : boardReady ? 660 : 420);
   };
   // 전투 카드와 같은 방식: 숫자 키를 한 번 누르면 그 길을 고르고, 같은 키를 한 번 더 누르면 이동한다.
   useEffect(() => {
@@ -177,7 +215,10 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
   return <section ref={section} className="dungeon-map living-map" aria-label="던전 경로">
     <div className="map-layout">
       <div className="map-overview"><RouteMap map={map} routes={routes} highlight={highlight} destination={destination}
-        onHighlight={setHighlight} onChoose={choose} /></div>
+        onHighlight={setHighlight} onChoose={choose} anchors={boardReady ? anchors : null}
+        background={<SceneView mode="map" className={`route-board-scene${boardReady ? '' : ' is-pending'}`} routeMap={map} routeFocus={destination?.id ?? highlight}
+          routeDestination={destination} onAnchors={setAnchors} motionPreference={motionPreference} fallback={<span />}
+          onLoaded={() => setBoardReady(true)} onFailure={() => { setBoardReady(false); setAnchors(null); }} />} /></div>
       <aside className="map-selection" aria-label="경로 선택">
         <div className="map-selection-head"><h4>{inspecting ? '지나온 길' : '어디로 갈까요?'}</h4>
           <span className="map-floor-chip">{inspecting ? `${floorLabel(run.floor)} / 8층` : `${floorLabel(run.floor + 1)} / 8층`}</span></div>
@@ -192,6 +233,7 @@ function DungeonMap({ run, onSelect, inspecting = false, motionPreference = 'nor
             <span className="route-option-word" aria-hidden="true">{ROUTE_LOOK[node.type].word}</span>
           </button>)}
         </div>}
+        {boardReady && <RouteMiniMap map={map} focus={destination?.id ?? highlight} />}
         <p className="map-place-summary" aria-live="polite">
           {shown ? <><b>{floorLabel(shown.floor)} {NODE_TYPES[shown.type].name}</b> · {ROUTE_STATUS_TEXT[shown.status]}<br/><span>{NODE_TYPES[shown.type].hint}</span></>
             : inspecting ? <><b>▸</b> 금빛 길이 지금까지 지나온 길이에요.</>
@@ -270,6 +312,8 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
     suspended: locked || skillBusy || loading, animateOpening,
     motionPreference: visualStatus === 'fallback' ? 'off' : motionPreference, onOpeningDone });
   const busy = loading || skillBusy || (!inQuiz && deal.busy) || fatal;
+  // 카드 분배 연출만 진행 중일 때: 입력은 막되(playCard의 busy 검사) 카드가 흐리게 '사용 불가'로 보이지 않게 한다.
+  const dealOnly = !inQuiz && deal.busy && !loading && !skillBusy && !fatal;
 
   useEffect(() => {
     if (locked || busy) {
@@ -563,12 +607,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
           <CombatEnergy energy={shownEnergy} playable={playableCount}
             previewCost={infiniteEnergy ? 0 : (cardPreview?.cost ?? 0)}
             previewAfter={infiniteEnergy ? null : (cardPreview ? cardPreview.energyAfter : null)} />
-          <button type="button" className="deck-pile draw-pile" onClick={() => onInspect?.('deck')}
-            aria-label={`뽑을 카드 ${b.draw.length}장`} title={`뽑을 카드 ${b.draw.length}장 (클릭해 덱 보기)`}>
-            <span className="pile-stack" aria-hidden="true"><GameIcon name="deck" /></span>
-            <strong className="pile-count">{b.draw.length}</strong>
-            <small className="pile-label">뽑기</small>
-          </button>
+          <PileButton kind="draw" count={b.draw.length + deal.inDeck.length} onClick={() => onInspect?.('deck')} />
         </div>
 
         {inQuiz ? (
@@ -587,7 +626,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
             onSkipReveal={skipWrongReveal}
           />
         ) : (
-          <div className="card-hand" style={{ '--hand-count': hand.length }} tabIndex={-1}
+          <div className={`card-hand${dealOnly ? ' is-dealing-hand' : ''}`} style={{ '--hand-count': hand.length }} tabIndex={-1}
             data-initial-focus={!inQuiz && playableCount > 0 ? '' : undefined}
             data-keyboard-group aria-label="손에 든 카드">
             {hand.map((card, index) => {
@@ -596,7 +635,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
               return <Card key={card.uid} card={card} compact shortcut={index < 5 ? index + 1 : undefined}
                 style={{ '--card-offset': offset }}
                 liveEffects={liveCardEffects(run, card)}
-                hidden={deal.hidden.includes(card.uid)} disabled={locked || busy || !playable}
+                hidden={deal.hidden.includes(card.uid)} disabled={locked || (busy && !dealOnly) || !playable}
                 onPreviewStart={(event) => {
                   if (event.type === 'focus') {
                     if (event.currentTarget.matches(':focus-visible')) setFocusedCardUid(card.uid);
@@ -627,12 +666,7 @@ function Battle({ run, wordbooks, dispatch, motionPreference, shortcutConfirm = 
             disabled={locked || busy}
             data-initial-focus={!inQuiz && !locked && playableCount === 0 ? '' : undefined}
             onClick={endTurn}><span>턴 종료</span><kbd className="end-turn-key" aria-hidden="true">↵</kbd></button>
-          <button type="button" className="deck-pile discard-pile" onClick={() => onInspect?.('log')}
-            aria-label={`버린 카드 ${b.discard.length}장, 소멸 ${b.exhaust.length}장`} title={`버린 카드 ${b.discard.length}장 · 소멸 ${b.exhaust.length}장`}>
-            <span className="pile-stack" aria-hidden="true"><GameIcon name="deck" /></span>
-            <strong className="pile-count">{b.discard.length}</strong>
-            <small className="pile-label">버림</small>
-          </button>
+          <PileButton kind="discard" count={b.discard.length} exhaust={b.exhaust.length} onClick={() => onInspect?.('log')} />
         </div>
       </div>
 
@@ -1039,7 +1073,7 @@ function Result({ run, scopeLabel, progress, onClose }) {
   </section>;
 }
 
-export default function AdventureDialog({ progress, dispatch, error, newAdventure, onTutorial, onClose, motionPreference, shortcutConfirm = 'single' }) {
+export default function AdventureDialog({ progress, dispatch, error, newAdventure, onTutorial, onClose, motionPreference, shortcutConfirm = 'single', onOpenSettings }) {
   const dialog = useRef(null);
   const transition = useSceneTransition();
   const requestClose = () => transition(() => dialog.current.close());
@@ -1109,25 +1143,29 @@ export default function AdventureDialog({ progress, dispatch, error, newAdventur
           <span className="topbar-floor" title={`${run.floor + 1}층 / 전체 8층`}>
             <GameIcon name="stairs" /><strong>{run.floor + 1}</strong><small>/8층</small>
           </span>
-          <span className="battle-save-status" title={error || '선택할 때마다 자동 저장'}>{error ? '저장 확인' : '자동 저장'}</span>
+          {error && <span className="battle-save-status is-error" title={error}>저장 확인</span>}
         </div>
         <div className="game-header-actions topbar-actions">
-          <button type="button" className="topbar-icon-btn" aria-label="던전 경로" title="던전 경로" onClick={() => openInspect('map')}>
-            <GameIcon name="map" />
-          </button>
-          <button type="button" className="topbar-icon-btn is-deck" aria-label={`나의 덱 · ${run.deck.length}장`} title={`나의 덱 · ${run.deck.length}장`} onClick={() => openInspect('deck')}>
-            <GameIcon name="deck" />
-            <em className="topbar-badge" aria-hidden="true">{run.deck.length}</em>
-          </button>
           <details className="battle-menu" ref={battleMenu}>
-            <summary aria-label="전투 메뉴" title="전투 메뉴"><GameIcon name="gear" /></summary>
-            <div className="battle-menu-content"><p className="gold-text">◈ 금화 {run.gold}</p>
-              <div data-keyboard-group>{[['deck', `나의 덱 · ${run.deck.length}장`], ['relics', `보유 유물 · ${run.relics.length}개`], ['map', '던전 경로'], ['log', '전투 기록 · 규칙']].map(([id, label]) =>
-                <button key={id} onClick={() => openInspect(id)}>{label}</button>)}</div>
-              <p>뽑을 카드 {run.battle.draw.length} · 버린 카드 {run.battle.discard.length} · 소멸 {run.battle.exhaust.length}</p>
+            <summary aria-label="전투 메뉴 열기" title="전투 메뉴"><GameIcon name="menu" /><span className="battle-menu-label">메뉴</span></summary>
+            <div className="battle-menu-content">
+              <p className="battle-menu-heading">전투 메뉴</p>
+              <div className="battle-menu-items" data-keyboard-group>
+                {[['deck', 'deck', '나의 덱', `${run.deck.length}장`], ['relics', 'spark', '보유 유물', `${run.relics.length}개`], ['map', 'map', '던전 경로', `${run.floor + 1}/8층`], ['log', 'scroll', '전투 기록 · 규칙', '']].map(([id, icon, label, meta]) =>
+                  <button key={id} type="button" className="battle-menu-item" onClick={() => openInspect(id)}>
+                    <GameIcon name={icon} /><span>{label}</span>{meta && <small>{meta}</small>}
+                  </button>)}
+                {onOpenSettings && <button type="button" className="battle-menu-item" onClick={() => { battleMenu.current.open = false; onOpenSettings(); }}>
+                  <GameIcon name="gear" /><span>설정</span><small>화면·소리·조작</small>
+                </button>}
+                <button type="button" className="battle-menu-item is-exit" aria-label="모험 닫고 타이틀로"
+                  onClick={() => { battleMenu.current.open = false; requestClose(); }}>
+                  <GameIcon name="exit" /><span>타이틀로 나가기</span><small>자동 저장됨</small>
+                </button>
+              </div>
+              <p className={`battle-menu-save${error ? ' is-error' : ''}`}>{error ? '저장을 확인해 주세요' : '선택할 때마다 자동 저장돼요'}</p>
             </div>
           </details>
-          <button className="settings-close" aria-label="모험 닫고 타이틀로" title="모험 닫고 타이틀로" onClick={requestClose}>×</button>
         </div>
       </header>
     ) : (

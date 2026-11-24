@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -17,6 +17,7 @@ import { setActorOutlines, setHitFlash, setOutlineScale, stylizeActor } from './
 import CombatAtmosphere from './CombatAtmosphere.jsx';
 import SwordTrail from './SwordTrail.jsx';
 import ImpactEffects, { hitFlashAmount } from './ImpactEffects.jsx';
+import RouteTower, { mapTokensUrl } from './RouteTower.jsx';
 import { COMPOSITE_PIECES, KIT_SCALE, KIT_TINT, TILE, WALL_FRONT, dungeonKitUrl, dungeonLayout, groupByPiece } from './kenneyDungeon.js';
 
 const stoneGeometry = new RoundedBoxGeometry(1, 1, 1, 1, .028);
@@ -67,18 +68,18 @@ function resolveKitMaterial(mesh, lightweight) {
 }
 
 function Stones({ blocks, geometry=stoneGeometry, shadows=true, lightweight=false }) {
-  const ref = useRef(null);
+  const [mesh, setMesh] = useState(null);
   const material = lightweight ? stoneLambertMaterial : stoneMaterial;
   useLayoutEffect(() => {
-    if (!ref.current) return;
+    if (!mesh) return;
     blocks.forEach((block, i) => {
       dummy.position.set(...block.position); dummy.scale.set(...block.scale); dummy.rotation.set(0, block.rotate ?? 0, 0); dummy.updateMatrix();
-      ref.current.setMatrixAt(i, dummy.matrix); ref.current.setColorAt(i, tint.set(block.color ?? stoneColors[i % stoneColors.length]));
+      mesh.setMatrixAt(i, dummy.matrix); mesh.setColorAt(i, tint.set(block.color ?? stoneColors[i % stoneColors.length]));
     });
-    ref.current.instanceMatrix.needsUpdate = true;
-    if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
-  }, [blocks, geometry, material]);
-  return <instancedMesh ref={ref} args={[geometry, stoneMaterial, blocks.length]} material={material} castShadow={shadows} receiveShadow={shadows} />;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [mesh, blocks]);
+  return <instancedMesh ref={setMesh} args={[geometry, stoneMaterial, blocks.length]} material={material} castShadow={shadows} receiveShadow={shadows} />;
 }
 
 function EnvironmentLight({ quality }) {
@@ -122,19 +123,7 @@ function CameraFit({ mode, view, sceneInstanceId = 0 }) {
     const distance = vertical / (2 * Math.tan(THREE.MathUtils.degToRad(37 / 2)));
     camera.fov = 37;
     if (mode === 'map') {
-      const horizontal=aspect>1.5, halfX=horizontal?6.1:4, halfZ=horizontal?4:6.1;
-      const target=new THREE.Vector3(0,.3,0),direction=new THREE.Vector3(.12,.82,.70).normalize();
-      const right=new THREE.Vector3().crossVectors(camera.up,direction).normalize();
-      const up=new THREE.Vector3().crossVectors(direction,right);
-      const tanV=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),tanH=tanV*aspect;
-      let fitted=0;
-      // Fit every corner of the room bounds, including the nearer row's perspective.
-      for(const x of [-halfX,halfX])for(const y of [-.4,1.4])for(const z of [-halfZ,halfZ]){
-        const point=new THREE.Vector3(x,y,z).sub(target);
-        fitted=Math.max(fitted,point.dot(direction)+Math.max(Math.abs(point.dot(right))/tanH,Math.abs(point.dot(up))/tanV)/.88);
-      }
-      camera.position.copy(target).addScaledVector(direction,fitted);
-      camera.lookAt(target);
+      return; // 경로 탑은 RouteTower가 지금 층에 맞춰 카메라를 움직인다.
     } else if (mode === 'title') {
       // 타이틀은 화면 전체를 채우는 배경이다. 넓은 화면은 왼쪽 메뉴를 피해 장면을 오른쪽으로,
       // 세로 화면은 아래쪽 메뉴를 피해 장면을 위로 보낸다.
@@ -176,17 +165,21 @@ function Torch({ position, light = true }) {
 }
 
 function KitInstances({ source, items, shadows = true, lightweight = false }) {
-  const ref = useRef(null);
+  // R3F가 instancedMesh를 다시 만들면(개수·지오메트리 변경 등) 새 객체에 배치를 다시 써야 한다.
+  // 객체 자체를 상태로 받아 effect 의존성에 넣고, 재질은 args가 아닌 prop으로만 넘긴다.
+  // (Dungeon이 품질 변경 때 원본 재질을 바꿔 끼우므로 args에 넣으면 메시가 재생성되며 모든 타일이 원점에 겹친다.)
+  const [mesh, setMesh] = useState(null);
   const material = useMemo(() => resolveKitMaterial(source, lightweight), [source, lightweight]);
   useLayoutEffect(() => {
+    if (!mesh) return;
     items.forEach((item, i) => {
       dummy.position.set(...item.position); dummy.rotation.set(0, item.rotate, 0); dummy.scale.setScalar(KIT_SCALE * item.scale); dummy.updateMatrix();
-      ref.current.setMatrixAt(i, dummy.matrix);
+      mesh.setMatrixAt(i, dummy.matrix);
     });
-    ref.current.instanceMatrix.needsUpdate = true;
-    ref.current.computeBoundingSphere();
-  }, [items, material]);
-  return <instancedMesh ref={ref} name={`kit-${source.name}`} args={[source.geometry, source.material, items.length]} material={material} castShadow={shadows} receiveShadow={shadows} />;
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [mesh, items]);
+  return <instancedMesh ref={setMesh} name={`kit-${source.name}`} args={[source.geometry, undefined, items.length]} material={material} castShadow={shadows} receiveShadow={shadows} />;
 }
 
 function KitClone({ source, item, shadows = true, lightweight = false }) {
@@ -460,57 +453,6 @@ function Camp({ forge = false, light = true, shadows = true }) {
   </group>;
 }
 
-function MapRooms({ run, onSelect, inspecting, onHighlight, highlightedNodeId, outlines = true, quality }) {
-  const shadows = Boolean(quality?.shadows);
-  const lightweight = Boolean(quality?.lightweightDungeon);
-  const horizontal=useThree(state=>state.size.width>state.size.height*1.5);
-  const canvas=useThree(state=>state.gl.domElement);
-  useEffect(() => () => { canvas.style.cursor = ''; }, [canvas]);
-  const possible = run.map.flat().filter(node => node.floor === run.floor + 1 && Math.abs(node.lane - run.lane) <= 1);
-  const blocks = useMemo(() => run.map.flat().flatMap(node => {
-    const x=(node.lane-1)*3,z=-(node.floor-3.5)*1.55;
-    const color=run.visited.includes(node.id)?'#9b7a52':node.type==='boss'?'#7a4636':'#4a3f5c';
-    return [
-      {position:[x,-.2,z],scale:[1.85,.4,1.2],color},
-      {position:[x,.27,z-.53],scale:[1.8,.5,.14],color:'#6c6180'},
-      {position:[x-.82,.20,z],scale:[.14,.4,1.1],color:'#6c6180'},
-      {position:[x+.82,.20,z],scale:[.14,.4,1.1],color:'#6c6180'},
-      {position:[x-.43,.35,z+.5],scale:[.12,.7,.16],color:'#8a5a36'},
-      {position:[x+.43,.35,z+.5],scale:[.12,.7,.16],color:'#8a5a36'},
-      {position:[x,.72,z+.5],scale:[.98,.12,.18],color:'#8a5a36'},
-    ];
-  }), [run.map,run.visited]);
-  return <group name="route-map" rotation={[0,horizontal?Math.PI/2:0,0]}>
-    <Stones blocks={blocks} shadows={shadows} lightweight={lightweight} />
-    {run.map.slice(0,-1).flatMap((row, index) => row.flatMap(node => run.map[index+1].filter(next=>Math.abs(node.lane-next.lane)<=1).map(next => {
-      const a=new THREE.Vector3((node.lane-1)*3,-.15,-(node.floor-3.5)*1.55);
-      const b=new THREE.Vector3((next.lane-1)*3,-.15,-(next.floor-3.5)*1.55);
-      const quaternion=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),b.clone().sub(a).normalize());
-      return <mesh key={node.id+next.id} position={a.clone().add(b).multiplyScalar(.5)} quaternion={quaternion}><cylinderGeometry args={[.045,.045,a.distanceTo(b),5]} /><meshStandardMaterial color={run.visited.includes(next.id)?'#ffb25e':'#6f5f86'} /></mesh>;
-    })))}
-    {run.map.flat().map(node => {
-      const reachable=possible.some(n=>n.id===node.id) && !inspecting;
-      const highlighted=highlightedNodeId===node.id;
-      return <group key={node.id} position={[(node.lane-1)*3,0,-(node.floor-3.5)*1.55]}>
-        <mesh name={`map-room-hit-${node.id}`} position={[0,.4,0]}
-          onClick={event=>{event.stopPropagation();if(reachable)onSelect?.(node.id);}}
-          onPointerOver={event=>{event.stopPropagation();onHighlight?.(node.id);canvas.style.cursor=reachable?'pointer':'';}}
-          onPointerOut={()=>{onHighlight?.(null);canvas.style.cursor='';}}>
-          <boxGeometry args={[1.95,1.15,1.3]} />
-          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-        </mesh>
-        <mesh position={[0,.35,0]} scale={highlighted && reachable ? 1.13 : 1}>
-          {node.type==='boss'||node.type==='elite'?<octahedronGeometry args={[.32,0]} />:node.type==='treasure'?<boxGeometry args={[.6,.35,.4]}/>:node.type==='rest'?<coneGeometry args={[.22,.6,7]}/>:<cylinderGeometry args={[.15,.23,.5,6]} />}
-          <meshStandardMaterial color={node.type==='rest'?'#e98567':node.type==='treasure'?'#ffc477':reachable?'#f3dcc0':'#7d7090'} metalness={.45} roughness={.38} emissive={reachable?'#a05a2a':'#000000'} emissiveIntensity={highlighted ? .8 : .35} />
-        </mesh>
-        {reachable && <mesh position={[0,.015,0]}><boxGeometry args={[1.86,.03,1.22]}/><meshBasicMaterial color="#ffb25e" transparent opacity={highlighted ? .45 : .25}/></mesh>}
-        {reachable && <mesh rotation={[-Math.PI/2,0,0]} position={[0,.012,0]}><ringGeometry args={[.5,.54,32]} /><meshBasicMaterial color="#ffb25e" /></mesh>}
-      </group>;
-    })}
-    <Actor position={[(run.lane-1)*3,.02,-(Math.max(0,run.floor)-3.5)*1.55]} scale={.32} rotation={Math.PI} outlines={outlines} shadows={shadows} />
-    <Actor type="boss" position={[0,.02,-5.42]} scale={.28} rotation={0} outlines={outlines} shadows={shadows} />
-  </group>;
-}
 
 function EntranceActor({ reduced, onComplete, outlines = true, shadows = true }) {
   const elapsed = useRef(0), finished = useRef(false), started = useRef(false);
@@ -607,19 +549,24 @@ function RewardTreasureAura({ quality, reduced }) {
   </>;
 }
 
-export default function World({ mode='battle', sceneInstanceId=0, state, playback, quality, reduced=false, run, onSelect, inspecting, onHighlight, highlightedNodeId, onComplete, won=true, onSceneReady, heroAction='idle', onAnchors, cameraView, studying=false, danger=false }) {
+export default function World({ mode='battle', sceneInstanceId=0, state, playback, quality, reduced=false, routeMap, routeFocus, routeDestination, onComplete, won=true, onSceneReady, heroAction='idle', onAnchors, cameraView, studying=false, danger=false }) {
   const variant=mode==='forge'||['ember','scarab','ravager','boss'].includes(state?.enemy.type)?'forge':['bat','wisp','watcher','mushroom'].includes(state?.enemy.type)?'library':'hall';
   const motesCount = quality.motes ?? quality.particles;
   const shadows = Boolean(quality?.shadows);
   const outlines = quality.outlines !== false;
+  // 첫 경로 지도에서 기다리지 않도록 3D 무대가 뜨면 방 모델을 미리 받아 둔다.
+  useEffect(() => { useLoader.preload(GLTFLoader, mapTokensUrl()); }, []);
   return <>
     <color attach="background" args={[DUSK.background]} />
     <fog attach="fog" args={[DUSK.background,...BATTLE_FOG]} />
     <CameraFit mode={mode} view={cameraView} sceneInstanceId={sceneInstanceId} /><EnvironmentLight quality={quality} />
     {mode==='battle'&&<BattleCamera key={`camera-${sceneInstanceId}`} director={playback} view={cameraView} studying={studying} danger={danger} reduced={reduced} snapStudy={quality.studyFps === 0} />}
-    {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} onHighlight={onHighlight} highlightedNodeId={highlightedNodeId} outlines={outlines} quality={quality} />}
     <Suspense fallback={null}>
       {mode!=='map'&&<Dungeon variant={mode==='warmup'?'hall':variant} mode={mode==='warmup'?'battle':mode} quality={quality} />}
+      {/* 경로 보드도 같은 Suspense 안에 두어, 방 모델이 다 읽힌 뒤에만 장면 준비 완료를 알린다. */}
+      {mode==='map'&&routeMap&&<RouteTower routeMap={routeMap} focus={routeFocus} destination={routeDestination} onAnchors={onAnchors} quality={quality}>
+        <Actor action={routeDestination?'walk':'idle'} still={reduced} outlines={outlines} shadows={shadows} />
+      </RouteTower>}
       {mode==='warmup'?<>
         <Actor type="hero" position={[.9,0,.9]} rotation={-.38} procedural outlines={outlines} shadows={shadows} still />
         <WarmupVfx quality={quality} reduced={reduced} />

@@ -150,6 +150,7 @@ try{
   await page.locator('.battle-quiz-dock.is-reveal-wrong .quiz-dock-option.is-reveal-correct').waitFor({timeout:10000});
   const p=await read();assert.equal(p.run.battle.enemy.hp,fixture.run.battle.enemy.hp);assert.equal(p.learning.entries[q.id].wrong,1);
   await page.locator('.card-hand .game-card').first().waitFor({timeout:10000});
+  await page.locator('.is-battle-topbar .battle-menu summary').click();
   await page.getByRole('button',{name:'모험 닫고 타이틀로',exact:true}).click();
   console.log('360px / max text: inline quiz options reachable, wrong answer highlights answer and auto-returns without damage');
   await page.setViewportSize({width:1366,height:768});
@@ -246,9 +247,11 @@ try{
         const tiles=[...board.querySelectorAll('.route-node, .route-entrance')].map(tile=>tile.getBoundingClientRect());
         const inside=tiles.every(r=>r.left>=box.left&&r.right<=box.right&&r.top>=box.top&&r.bottom<=box.bottom);
         const overlap=tiles.some((a,i)=>tiles.slice(i+1).some(b=>a.left<b.right-1&&b.left<a.right-1&&a.top<b.bottom-1&&b.top<a.bottom-1));
-        return {inside,overlap,count:board.querySelectorAll('.route-node').length};
+        return {inside,overlap,count:board.querySelectorAll('.route-node').length,tower:!!board.querySelector('.route-map.is-3d')};
       });
-      assert.equal(layout.count,progress.run.map.flat().length,'Every dungeon room is drawn on the route map');
+      // 3D 탑 단면은 지금 층 근처만 비추므로, 모든 방은 오른쪽 전체 경로 미니맵에서 확인한다.
+      if(layout.tower)assert.equal(await view.locator('.route-mini-node').count(),progress.run.map.flat().length,'Every dungeon room is drawn on the full-route minimap');
+      else assert.equal(layout.count,progress.run.map.flat().length,'Every dungeon room is drawn on the route map');
       assert.equal(layout.inside,true,'All dungeon rooms fit inside the route map');
       assert.equal(layout.overlap,false,'Route map rooms never overlap each other');
       const glowing=await view.locator('.route-node.is-reachable').evaluateAll(nodes=>nodes.map(node=>node.dataset.routeNode).sort());

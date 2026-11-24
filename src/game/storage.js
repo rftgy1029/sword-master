@@ -1,6 +1,7 @@
 // @ts-check
 import { CARDS, MONSTERS, NODE_TYPES, RELICS } from './catalog.js';
 import { emptyProgress } from './engine.js';
+import { routeLinked } from './dungeonMap.js';
 import { acceptsAnswer, distractorsFor, isCorrectAnswer, normalizeAnswer, questionById } from './quiz.js';
 import { validWordbooks } from './wordbooks.js';
 import { TIERS } from '../vocabulary.js';
@@ -70,14 +71,23 @@ function validRun(run, books) {
     if (!unique(row.map((n) => n?.lane)) || !row.every((n) => n && n.floor === f && integer(n.lane, 2) && n.id === `node-${f}-${n.lane}` && NODE_TYPES[n.type])) return false;
     if ((f === 0 && (row[0].type !== 'battle' || row[0].lane !== 1)) || (f === 7 && (row[0].type !== 'boss' || row[0].lane !== 1))) return false;
   }
+  // 새 지도는 모든 방에 다음 층으로 이어지는 길(next)이 있고, 이전 저장은 하나도 없다(옆 칸 이동 규칙).
+  const routed = run.map.flat().filter((n) => n.next !== undefined).length;
+  if (routed && routed !== run.map.flat().length) return false;
+  if (routed) for (let f = 0; f < 8; f++) for (const n of run.map[f]) {
+    const lanes = run.map[f + 1]?.map((to) => to.lane) ?? [];
+    if (!Array.isArray(n.next) || !unique(n.next) || (f === 7 ? n.next.length !== 0 : n.next.length === 0) ||
+        !n.next.every((lane) => lanes.includes(lane))) return false;
+    if (f > 0 && !run.map[f - 1].some((from) => routeLinked(from, n))) return false;
+  }
   if (!Array.isArray(run.visited) || run.visited.length !== run.floor + 1) return false;
-  let lastLane = 1;
+  let last = { floor: -1, lane: 1 };
   for (let f = 0; f <= run.floor; f++) {
     const node = run.map[f].find((n) => n.id === run.visited[f]);
-    if (!node || Math.abs(node.lane - lastLane) > 1) return false;
-    lastLane = node.lane;
+    if (!node || !routeLinked(last, node)) return false;
+    last = node;
   }
-  if (lastLane !== run.lane) return false;
+  if (last.lane !== run.lane) return false;
   if (run.phase === 'result') return object(run.result) && typeof run.result.won === 'boolean' &&
     (run.result.unlockedTier === undefined || run.result.unlockedTier === null || tier(run.result.unlockedTier)) &&
     typeof run.result.unlocked === 'boolean' && integer(run.result.cards) && integer(run.result.relics) && !run.deck.length && !run.relics.length && run.battle === null;

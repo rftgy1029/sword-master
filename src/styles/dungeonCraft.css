@@ -1710,3 +1710,219 @@
 :root[data-graphics-quality="lowest"] .tier-selection .tier-choice {
   box-shadow: none;
 }
+
+/* ---------- 전투 시작·턴 시작 카드 분배: 뽑기 더미와 같은 단조 철·황동 카드 뒷면 ---------- */
+.card-deal-canvas .flying-card-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  overflow: hidden;
+  border: 2.5px solid #a07d50;
+  border-radius: 9px;
+  background:
+    radial-gradient(circle at 50% 50%, #ffd38240 0, #ffd38214 30%, transparent 46%),
+    repeating-linear-gradient(45deg, #ffffff09 0 2px, transparent 2px 7px),
+    linear-gradient(155deg, #5c4467 0%, #3b2b47 52%, #221829 100%);
+  box-shadow:
+    inset 0 1px 0 #ffffff2e,
+    inset 0 0 0 2px #170f1e,
+    0 6px 0 #0d0811,
+    0 16px 28px #040208c4;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.card-deal-canvas .flying-card-back .card-back-rim {
+  position: absolute;
+  inset: 9px;
+  border: 1.5px solid #c79a5c88;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 4px #1a1221aa, inset 0 0 0 5px #c79a5c33;
+}
+
+.card-deal-canvas .flying-card-back .card-back-emblem {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 58%;
+  height: auto;
+  transform: translate(-50%, -50%);
+  fill: #ffd382;
+  stroke: #5a3d1f;
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 10px #ffc4664d) drop-shadow(0 2px 0 #120b16);
+}
+
+.card-deal-canvas .flying-card-back .card-back-sheen {
+  position: absolute;
+  inset: -40% -60%;
+  background: linear-gradient(105deg, transparent 42%, #fff3d44d 50%, transparent 58%);
+  transform: translateX(-60%);
+  animation: card-back-sheen var(--deal-sheen-ms, 290ms) 60ms cubic-bezier(.3, .6, .4, 1) both;
+}
+
+@keyframes card-back-sheen {
+  to { transform: translateX(60%); }
+}
+
+/* 분배 중에는 손패를 누를 수 없지만, 카드가 '사용 불가'처럼 흐리게 보이지 않게 둔다. */
+.game-dialog .battle-dock .card-hand.is-dealing-hand .game-card {
+  pointer-events: none;
+}
+
+/* ---------- 뽑기·버림 더미 설명 툴팁 ---------- */
+.deck-pile-host {
+  position: relative;
+  display: inline-flex;
+}
+
+.status-tooltip.is-floating.pile-tooltip {
+  gap: 4px;
+  width: min(260px, calc(100vw - 32px));
+}
+
+.pile-tooltip strong {
+  color: #ffd382;
+}
+
+.pile-tooltip .pile-tooltip-hint {
+  margin-top: 2px;
+  color: #bfb0cf;
+  font-size: calc(11px * var(--text-scale));
+  font-style: normal;
+}
+
+/* ---------- 전투 상단 오른쪽: 단일 메뉴 버튼 + 드롭다운 패널 ---------- */
+/* 드롭다운이 전장 HUD·3D 캔버스 위에 오도록 상단 바를 위 레이어로 올린다. */
+.game-dialog.is-battle .game-header.is-battle-topbar {
+  position: relative;
+  z-index: 50;
+}
+
+.is-battle-topbar .battle-menu summary {
+  display: inline-flex;
+  width: auto;
+  white-space: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 13px 0 11px;
+  font-size: calc(12.5px * var(--text-scale));
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.is-battle-topbar .battle-menu summary .game-icon {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2;
+}
+
+.is-battle-topbar .battle-menu[open] summary {
+  border-color: #efc06a;
+  background: linear-gradient(180deg, #624628, #3d2a18);
+  color: #ffedc4;
+}
+
+.game-dialog .is-battle-topbar .battle-menu-content {
+  top: calc(100% + 9px);
+  right: 0;
+  z-index: 60;
+  width: min(264px, calc(100vw - 24px));
+  padding: 10px;
+  border: 2px solid #80613a;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, #2c2234f7, #18121ffa);
+  box-shadow: inset 0 1px #ffffff18, 0 18px 38px #040208d9;
+  animation: battle-menu-drop 140ms cubic-bezier(.2, .8, .3, 1);
+  transform-origin: top right;
+}
+
+@keyframes battle-menu-drop {
+  from { opacity: 0; transform: translateY(-6px) scale(.97); }
+}
+
+.game-dialog .battle-menu-content .battle-menu-heading {
+  margin: 2px 4px 8px;
+  color: #d8b77a;
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.battle-menu-content .battle-menu-items {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.game-dialog .battle-menu-content .battle-menu-item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 11px;
+  border: 1.5px solid #4a3c52;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #32273c, #221a2b);
+  color: #efe3d2;
+  font-size: calc(13px * var(--text-scale));
+  text-align: left;
+  box-shadow: inset 0 1px #ffffff12;
+}
+
+.battle-menu-item .game-icon {
+  width: 18px;
+  height: 18px;
+  color: #ffd382;
+  stroke-width: 1.8;
+}
+
+.battle-menu-item small {
+  color: #a99bb6;
+  font-size: calc(11px * var(--text-scale));
+  white-space: nowrap;
+}
+
+.game-dialog .battle-menu-content .battle-menu-item:is(:hover, :focus-visible) {
+  border-color: #e8b865;
+  background: linear-gradient(180deg, #483754, #2b2136);
+  color: #fff8ea;
+}
+
+.game-dialog .battle-menu-content .battle-menu-item.is-exit {
+  margin-top: 6px;
+  border-color: #6b3a3a;
+  background: linear-gradient(180deg, #3a2228, #24151a);
+}
+
+.battle-menu-item.is-exit .game-icon { color: #ff9d8a; }
+
+.game-dialog .battle-menu-content .battle-menu-item.is-exit:is(:hover, :focus-visible) {
+  border-color: #ef8f7c;
+  background: linear-gradient(180deg, #55303a, #321c22);
+}
+
+.game-dialog .battle-menu-content .battle-menu-save {
+  margin: 9px 4px 2px;
+  color: #9f92ab;
+  font-size: calc(10.5px * var(--text-scale));
+}
+
+.game-dialog .battle-menu-content .battle-menu-save.is-error { color: #ffb4a3; }
+.is-battle-topbar .battle-save-status.is-error { color: #ffb4a3; }
+
+@media (max-width: 740px) {
+  .game-dialog.is-battle .is-battle-topbar .battle-menu summary {
+    width: auto;
+    min-width: 32px;
+    padding: 0 8px;
+  }
+
+  .is-battle-topbar .battle-menu-label { display: none; }
+}

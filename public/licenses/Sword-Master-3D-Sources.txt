@@ -15,6 +15,11 @@ Source files: assets/kenney/mini-dungeon
 Build script: scripts/build_kenney_dungeon.py
 License text: Kenney-Mini-Dungeon-CC0.txt (www.kenney.nl)
 
+Route map miniatures (public/models/map-tokens.glb: room tile, battle/elite/treasure/
+rest/forge/boss tokens, path step, entrance arch) were authored for this project using
+Blender, without external assets.
+Reproducible source: scripts/create_map_tokens.py (Blender scene copy: assets/models/map-tokens.blend)
+
 Asset manifest: public/models/manifest.json
 No model-generation service was used.
 

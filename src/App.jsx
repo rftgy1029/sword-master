@@ -87,6 +87,8 @@ function GameApp({ settings, setSettings }) {
   const admin = useAdmin();
   const [selected, setSelected] = useState(0);
   const [openedMenu, setOpenedMenu] = useState(null);
+  // 모험(전투) 메뉴에서 연 설정 창: 모험 대화창 위에 겹쳐 띄우고 닫으면 전투로 돌아간다.
+  const [adventureSettings, setAdventureSettings] = useState(false);
   const [standaloneVocabulary, setStandaloneVocabulary] = useState(() => isStandaloneVocabularyUrl(window.location.search));
   const [initialVocabularyState, setInitialVocabularyState] = useState(() => parseVocabularyUrlState(window.location.search));
   const [tutorialOpen, setTutorialOpen] = useState(false);
@@ -318,7 +320,16 @@ function GameApp({ settings, setSettings }) {
     setStandaloneVocabulary(false);
   }
 
+  function changeSetting(key, value) {
+    setSettings((current) => normalizeSettings({ ...current, [key]: value }));
+  }
+
+  function resetSettings() {
+    setSettings({ ...DEFAULT_SETTINGS });
+  }
+
   function closeAdventure(reason) {
+    setAdventureSettings(false);
     if (reason === 'bronze-clear') setOpenedMenu('설문 참여');
     else closeMenu();
   }
@@ -404,14 +415,18 @@ function GameApp({ settings, setSettings }) {
           </main>
           {openedMenu === '설정' ? (
             <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu} onTutorial={(event) => openTutorial(event?.currentTarget ?? null)}
-              onChange={(key, value) => setSettings((current) => normalizeSettings({ ...current, [key]: value }))}
-              onReset={() => setSettings({ ...DEFAULT_SETTINGS })} />
+              onChange={changeSetting} onReset={resetSettings} />
           ) : openedMenu === '단어장' ? <VocabularyDialog wordbooks={progress.wordbooks ?? []} error={error}
             onSaveBook={(book) => dispatch({ type: 'ADD_WORDBOOK', book })} onClose={closeMenu} />
             : openedMenu === '오답 복습' ? <ReviewDialog progress={progress} dispatch={dispatch} error={error} onClose={closeMenu} />
             : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
               : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
-                shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onTutorial={(event) => openTutorial(event?.currentTarget ?? null)} onClose={closeAdventure} /> : null}
+                shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onTutorial={(event) => openTutorial(event?.currentTarget ?? null)} onClose={closeAdventure}
+                onOpenSettings={() => setAdventureSettings(true)} /> : null}
+          {adventureSettings && ['새 모험', '이어하기'].includes(openedMenu) && (
+            <SettingsDialog settings={settings} saved={settingsSaved} inAdventure onClose={() => setAdventureSettings(false)}
+              onChange={changeSetting} onReset={resetSettings} />
+          )}
           {tutorialVisible && <TutorialDialog replay={openedMenu === '설정'} onClose={closeTutorial} />}
           {downloadVisible && (
             <AssetDownloadOverlay

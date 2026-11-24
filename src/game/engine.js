@@ -1,5 +1,6 @@
 import { CARDS, MONSTERS, NORMAL_MONSTERS, RELICS, cardDetails } from './catalog.js';
 import { random, shuffle } from './random.js';
+import { buildDungeonMap, routeLinked } from './dungeonMap.js';
 import { acceptsAnswer, isCorrectAnswer, makeQuestion, nextQuestion, questionById } from './quiz.js';
 import { validWordbooks } from './wordbooks.js';
 import { TIERS } from '../vocabulary.js';
@@ -17,13 +18,9 @@ const rng = (run) => () => random(run);
 const pick = (run, items) => items[Math.floor(random(run) * items.length)];
 const activeBattle = (run) => run?.phase === 'battle' && !run.battle.pending && !run.battle.feedback;
 
+// 방 배치·갈림길 규칙은 dungeonMap.js가 정한다(같은 시드 → 같은 지도).
 export function generateMap(run) {
-  const layouts = [['battle'], ['battle', 'treasure', 'battle'], ['battle', 'elite', 'battle'],
-    ['rest', 'forge', 'rest'], ['battle', 'elite', 'battle'], ['treasure', 'battle', 'treasure'],
-    ['rest', 'forge', 'rest'], ['boss']];
-  return layouts.map((types, floor) => shuffle(types, rng(run)).map((type, index) => ({
-    id: `node-${floor}-${types.length === 1 ? 1 : index}`, floor, lane: types.length === 1 ? 1 : index, type,
-  })));
+  return buildDungeonMap(rng(run));
 }
 
 function addCard(run, type) {
@@ -41,9 +38,15 @@ function createRun(tier, seed) {
   return run;
 }
 
+/** 현재 위치(입구 포함). 새 지도는 저장된 길(next), 이전 저장은 옆 칸 이동 규칙으로 이어진다. */
+export function currentRoute(run) {
+  return run.floor < 0 ? { floor: -1, lane: run.lane } : run.map[run.floor].find((node) => node.lane === run.lane);
+}
+
 export function reachableNodes(run) {
   if (run?.phase !== 'map') return [];
-  return (run.map[run.floor + 1] ?? []).filter((node) => Math.abs(node.lane - run.lane) <= 1);
+  const here = currentRoute(run);
+  return here ? (run.map[run.floor + 1] ?? []).filter((node) => routeLinked(here, node)) : [];
 }
 
 export function intentFor(enemy) {

@@ -1,4 +1,5 @@
 import { reachableNodes } from './engine.js';
+import { routeLinked } from './dungeonMap.js';
 
 // 던전 경로 지도의 표시 상태. 실제 이동 규칙은 engine.js의 reachableNodes가 정하고,
 // 여기서는 그 결과를 처음 하는 사람도 읽을 수 있는 상태(지나옴·지금 선택·앞으로 갈 수 있음·닫힘)로 나눈다.
@@ -12,13 +13,14 @@ export const ROUTE_LOOK = {
 };
 
 export const ENTRANCE_ID = 'entrance';
-const linked = (a, b) => Math.abs(a.lane - b.lane) <= 1;
+// 길 정보(next)가 있는 새 지도는 저장된 길만, 이전 저장은 옆 칸까지 이어진 것으로 그린다.
+const linked = (a, b) => routeLinked(a, b);
 
 export function routeMapState(run, { inspecting = false } = {}) {
   const visited = new Set(run.visited);
   const reachable = new Set(inspecting ? [] : reachableNodes(run).map((node) => node.id));
   const here = run.floor < 0
-    ? { id: ENTRANCE_ID, floor: -1, lane: run.lane }
+    ? { id: ENTRANCE_ID, floor: -1, lane: 1 }
     : run.map[run.floor].find((node) => node.lane === run.lane);
   // 현재 위치에서 앞으로 실제로 도달할 수 있는 곳만 "앞으로 갈 수 있음"으로 둔다.
   const open = new Set([here.id]);

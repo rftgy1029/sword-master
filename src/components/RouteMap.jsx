@@ -22,7 +22,8 @@ function KnightToken() {
 }
 
 // 처음 하는 사람도 한눈에 읽을 수 있는 평면 경로 지도. 이동 규칙은 바꾸지 않고 표시만 담당한다.
-export default function RouteMap({ map, routes, highlight, destination, onHighlight, onChoose }) {
+// anchors가 있으면(3D 보드 준비 완료) 버튼을 3D 방의 화면 위치에 투명하게 겹치고, 없으면 평면 지도를 그린다.
+export default function RouteMap({ map, routes, highlight, destination, onHighlight, onChoose, anchors = null, background = null }) {
   const board = useRef(null);
   const [horizontal, setHorizontal] = useState(false);
   useLayoutEffect(() => {
@@ -37,49 +38,85 @@ export default function RouteMap({ map, routes, highlight, destination, onHighli
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  const at = (node) => routePoint(node, map.floors, horizontal);
+  const board3d = Boolean(anchors);
+  // 탑 단면은 지금 층 근처만 비추므로, 화면 밖으로 나간 층의 버튼과 층 번호는 숨긴다(전체 경로는 미니맵이 보여 줌).
+  const onScreen = (anchor) => !anchor || (anchor.x > -.02 && anchor.x < 1.02 && anchor.y > -.02 && anchor.y < 1.02);
+  const at = (node) => {
+    const anchor = node.id === map.entrance.id ? anchors?.entrance : anchors?.nodes[node.id];
+    return anchor ? { x: anchor.x * 100, y: anchor.y * 100, r: anchor.r } : routePoint(node, map.floors, horizontal);
+  };
   const order = new Map(routes.map((node, index) => [node.id, index + 1]));
   const focus = destination?.id ?? highlight;
   const hero = at(destination ?? map.here);
   const entrance = at(map.entrance);
   const edges = [...map.edges].sort((a, b) => EDGE_LAYER[a.status] - EDGE_LAYER[b.status]);
-  return <div ref={board} className={`route-map${horizontal ? ' is-horizontal' : ' is-vertical'}${destination ? ' is-moving' : ''}`}
+  const layout = board3d ? (anchors.horizontal ? ' is-horizontal' : ' is-vertical') : (horizontal ? ' is-horizontal' : ' is-vertical');
+  return <div ref={board} className={`route-map${layout}${destination ? ' is-moving' : ''}${board3d ? ' is-3d' : ''}`}
     role="group" aria-label={`던전 지도, 현재 ${map.here.floor < 0 ? '입구' : `${map.here.floor + 1}층`}`}>
-    <svg className="route-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    {background}
+    {!board3d && <svg className="route-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       {edges.map((edge) => {
         const a = at(edge.from), b = at(edge.to);
         const focused = edge.status === 'next' && edge.to.id === focus;
         return <line key={edge.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} vectorEffect="non-scaling-stroke"
           className={`route-edge edge-${edge.status}${focused ? ' is-focused' : ''}`} />;
       })}
-    </svg>
+    </svg>}
     {Array.from({ length: map.floors }, (_, floor) => {
+      const floorAnchor = anchors?.floors[floor];
+      if (floorAnchor && !onScreen(floorAnchor)) return null;
+      if (floorAnchor) return <span key={floor} className="route-floor is-anchored" aria-hidden="true"
+        style={{ left: `${floorAnchor.x * 100}%`, top: `${floorAnchor.y * 100}%` }}>{floor + 1}층</span>;
       const p = at({ floor, lane: 0 });
       return <span key={floor} className="route-floor" aria-hidden="true"
         style={horizontal ? { left: `${p.x}%` } : { top: `${p.y}%` }}>{floor + 1}층</span>;
     })}
-    <span className="route-start" aria-hidden="true" style={{ left: `${entrance.x}%`, top: `${entrance.y}%` }} />
+    {!board3d && <span className="route-start" aria-hidden="true" style={{ left: `${entrance.x}%`, top: `${entrance.y}%` }} />}
     <span className="route-entrance" aria-hidden="true" style={{ left: `${entrance.x}%`, top: `${entrance.y}%` }}>입구</span>
     {map.nodes.map((node) => {
       const look = ROUTE_LOOK[node.type];
       const p = at(node);
       const number = order.get(node.id);
       const selectable = node.status === 'reachable' && !destination;
+      if (board3d && !onScreen(anchors.nodes[node.id])) return null;
       return <button key={node.id} type="button" tabIndex={-1} data-route-node={node.id}
         className={`route-node tone-${look.tone} is-${node.status}${focus === node.id ? ' is-highlighted' : ''}${destination?.id === node.id ? ' is-destination' : ''}`}
-        style={{ left: `${p.x}%`, top: `${p.y}%` }} aria-disabled={!selectable}
+        style={{ left: `${p.x}%`, top: `${p.y}%`, ...(p.r ? { '--tile-r': p.r } : null) }} aria-disabled={!selectable}
         aria-label={`${node.floor + 1}층 ${NODE_TYPES[node.type].name}, ${ROUTE_STATUS_TEXT[node.status]}${number ? `, ${number}번 길` : ''}`}
         onMouseEnter={() => onHighlight(node.id)} onMouseLeave={() => onHighlight(null)}
         onClick={() => { if (selectable) onChoose(node); }}>
         <GameIcon name={look.icon} />
         {number && <b className="route-node-order" aria-hidden="true">{number}</b>}
         {node.status === 'visited' && <i className="route-node-check" aria-hidden="true">✓</i>}
-        <span className="route-node-label">{NODE_TYPES[node.type].name}</span>
+        <span className="route-node-label" data-order={number ? `${number}` : undefined}>{NODE_TYPES[node.type].name}</span>
       </button>;
     })}
-    <span className="route-hero" style={{ left: `${hero.x}%`, top: `${hero.y}%` }} aria-hidden="true">
+    {!board3d && <span className="route-hero" style={{ left: `${hero.x}%`, top: `${hero.y}%` }} aria-hidden="true">
       <KnightToken /><i>나</i>
-    </span>
+    </span>}
+  </div>;
+}
+
+// 탑 단면 옆에 두는 전체 경로 미니맵. 길이 고정된 지도에서 몇 층 앞까지 계획할 수 있게 한다(표시 전용).
+export function RouteMiniMap({ map, focus }) {
+  const at = (node) => routePoint(node, map.floors, false);
+  const edges = [...map.edges].sort((a, b) => EDGE_LAYER[a.status] - EDGE_LAYER[b.status]);
+  return <div className="route-mini" aria-hidden="true">
+    <span className="route-mini-title">전체 경로</span>
+    <div className="route-mini-plot">
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+      {edges.map((edge) => {
+        const a = at(edge.from), b = at(edge.to);
+        return <line key={edge.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} vectorEffect="non-scaling-stroke"
+          className={`route-mini-edge edge-${edge.status}${edge.status === 'next' && edge.to.id === focus ? ' is-focused' : ''}`} />;
+      })}
+    </svg>
+    {map.nodes.map((node) => {
+      const p = at(node);
+      return <span key={node.id} className={`route-mini-node tone-${ROUTE_LOOK[node.type].tone} is-${node.status}${focus === node.id ? ' is-focused' : ''}`}
+        data-route-mini={node.id} style={{ left: `${p.x}%`, top: `${p.y}%` }}><GameIcon name={ROUTE_LOOK[node.type].icon} /></span>;
+    })}
+    </div>
   </div>;
 }
 

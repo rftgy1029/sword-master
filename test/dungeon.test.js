@@ -5,6 +5,7 @@ import { CARDS, cardDetails } from '../src/game/catalog.js';
 import { questionById } from '../src/game/quiz.js';
 import { loadProgress, persistProgress, validProgress } from '../src/game/storage.js';
 import { TIERS } from '../src/vocabulary.js';
+import { MIN_PATH_BATTLES, hasStoredRoutes, mapPaths, mapRuleProblems } from '../src/game/dungeonMap.js';
 
 function start(seed = 1, tier = 'bronze') {
   const progress = emptyProgress();
@@ -31,28 +32,79 @@ function winFight(p) {
   p = act(p, { type: 'ANSWER', id: q.id, answer: q.options.find((s) => questionById(q.id).answers.includes(s)) });
   return act(p, { type: 'ACK' });
 }
+// 저장 값만으로 지도 위 위치를 만든다(지나온 길은 실제로 이어진 경로여야 저장 검사를 통과한다).
+function placeOn(p, path) {
+  p = structuredClone(p);
+  const last = path[path.length - 1];
+  Object.assign(p.run, { phase: 'map', floor: last.floor, lane: last.lane, visited: path.map((n) => n.id), battle: null, reward: null, service: null });
+  assert.ok(validProgress(p), 'placed position is a valid save');
+  return p;
+}
 function finishReward(p) {
   if (!p.run.reward.cardTaken) p = act(p, { type: 'SKIP_CARD' });
   if (!p.run.reward.relicTaken) p = act(p, { type: 'TAKE_RELIC' });
   return act(p, { type: 'LEAVE_REWARD' });
 }
 
-test('300 generated dungeons are seeded, connected, have optional elites and safe rest/forge choices', () => {
+test('300 generated dungeons are seeded, branch along stored paths and keep every route rule', () => {
   const layouts = new Set();
   for (let seed = 0; seed < 300; seed++) {
     const p = start(seed), r = p.run;
     assert.deepEqual(start(seed).run, r);
     layouts.add(JSON.stringify(r.map));
+    assert.ok(hasStoredRoutes(r.map), 'new maps store their paths');
+    assert.deepEqual(mapRuleProblems(r.map), [], `seed ${seed} breaks a route rule`);
     assert.deepEqual(reachableNodes(r), r.map[0]);
-    for (let floor = 0; floor < 7; floor++) {
-      for (const node of r.map[floor]) assert.ok(r.map[floor + 1].some((to) => Math.abs(to.lane - node.lane) <= 1));
-      if (floor === 2 || floor === 4) assert.equal(r.map[floor].filter((n) => n.type === 'battle').length, 2);
+    for (let floor = 1; floor <= 5; floor++) for (const node of r.map[floor]) {
+      // 갈림길은 1~2개, 옆 칸까지만 이어진다.
+      assert.ok(node.next.length >= 1 && node.next.length <= 2);
+      assert.ok(node.next.every((lane) => Math.abs(lane - node.lane) <= 1));
     }
-    for (const floor of [3, 6]) assert.equal(r.map[floor].filter((n) => n.type === 'rest').length, 2);
     assert.ok(validProgress(p));
     assert.strictEqual(gameReducer(p, { type: 'SELECT_NODE', id: r.map[7][0].id }), p);
   }
-  assert.ok(layouts.size > 50);
+  assert.ok(layouts.size > 250);
+});
+
+test('every route to the boss holds enough battles, and treasure always costs an elite', () => {
+  for (let seed = 0; seed < 300; seed++) {
+    const { map } = start(seed).run;
+    for (const path of mapPaths(map)) {
+      assert.equal(path.length, 8);
+      assert.ok(path.filter((n) => ['battle', 'elite', 'boss'].includes(n.type)).length >= MIN_PATH_BATTLES);
+      const treasures = path.filter((n) => n.type === 'treasure').length;
+      assert.ok(treasures <= 1);
+      if (treasures) assert.ok(path.some((n) => n.type === 'elite'), 'no free treasure path');
+    }
+  }
+});
+
+test('a chosen lane closes the rooms it does not link to', () => {
+  // 실제 지도 중 갈림길이 하나뿐인 방을 찾아, 그 방에서는 연결된 방만 고를 수 있는지 확인한다.
+  for (let seed = 0; seed < 50; seed++) {
+    let p = start(seed);
+    const path = mapPaths(p.run.map).find((route) => route[1].next.length === 1);
+    if (!path) continue;
+    p = placeOn(p, path.slice(0, 2));
+    assert.deepEqual(reachableNodes(p.run).map((n) => n.lane), path[1].next);
+    const blocked = p.run.map[2].find((n) => !path[1].next.includes(n.lane));
+    assert.strictEqual(gameReducer(p, { type: 'SELECT_NODE', id: blocked.id }), p);
+    return;
+  }
+  assert.fail('no single-link room in 50 seeds');
+});
+
+test('legacy maps without stored paths still move by the old next-lane rule', () => {
+  const p = start(3);
+  for (const row of p.run.map) for (const node of row) delete node.next;
+  assert.ok(validProgress(p), 'old saves keep loading');
+  assert.equal(hasStoredRoutes(p.run.map), false);
+  const moved = act(p, { type: 'SELECT_NODE', id: p.run.map[0][0].id });
+  assert.ok(moved);
+  // 일부만 길이 있는 지도는 손상된 저장으로 본다.
+  const broken = start(3);
+  delete broken.run.map[2][1].next;
+  assert.equal(validProgress(broken), false);
 });
 
 test('card and relic rewards are offered once; skipping retains a compact deck', () => {
@@ -80,13 +132,12 @@ test('card and relic rewards are offered once; skipping retains a compact deck',
 });
 
 test('rest is one choice; forge upgrades spend gold, cannot double-upgrade, and shop sells once', () => {
-  let p = start();
-  while (p.run.floor < 2) {
-    const node = reachableNodes(p.run).find((n) => n.type === 'battle') ?? reachableNodes(p.run)[0];
-    p = act(p, { type: 'SELECT_NODE', id: node.id });
-    p = finishReward(winFight(p));
-  }
-  const before = structuredClone(p);
+  const base = start();
+  const paths = mapPaths(base.run.map);
+  // 보스 전 쉼터(7층)로 이어지는 6층 방에서 휴식·대장간을 고른다.
+  const toRest = paths.find((path) => path[6].type === 'rest');
+  const toForge = paths.find((path) => path[6].type === 'forge');
+  let p = placeOn(base, toRest.slice(0, 6));
   const rest = reachableNodes(p.run).find((n) => n.type === 'rest');
   p = act(p, { type: 'SELECT_NODE', id: rest.id });
   p.run.hp = 40;
@@ -94,10 +145,7 @@ test('rest is one choice; forge upgrades spend gold, cannot double-upgrade, and 
   assert.equal(p.run.hp, 64);
   assert.strictEqual(gameReducer(p, { type: 'REST' }), p);
   assert.strictEqual(gameReducer(p, { type: 'UPGRADE_CARD', uid: p.run.deck[0].uid }), p);
-  // Rewind the fixture to the same floor, choose a forge reachable from lane 1.
-  p = before;
-  p.run.lane = 1;
-  p.run.visited[2] = 'node-2-1';
+  p = placeOn(base, toForge.slice(0, 6));
   const forge = reachableNodes(p.run).find((n) => n.type === 'forge');
   p = act(p, { type: 'SELECT_NODE', id: forge.id });
   p.run.gold = 200;

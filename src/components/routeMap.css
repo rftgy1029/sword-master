@@ -204,3 +204,67 @@
   .route-map * { animation: none !important; }
   .route-hero { transition: none; }
 }
+
+/* ---------- 3D 경로 보드 (Blender 미니어처) ----------
+   3D 장면이 방·길·기사 말을 그리고, DOM 버튼은 각 방의 화면 위치에 투명하게 겹쳐 클릭·키보드·라벨만 맡는다. */
+.route-board-scene { position: absolute; inset: 0; z-index: 0; }
+.route-board-scene.is-pending { opacity: 0; pointer-events: none; }
+.route-board-scene .scene-loading { display: none; }
+.route-map.is-3d { background: #120d17; }
+.route-map.is-3d .route-node {
+  width: calc(var(--tile-r, .05) * 200cqw); height: calc(var(--tile-r, .05) * 170cqw); min-width: 26px; min-height: 22px;
+  border: 0; border-radius: 50%; background: transparent; box-shadow: none; animation: none; opacity: 1;
+}
+.route-map.is-3d .route-node > .game-icon { display: none; }
+.route-map.is-3d .route-node.tone-boss { width: calc(var(--tile-r, .05) * 240cqw); height: calc(var(--tile-r, .05) * 230cqw); background: transparent; }
+.route-map.is-3d .route-node.is-reachable,
+.route-map.is-3d .route-node.is-reachable.is-highlighted,
+.route-map.is-3d .route-node.is-destination,
+.route-map.is-3d .route-node.is-visited,
+.route-map.is-3d .route-node.is-highlighted:not(.is-reachable) { background: transparent; box-shadow: none; transform: translate(-50%, -50%); }
+.route-map.is-3d .route-node:focus-visible { outline: 3px solid var(--sun, #ffb25e); outline-offset: 2px; }
+.route-map.is-3d .route-node-order { top: -4px; left: -4px; }
+.route-map.is-3d .route-node-check { right: 6%; bottom: 6%; }
+.route-map.is-3d .route-node-label { bottom: calc(100% + 4px); }
+.route-map.is-3d .route-floor.is-anchored { transform: translate(-50%, -50%); padding: 1px 7px; border: 2px solid var(--wood-edge, #2a180f); border-radius: 6px;
+  background: var(--wood-grain, #8a5a36); color: var(--ivory, #f8eedd); font-size: 11px; font-weight: 700; box-shadow: 0 2px 0 #0b0710; }
+.route-map.is-3d.is-horizontal .route-floor.is-anchored { top: auto; }
+.route-map.is-3d .route-entrance { transform: translate(-50%, 60%); }
+
+/* ---------- 탑 단면 옆 전체 경로 미니맵 ---------- */
+.route-mini { position: relative; flex: 0 0 auto; height: clamp(150px, 26vh, 230px); border: 3px solid var(--edge, #0e0913); border-radius: 11px;
+  background: var(--plum-deep, #18121f); overflow: hidden; }
+.route-mini-plot { position: absolute; inset: 20px 10px 4px; }
+.route-mini-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.route-mini-title { position: absolute; top: 4px; left: 9px; color: var(--faint, #978ca6); font-size: 11px; }
+.route-mini-edge { stroke-linecap: round; }
+.route-mini-edge.edge-closed { stroke: #2e2439; stroke-width: 1.5; }
+.route-mini-edge.edge-ahead { stroke: #4d3e5d; stroke-width: 2; }
+.route-mini-edge.edge-traveled { stroke: var(--sun, #ffb25e); stroke-width: 3; }
+.route-mini-edge.edge-next { stroke: #ffd08e; stroke-width: 3; stroke-dasharray: 4 3; }
+.route-mini-edge.edge-next.is-focused { stroke: #fff1cc; stroke-width: 4; }
+.route-mini-node { --tone: var(--route-battle, #e98567); position: absolute; display: grid; place-items: center; width: 16px; height: 16px;
+  transform: translate(-50%, -50%); border: 2px solid var(--edge, #0e0913); border-radius: 30%;
+  background: var(--plum-raised, #2e2338); color: var(--tone); }
+.route-mini-node .game-icon { width: 10px; height: 10px; stroke-width: 2.6; }
+.route-mini-node.tone-elite { --tone: #a995e3; } .route-mini-node.tone-treasure { --tone: #f3cf6b; }
+.route-mini-node.tone-rest { --tone: #8fd0a8; } .route-mini-node.tone-forge { --tone: #a9bdd8; } .route-mini-node.tone-boss { --tone: #ff8b7b; }
+.route-mini-node.is-visited { background: var(--wood-dark, #5c3a22); }
+.route-mini-node.is-missed, .route-mini-node.is-closed { opacity: .35; }
+.route-mini-node.is-current { box-shadow: 0 0 0 2px var(--sun, #ffb25e); }
+.route-mini-node.is-reachable { background: #f08e44; color: #2a1608; }
+.route-mini-node.is-focused { transform: translate(-50%, -50%) scale(1.25); background: #ffd08e; color: #2a1608; }
+/* 탑 단면: 지금 고를 수 있는 방 위에 "번호 + 방 이름" 주황 명패를 늘 띄워 어디로 갈지 바로 보이게 한다. */
+.route-map.is-3d .route-node.is-reachable .route-node-label,
+.route-map.is-3d .route-node.is-destination .route-node-label {
+  display: block; bottom: calc(100% + 2px); border-color: #5a2f15; background: linear-gradient(180deg, #ffc477, #f08e44);
+  color: #2a1608; font-weight: 700; animation: route-tag-bob 1.6s ease-in-out infinite;
+}
+.route-map.is-3d .route-node.is-reachable .route-node-label::before { content: attr(data-order) ' '; }
+.route-map.is-3d .route-node.is-reachable.is-highlighted .route-node-label { background: linear-gradient(180deg, #ffe2b0, #ffb066); }
+.route-map.is-3d.is-moving .route-node.is-reachable:not(.is-destination) .route-node-label { display: none; }
+.route-map.is-3d .route-node.is-reachable .route-node-order { display: none; }
+@keyframes route-tag-bob { 50% { transform: translate(-50%, -4px); } }
+@media (prefers-reduced-motion: reduce) { .route-map.is-3d .route-node .route-node-label { animation: none; } }
+.app[data-background-motion="off"] .route-map.is-3d .route-node .route-node-label,
+.app[data-background-motion="reduced"] .route-map.is-3d .route-node .route-node-label { animation: none; }
