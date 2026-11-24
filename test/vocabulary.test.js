@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import words from '../src/data/vocabulary.json' with { type: 'json' };
 import { findVocabulary, TIERS } from '../src/vocabulary.js';
+import {
+  buildGameHomeUrl,
+  buildVocabularyTabUrl,
+  isStandaloneVocabularyUrl,
+  parseVocabularyUrlState,
+} from '../src/vocabularyUrl.js';
 
 test('all five cumulative ranges match the teacher PDFs', () => {
   assert.deepEqual(TIERS.map(({ id }) => findVocabulary({ tier: id }).length), [64, 290, 741, 969, 1000]);
@@ -54,4 +60,56 @@ test('every imported entry has a unique meaning identity, complete fields and a 
   }
   assert.equal(words.find(({ term }) => term === 'captain').antonyms, '[상대어] crew(선원)');
   assert.equal(words.find(({ term }) => term === 'cell').synonyms, '—');
+});
+
+test('standalone vocabulary URL detection and state parsing handle valid, invalid, and personal tabs', () => {
+  assert.equal(isStandaloneVocabularyUrl(''), false);
+  assert.equal(isStandaloneVocabularyUrl('?view=other'), false);
+  assert.equal(isStandaloneVocabularyUrl('?view=vocabulary'), true);
+  assert.equal(isStandaloneVocabularyUrl('?foo=1&view=vocabulary&tier=master'), true);
+
+  assert.deepEqual(parseVocabularyUrlState(''), {
+    personal: false,
+    tier: 'bronze',
+    scope: 'all',
+    query: '',
+  });
+  assert.deepEqual(parseVocabularyUrlState('?view=vocabulary&tier=gold&scope=new&q=adverse'), {
+    personal: false,
+    tier: 'gold',
+    scope: 'new',
+    query: 'adverse',
+  });
+  assert.deepEqual(parseVocabularyUrlState('?view=vocabulary&tier=diamond&scope=bogus'), {
+    personal: false,
+    tier: 'bronze',
+    scope: 'all',
+    query: '',
+  });
+  assert.deepEqual(parseVocabularyUrlState('?view=vocabulary&tab=personal&q=hello'), {
+    personal: true,
+    tier: 'bronze',
+    scope: 'all',
+    query: 'hello',
+  });
+});
+
+test('buildVocabularyTabUrl and buildGameHomeUrl preserve HTTP and file:// bases safely', () => {
+  const httpTab = buildVocabularyTabUrl('https://sword-master.example/app?keep=1', {
+    personal: false,
+    tier: 'platinum',
+    scope: 'new',
+    query: '  vital  ',
+  });
+  assert.equal(httpTab, 'https://sword-master.example/app?keep=1&view=vocabulary&tier=platinum&scope=new&q=vital');
+  assert.equal(buildGameHomeUrl(httpTab), 'https://sword-master.example/app?keep=1');
+
+  const filePersonal = buildVocabularyTabUrl('file:///Users/student/sword-master.html?view=vocabulary&tier=gold&scope=new', {
+    personal: true,
+    tier: 'gold',
+    scope: 'new',
+    query: '',
+  });
+  assert.equal(filePersonal, 'file:///Users/student/sword-master.html?view=vocabulary&tab=personal');
+  assert.equal(buildGameHomeUrl(filePersonal), 'file:///Users/student/sword-master.html');
 });

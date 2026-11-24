@@ -4,6 +4,7 @@ import AdventureDialog from './components/AdventureDialog.jsx';
 import ReviewDialog from './components/ReviewDialog.jsx';
 import SettingsDialog from './components/SettingsDialog.jsx';
 import VocabularyDialog from './components/VocabularyDialog.jsx';
+import { buildGameHomeUrl, isStandaloneVocabularyUrl, parseVocabularyUrlState } from './vocabularyUrl.js';
 import TutorialDialog from './components/TutorialDialog.jsx';
 import { shouldOpenTutorialForMenu } from './game/tutorial.js';
 import SurveyDialog from './components/SurveyDialog.jsx';
@@ -42,6 +43,8 @@ function GameApp({ settings, setSettings }) {
   const admin = useAdmin();
   const [selected, setSelected] = useState(0);
   const [openedMenu, setOpenedMenu] = useState(null);
+  const [standaloneVocabulary, setStandaloneVocabulary] = useState(() => isStandaloneVocabularyUrl(window.location.search));
+  const [initialVocabularyState, setInitialVocabularyState] = useState(() => parseVocabularyUrlState(window.location.search));
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(null);
   const { progress, dispatch, error, resetProgress } = useProgress({
@@ -49,7 +52,20 @@ function GameApp({ settings, setSettings }) {
     reducer: admin.createReducer(gameReducer),
   });
   useEffect(() => {
-    if (ADMIN_MODE) document.title = 'S’word Master · 관리자';
+    if (standaloneVocabulary) {
+      document.title = ADMIN_MODE ? 'S’word Master · 단어장 (관리자)' : 'S’word Master · 단어장';
+    } else {
+      document.title = ADMIN_MODE ? 'S’word Master · 관리자' : 'S’word Master';
+    }
+  }, [standaloneVocabulary]);
+  useEffect(() => {
+    const syncFromLocation = () => {
+      const nextStandalone = isStandaloneVocabularyUrl(window.location.search);
+      setStandaloneVocabulary(nextStandalone);
+      setInitialVocabularyState(parseVocabularyUrlState(window.location.search));
+    };
+    window.addEventListener('popstate', syncFromLocation);
+    return () => window.removeEventListener('popstate', syncFromLocation);
   }, []);
   const canContinue = !!progress.run && progress.run.phase !== 'result';
   const canSurvey = surveyUnlocked(progress);
@@ -67,7 +83,7 @@ function GameApp({ settings, setSettings }) {
   const swing = useRef(null);
   const reducedMotion = settings.backgroundMotion !== 'normal';
 
-  const needsPreload = settings.renderer !== '2d' && !graphics.unavailable && !isEmbeddedAssetBundle();
+  const needsPreload = !standaloneVocabulary && settings.renderer !== '2d' && !graphics.unavailable && !isEmbeddedAssetBundle();
   const [qualityChosen, setQualityChosen] = useState(() => settings.renderer === '2d' || hasChosenGraphicsQuality());
   const [preloadAttempt, setPreloadAttempt] = useState(0);
   const [preloadState, setPreloadState] = useState(() => ({
@@ -78,13 +94,13 @@ function GameApp({ settings, setSettings }) {
   }));
   const [titleSceneReady, setTitleSceneReady] = useState(() => !needsPreload || isTitlePreloadReady());
   const hadBlockingOverlay = useRef(false);
-  const needsQualityChoice = !qualityChosen && settings.renderer !== '2d' && !graphics.unavailable;
+  const needsQualityChoice = !standaloneVocabulary && !qualityChosen && settings.renderer !== '2d' && !graphics.unavailable;
   const titleAssetsReady = (!needsPreload || preloadState.ready) && !needsQualityChoice;
   const preloadBlocking = needsQualityChoice || (needsPreload && (!preloadState.ready || !titleSceneReady));
   const qualityPickerVisible = needsQualityChoice && openedMenu === null;
   const downloadVisible = !qualityPickerVisible && preloadBlocking && openedMenu === null;
   const tutorialVisible = tutorialOpen && (!preloadBlocking || openedMenu !== null);
-  const titleBlocked = preloadBlocking || tutorialOpen;
+  const titleBlocked = standaloneVocabulary || preloadBlocking || tutorialOpen;
   const overlayVisible = qualityPickerVisible || downloadVisible || tutorialVisible;
 
   useEffect(() => {
@@ -139,6 +155,18 @@ function GameApp({ settings, setSettings }) {
   useEffect(() => {
     if (!titleBlocked && openedMenu === null) buttons.current[0]?.focus({ preventScroll: true });
   }, []);
+
+  const wasStandalone = useRef(standaloneVocabulary);
+  useEffect(() => {
+    if (standaloneVocabulary) {
+      wasStandalone.current = true;
+    } else if (wasStandalone.current) {
+      wasStandalone.current = false;
+      if (!preloadBlocking && !tutorialOpen && openedMenu === null) {
+        buttons.current[selected]?.focus({ preventScroll: true });
+      }
+    }
+  }, [standaloneVocabulary, preloadBlocking, tutorialOpen, openedMenu, selected]);
 
   useEffect(() => {
     if (tutorialOpen) {
@@ -219,6 +247,17 @@ function GameApp({ settings, setSettings }) {
     else opener.current?.focus({ preventScroll: true });
   }
 
+  function returnToGameFromVocabulary() {
+    const homeUrl = buildGameHomeUrl(window.location.href);
+    try { window.history.replaceState(null, '', homeUrl); } catch {}
+    if (settings.renderer !== '2d' && !graphics.unavailable && !isEmbeddedAssetBundle() && !isTitlePreloadReady()) {
+      setTitleSceneReady(false);
+      setPreloadState((prev) => ({ ...prev, ready: false, status: 'loading', error: '' }));
+    }
+    setOpenedMenu(null);
+    setStandaloneVocabulary(false);
+  }
+
   function closeAdventure(reason) {
     if (reason === 'bronze-clear') setOpenedMenu('설문 참여');
     else closeMenu();
@@ -258,68 +297,86 @@ function GameApp({ settings, setSettings }) {
 
   return (
     <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect} data-background-motion={settings.backgroundMotion}>
-      <main className="start-screen" inert={titleBlocked}>
-        <div className="title-backdrop">
-          <TitleScene active={titleAssetsReady && (openedMenu === null || openedMenu === '설문 참여')} motionPreference={settings.backgroundMotion} heroAction={heroAction} onLoaded={() => setTitleSceneReady(true)} />
-        </div>
-        <section className="title-panel" aria-label="S’word Master 시작">
-          <SwordLogo />
-          <nav ref={menu} className="menu" aria-label="시작 메뉴" aria-describedby="title-typing-help">
-            {MENU.map(({ label }, index) => index === CONTINUE || (index === SURVEY && !canSurvey) ? null : (
-              <div className={index === 0 ? 'adventure-actions' : index === SURVEY ? 'menu-item survey-item' : 'menu-item'} key={label}>
-                {menuButton(index)}
-                {index === 0 && menuButton(CONTINUE)}
-              </div>
-            ))}
-          </nav>
-          <p className="menu-description" aria-live="polite">{MENU[selected].description}</p>
-          <p className={`title-typing${typeMiss ? ' is-miss' : ''}${typed ? ' has-text' : ''}`} id="title-typing-help">
-            <span aria-hidden="true">›</span>
-            {typed ? <strong aria-live="polite">{typed}</strong> : <span>메뉴의 영어 단어를 치면 칼이 응답한다</span>}
-          </p>
-          {error && openedMenu === null && <p className="title-save-error" role="alert">{error}</p>}
-        </section>
-        <p className="title-place" aria-hidden="true">황혼의 석문</p>
-        <p className="version">v{version}{ADMIN_MODE && <span className="version-admin-tag">ADMIN</span>}</p>
-      </main>
-      {openedMenu === '설정' ? (
-        <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu} onTutorial={(event) => openTutorial(event?.currentTarget ?? null)}
-          onChange={(key, value) => setSettings((current) => normalizeSettings({ ...current, [key]: value }))}
-          onReset={() => setSettings({ ...DEFAULT_SETTINGS })} />
-      ) : openedMenu === '단어장' ? <VocabularyDialog wordbooks={progress.wordbooks ?? []} error={error}
-        onSaveBook={(book) => dispatch({ type: 'ADD_WORDBOOK', book })} onClose={closeMenu} />
-        : openedMenu === '오답 복습' ? <ReviewDialog progress={progress} dispatch={dispatch} error={error} onClose={closeMenu} />
-        : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
-          : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
-            shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onTutorial={(event) => openTutorial(event?.currentTarget ?? null)} onClose={closeAdventure} /> : null}
-      {tutorialVisible && <TutorialDialog replay={openedMenu === '설정'} onClose={closeTutorial} />}
-      {qualityPickerVisible && (
-        <GraphicsQualityOverlay
-          recommended={graphics.recommendedQuality}
-          preloadReady={preloadState.ready}
-          preloadStatus={preloadState.status}
-          preloadProgress={preloadState.progress}
-          onConfirm={(chosen) => {
-            const next = normalizeSettings({ ...settings, graphicsQuality: chosen });
-            setSettings(next);
-            setQualityChosen(true);
-            setSettingsSaved(saveSettings(next));
-          }}
-        />
-      )}
-      {downloadVisible && (
-        <AssetDownloadOverlay
-          progress={overlayProgress}
-          status={preloadState.status}
-          error={preloadState.error}
-          onRetry={() => setPreloadAttempt((n) => n + 1)}
-          onUse2d={() => {
-            graphics.reportFailure();
-          }}
-        />
-      )}
-      {ADMIN_MODE && (
-        <AdminOverlay progress={progress} dispatch={dispatch} resetProgress={resetProgress} openedMenu={openedMenu} tutorialOpen={tutorialVisible} />
+      {standaloneVocabulary ? (
+        <>
+          <VocabularyDialog
+            standalone
+            initialState={initialVocabularyState}
+            wordbooks={progress.wordbooks ?? []}
+            error={error}
+            onSaveBook={(book) => dispatch({ type: 'ADD_WORDBOOK', book })}
+            onClose={returnToGameFromVocabulary}
+          />
+          {ADMIN_MODE && (
+            <AdminOverlay progress={progress} dispatch={dispatch} resetProgress={resetProgress} openedMenu="단어장" tutorialOpen={false} />
+          )}
+        </>
+      ) : (
+        <>
+          <main className="start-screen" inert={titleBlocked}>
+            <div className="title-backdrop">
+              <TitleScene active={titleAssetsReady && (openedMenu === null || openedMenu === '설문 참여')} motionPreference={settings.backgroundMotion} heroAction={heroAction} onLoaded={() => setTitleSceneReady(true)} />
+            </div>
+            <section className="title-panel" aria-label="S’word Master 시작">
+              <SwordLogo />
+              <nav ref={menu} className="menu" aria-label="시작 메뉴" aria-describedby="title-typing-help">
+                {MENU.map(({ label }, index) => index === CONTINUE || (index === SURVEY && !canSurvey) ? null : (
+                  <div className={index === 0 ? 'adventure-actions' : index === SURVEY ? 'menu-item survey-item' : 'menu-item'} key={label}>
+                    {menuButton(index)}
+                    {index === 0 && menuButton(CONTINUE)}
+                  </div>
+                ))}
+              </nav>
+              <p className="menu-description" aria-live="polite">{MENU[selected].description}</p>
+              <p className={`title-typing${typeMiss ? ' is-miss' : ''}${typed ? ' has-text' : ''}`} id="title-typing-help">
+                <span aria-hidden="true">›</span>
+                {typed ? <strong aria-live="polite">{typed}</strong> : <span>메뉴의 영어 단어를 치면 칼이 응답한다</span>}
+              </p>
+              {error && openedMenu === null && <p className="title-save-error" role="alert">{error}</p>}
+            </section>
+            <p className="title-place" aria-hidden="true">황혼의 석문</p>
+            <p className="version">v{version}{ADMIN_MODE && <span className="version-admin-tag">ADMIN</span>}</p>
+          </main>
+          {openedMenu === '설정' ? (
+            <SettingsDialog settings={settings} saved={settingsSaved} onClose={closeMenu} onTutorial={(event) => openTutorial(event?.currentTarget ?? null)}
+              onChange={(key, value) => setSettings((current) => normalizeSettings({ ...current, [key]: value }))}
+              onReset={() => setSettings({ ...DEFAULT_SETTINGS })} />
+          ) : openedMenu === '단어장' ? <VocabularyDialog wordbooks={progress.wordbooks ?? []} error={error}
+            onSaveBook={(book) => dispatch({ type: 'ADD_WORDBOOK', book })} onClose={closeMenu} />
+            : openedMenu === '오답 복습' ? <ReviewDialog progress={progress} dispatch={dispatch} error={error} onClose={closeMenu} />
+            : openedMenu === '설문 참여' ? <SurveyDialog progress={progress} formUrl={SURVEY_FORM_URL} onClose={closeMenu} />
+              : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
+                shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onTutorial={(event) => openTutorial(event?.currentTarget ?? null)} onClose={closeAdventure} /> : null}
+          {tutorialVisible && <TutorialDialog replay={openedMenu === '설정'} onClose={closeTutorial} />}
+          {qualityPickerVisible && (
+            <GraphicsQualityOverlay
+              recommended={graphics.recommendedQuality}
+              preloadReady={preloadState.ready}
+              preloadStatus={preloadState.status}
+              preloadProgress={preloadState.progress}
+              onConfirm={(chosen) => {
+                const next = normalizeSettings({ ...settings, graphicsQuality: chosen });
+                setSettings(next);
+                setQualityChosen(true);
+                setSettingsSaved(saveSettings(next));
+              }}
+            />
+          )}
+          {downloadVisible && (
+            <AssetDownloadOverlay
+              progress={overlayProgress}
+              status={preloadState.status}
+              error={preloadState.error}
+              onRetry={() => setPreloadAttempt((n) => n + 1)}
+              onUse2d={() => {
+                graphics.reportFailure();
+              }}
+            />
+          )}
+          {ADMIN_MODE && (
+            <AdminOverlay progress={progress} dispatch={dispatch} resetProgress={resetProgress} openedMenu={openedMenu} tutorialOpen={tutorialVisible} />
+          )}
+        </>
       )}
     </div>
   );

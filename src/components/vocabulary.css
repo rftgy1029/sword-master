@@ -1,0 +1,1051 @@
+/*
+ * S'word Master — 풀스크린 고밀도 단어장 워크스페이스
+ * main.jsx에서 App.jsx보다 뒤에 불러오는 styles.css / premium.css / dusk.css / dungeonCraft.css를
+ * 모든 뷰포트에서 안정적으로 덮어쓰기 위해 .vocabulary-dialog.is-fullscreen 접두사를 유지한다.
+ */
+
+html:has(.vocabulary-dialog.is-fullscreen[open]),
+html:has(.vocabulary-dialog.is-fullscreen.is-standalone) {
+  overflow: hidden;
+}
+
+.vocabulary-dialog.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100svh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: radial-gradient(ellipse at 50% 0%, #2a1d39 0%, #16111e 48%, #120d18 100%);
+  color: var(--ivory, #f8eedd);
+  overflow: hidden;
+}
+
+.vocabulary-dialog.is-fullscreen[open],
+.vocabulary-dialog.is-fullscreen.is-standalone {
+  display: flex;
+  flex-direction: column;
+}
+
+.vocabulary-dialog.is-fullscreen::backdrop {
+  background: #0a070f;
+  backdrop-filter: none;
+}
+
+.vocabulary-dialog.is-fullscreen p {
+  word-break: keep-all;
+}
+
+/* ---------- 1. 슬림 상단 바 ---------- */
+.vocabulary-dialog.is-fullscreen .vocabulary-header.vocab-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  min-height: 48px;
+  padding: 6px clamp(12px, 2vw, 22px);
+  border-bottom: 1.5px solid #6e5233;
+  background:
+    linear-gradient(90deg, #34253c48 0%, transparent 25%, transparent 75%, #34253c48 100%),
+    linear-gradient(180deg, #292131 0%, #1c1623 62%, #15101b 100%);
+  box-shadow: inset 0 1px #ffffff14, 0 3px 12px #05030a99;
+  flex-shrink: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-topbar-lead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-topbar-lead h2 {
+  margin: 0;
+  font-size: calc(17px * var(--text-scale));
+  line-height: 1.2;
+  color: #f9efdc;
+  white-space: nowrap;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid #4d3b5d;
+  border-radius: 8px;
+  background: #140f1b;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-mode-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 11px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #b7abc4;
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-mode-switch button:hover {
+  color: #f8eedd;
+  background: #271e32;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-mode-switch button[aria-pressed="true"] {
+  border-color: #9e7d47;
+  background: linear-gradient(180deg, #43324f, #2d2238);
+  color: #ffe3b0;
+  font-weight: 700;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-mode-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #5a4224;
+  color: #ffd791;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: clamp(190px, 24vw, 310px);
+  min-height: 34px;
+  padding: 0 8px 0 10px;
+  border: 1.5px solid #59466c;
+  border-radius: 7px;
+  background: #120d18;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-search:focus-within {
+  outline: 2px solid var(--sun, #ffb25e);
+  outline-offset: 1px;
+  border-color: #b48a4e;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-search > svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: #b5a7c4;
+  stroke-width: 1.7;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-search input {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: #f8eedd;
+  font: inherit;
+  font-size: calc(12.5px * var(--text-scale));
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-search input::placeholder {
+  color: #8b7e9a;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-search-clear {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 4px;
+  background: #2b2136;
+  color: #d6cbe2;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-search-clear:hover {
+  background: #3d2f4d;
+  color: #fff;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-open-tab,
+.vocabulary-dialog.is-fullscreen .vocab-home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px 11px;
+  border: 1.5px solid #6b5336;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #32263c, #201828);
+  color: #f6dfaf;
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-open-tab:hover,
+.vocabulary-dialog.is-fullscreen .vocab-home-link:hover {
+  border-color: #d8a962;
+  background: linear-gradient(180deg, #43324f, #2b2035);
+  color: #fff4da;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-topbar .settings-close {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1.5px solid #6c5646;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #34293d, #1f1826);
+  color: #e9ddc8;
+  font-size: 18px;
+  line-height: 1;
+  box-shadow: inset 0 1px #ffffff1c, 0 2px 0 #0b0710;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-topbar .settings-close:hover {
+  border-color: #e6b463;
+  background: linear-gradient(180deg, #473652, #2b2135);
+  color: #fff8ea;
+}
+
+/* ---------- 2. 슬림 컨트롤 바 ---------- */
+.vocabulary-dialog.is-fullscreen .vocab-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  min-height: 44px;
+  padding: 5px clamp(12px, 2vw, 22px);
+  border-bottom: 1px solid #352944;
+  background: #1a1424;
+  flex-shrink: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .tier-tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.vocabulary-dialog.is-fullscreen .tier-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.vocabulary-dialog.is-fullscreen .tier-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid #3c2f4b;
+  border-radius: 7px !important;
+  background: #221a2d;
+  color: #bfb3cc;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen .tier-tab:hover {
+  border-color: #6b557f;
+  background: #2e233b;
+  color: #f8eedd;
+}
+
+.vocabulary-dialog.is-fullscreen .tier-tab.is-active {
+  border-color: #d6a25c;
+  background: linear-gradient(180deg, #43324f, #2f2339);
+  color: #ffe3b0;
+  box-shadow: inset 0 1px #ffffff16;
+}
+
+.vocabulary-dialog.is-fullscreen .tier-tab .tier-crest {
+  width: 15px;
+  height: 17px;
+}
+
+.vocabulary-dialog.is-fullscreen .tier-name {
+  display: inline;
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.vocabulary-dialog.is-fullscreen .tier-count {
+  margin-left: 2px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #9e91ad;
+}
+
+.vocabulary-dialog.is-fullscreen .tier-tab.is-active .tier-count {
+  color: #f4c97d;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-scope,
+.vocabulary-dialog.is-fullscreen .vocab-mask-group {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid #443554;
+  border-radius: 7px;
+  background: #130e1a;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-scope button,
+.vocabulary-dialog.is-fullscreen .vocab-mask-group button {
+  min-height: 28px;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #b7abc4;
+  font-size: calc(11.5px * var(--text-scale));
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-scope button:hover,
+.vocabulary-dialog.is-fullscreen .vocab-mask-group button:hover {
+  color: #f8eedd;
+  background: #271e32;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-scope button[aria-pressed="true"] {
+  border-color: #8c734b;
+  background: #352940;
+  color: #f8eedd;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-scope button > span {
+  margin-left: 4px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: #c7b8d6;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-mask-group button[aria-pressed="true"] {
+  border-color: #d6a25c;
+  background: linear-gradient(180deg, #563a24, #3d2818);
+  color: #ffe2ad;
+  font-weight: 700;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-personal-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-personal-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: calc(12px * var(--text-scale));
+  color: #c9bfd2;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-personal-select select {
+  min-height: 32px;
+  max-width: min(320px, 46vw);
+  padding: 4px 10px;
+  border: 1.5px solid #59466c;
+  border-radius: 7px;
+  background: #120d18;
+  color: #f8eedd;
+  font: inherit;
+  font-size: calc(12px * var(--text-scale));
+  color-scheme: dark;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-personal-count {
+  padding: 3px 8px;
+  border: 1px solid #443554;
+  border-radius: 999px;
+  background: #231a2f;
+  color: #f2c779;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-import-toggle {
+  min-height: 32px;
+  padding: 4px 11px;
+  border: 1.5px solid #6e5538;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #33273d, #22192a);
+  color: #f5dda9;
+  font-size: calc(11.5px * var(--text-scale));
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-import-toggle:hover,
+.vocabulary-dialog.is-fullscreen .vocab-import-toggle[aria-expanded="true"] {
+  border-color: #d8a962;
+  background: linear-gradient(180deg, #43324f, #2d2238);
+  color: #fff3da;
+}
+
+/* ---------- 3. 메인 스크롤 워크스페이스 & 고밀도 테이블 ---------- */
+.vocabulary-dialog.is-fullscreen .vocab-workspace {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px clamp(12px, 2vw, 22px) 16px;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-workspace:focus-visible {
+  outline: 2px solid var(--sun, #ffb25e);
+  outline-offset: -3px;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-sheet {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-panel {
+  display: block;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  margin-bottom: 8px;
+  min-height: 26px;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-meta-info {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-meta-status {
+  margin: 0;
+  font-size: calc(12px * var(--text-scale));
+  color: #d6cce0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-meta-status strong {
+  color: #ffc873;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-meta-hint {
+  font-size: calc(11px * var(--text-scale));
+  color: #9689a8;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-expand-all {
+  min-height: 26px;
+  padding: 3px 10px;
+  flex-shrink: 0;
+  border: 1px solid #4e3d60;
+  border-radius: 6px;
+  background: #231b2e;
+  color: #d4c8e0;
+  font-size: calc(11px * var(--text-scale));
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-expand-all:hover {
+  border-color: #9e8151;
+  background: #2f243d;
+  color: #fff3da;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-table-shell {
+  border: 1px solid #3c2f4b;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #1b1424;
+  box-shadow: 0 6px 20px #06030a66;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-table-header {
+  display: grid;
+  grid-template-columns: 38px minmax(180px, 1.05fr) minmax(220px, 1.65fr) 68px 22px;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 14px;
+  border-bottom: 1px solid #443554;
+  background: #15101d;
+  color: #9b8ead;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-table-header.is-personal {
+  grid-template-columns: 38px minmax(180px, 1.05fr) minmax(220px, 1.65fr) 68px;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .word-entry {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid #2b2137;
+  border-radius: 0;
+  background: #1d1627;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-list > li:last-child .word-entry,
+.vocabulary-dialog.is-fullscreen .vocabulary-list > li:last-child .personal-word-row {
+  border-bottom: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-list > li:nth-child(even) .word-entry,
+.vocabulary-dialog.is-fullscreen .vocabulary-list > li:nth-child(even) .personal-word-row {
+  background: #21192c;
+}
+
+.vocabulary-dialog.is-fullscreen .word-entry summary {
+  display: grid;
+  grid-template-columns: 38px minmax(180px, 1.05fr) minmax(220px, 1.65fr) 68px 22px;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding: 6px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.vocabulary-dialog.is-fullscreen .word-entry summary::-webkit-details-marker {
+  display: none;
+}
+
+.vocabulary-dialog.is-fullscreen .word-entry summary:hover {
+  background: #2b2139;
+}
+
+.vocabulary-dialog.is-fullscreen .word-entry[open] {
+  border-color: #3f3150;
+  background: #261d34;
+  box-shadow: inset 3px 0 0 #f0b25e;
+}
+
+.vocabulary-dialog.is-fullscreen .word-entry[open] summary {
+  background: #2a2039;
+}
+
+.vocabulary-dialog.is-fullscreen .word-number {
+  width: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #887b9a;
+}
+
+.vocabulary-dialog.is-fullscreen .word-term {
+  min-width: 0;
+  font-size: calc(15px * var(--text-scale));
+  font-weight: 600;
+  color: #fff3df;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.vocabulary-dialog.is-fullscreen .word-meaning {
+  min-width: 0;
+  font-size: calc(13.5px * var(--text-scale));
+  color: #d8cee4;
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.vocabulary-dialog.is-fullscreen .word-tier {
+  justify-self: start;
+  padding: 2px 6px;
+  border: 1px solid #483859;
+  border-radius: 5px;
+  background: #171120;
+  color: var(--tier-color, #d6a25c);
+  font-size: 10.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.vocabulary-dialog.is-fullscreen .word-expand {
+  width: 20px;
+  text-align: center;
+  font-size: 16px;
+  font-family: monospace;
+  color: #c2b3d4;
+}
+
+.vocabulary-dialog.is-fullscreen .word-entry[open] .word-expand {
+  font-size: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .word-entry[open] .word-expand::after {
+  content: '−';
+  font-size: 16px;
+  color: #f5be6d;
+}
+
+.vocabulary-dialog.is-fullscreen .word-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 24px;
+  margin: 0;
+  padding: 10px 18px 12px 64px;
+  border-top: 1px solid #332743;
+  background: #15101d;
+}
+
+.vocabulary-dialog.is-fullscreen .word-details dt {
+  margin-bottom: 3px;
+  font-size: calc(10.5px * var(--text-scale));
+  color: #b59a74;
+}
+
+.vocabulary-dialog.is-fullscreen .word-details dd {
+  margin: 0;
+  font-size: calc(12.5px * var(--text-scale));
+  line-height: 1.55;
+  color: #dfd6ea;
+  overflow-wrap: anywhere;
+}
+
+.vocabulary-dialog.is-fullscreen .word-details .word-source {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-top: 7px;
+  border-top: 1px dashed #2e233c;
+}
+
+.vocabulary-dialog.is-fullscreen .word-source dt {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .word-source dd {
+  font-size: calc(11px * var(--text-scale));
+  color: #9e91ae;
+}
+
+/* 내 단어장 행 */
+.vocabulary-dialog.is-fullscreen .personal-word-row {
+  display: grid;
+  grid-template-columns: 38px minmax(180px, 1.05fr) minmax(220px, 1.65fr) 68px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 14px;
+  border: 0;
+  border-bottom: 1px solid #2b2137;
+  border-radius: 0;
+  background: #1d1627;
+  text-align: left;
+  font: inherit;
+}
+
+.vocabulary-dialog.is-fullscreen button.personal-word-row {
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen button.personal-word-row:hover {
+  background: #2b2139;
+}
+
+.vocabulary-dialog.is-fullscreen button.personal-word-row.is-revealed {
+  background: #261d34;
+  box-shadow: inset 3px 0 0 #f0b25e;
+}
+
+.vocabulary-dialog.is-fullscreen .personal-reveal-pill {
+  justify-self: start;
+  padding: 2px 8px;
+  border: 1px solid #4d3c60;
+  border-radius: 5px;
+  background: #171120;
+  color: #c8bad6;
+  font-size: 10.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.vocabulary-dialog.is-fullscreen button.personal-word-row.is-revealed .personal-reveal-pill {
+  border-color: #b78a4b;
+  color: #ffe1a8;
+}
+
+/* ---------- 암기 가리기 모드 (DOM 텍스트 보존, 시각적 마스킹만 적용) ---------- */
+.vocabulary-dialog.is-fullscreen [data-hide-mode="meaning"] .word-entry:not([open]) .word-meaning,
+.vocabulary-dialog.is-fullscreen [data-hide-mode="meaning"] .personal-word-row:not(.is-revealed) .word-meaning,
+.vocabulary-dialog.is-fullscreen [data-hide-mode="term"] .word-entry:not([open]) .word-term,
+.vocabulary-dialog.is-fullscreen [data-hide-mode="term"] .personal-word-row:not(.is-revealed) .word-term {
+  color: transparent !important;
+  text-shadow: none !important;
+  user-select: none;
+  padding: 2px 8px;
+  border: 1px dashed #5d4b73;
+  border-radius: 5px;
+  background: repeating-linear-gradient(135deg, #2b2138 0 6px, #231b2e 6px 12px);
+}
+
+/* 내 단어장 가져오기 카드 */
+.vocabulary-dialog.is-fullscreen .vocab-personal-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-import-card {
+  padding: 16px 18px;
+  border: 1px solid #49385b;
+  border-radius: 10px;
+  background: #1d1627;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-empty {
+  min-height: 200px;
+  padding: 28px 16px;
+  border: 1px solid #3c2f4b;
+  border-radius: 9px;
+  background: #1b1424;
+}
+
+/* ---------- 4. 슬림 하단 바 ---------- */
+.vocabulary-dialog.is-fullscreen .vocabulary-footer.vocab-bottombar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 5px clamp(12px, 2vw, 22px);
+  border-top: 1px solid #3c2f4b;
+  background: #16111e;
+  flex-shrink: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-shortcuts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  font-size: 11px;
+  color: #9588a6;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-shortcuts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-pagination {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 0;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-pagination button {
+  min-height: 28px;
+  padding: 3px 10px;
+  border: 1px solid #554368;
+  border-radius: 6px;
+  background: #241c30;
+  color: #f4ead7;
+  font-size: calc(11.5px * var(--text-scale));
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-pagination button:hover:not(:disabled) {
+  border-color: #d6a25c;
+  background: #332744;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-pagination button:disabled {
+  cursor: default;
+  border-color: #30253d;
+  background: transparent;
+  color: #6b607a;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-pagination > span {
+  font-size: 12px;
+  color: #a99cb8;
+  font-variant-numeric: tabular-nums;
+}
+
+.vocabulary-dialog.is-fullscreen .vocabulary-pagination strong {
+  color: #ffe3b0;
+  font-weight: 700;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-page-size {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+}
+
+.vocabulary-dialog.is-fullscreen .vocab-page-size select {
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid #4e3d60;
+  border-radius: 6px;
+  background: #1e1729;
+  color: #d8cee4;
+  font: inherit;
+  font-size: 11.5px;
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+.vocabulary-dialog.is-fullscreen button:focus-visible,
+.vocabulary-dialog.is-fullscreen a:focus-visible,
+.vocabulary-dialog.is-fullscreen select:focus-visible,
+.vocabulary-dialog.is-fullscreen .word-entry summary:focus-visible {
+  outline: 2px solid var(--sun, #ffb25e);
+  outline-offset: -2px;
+}
+
+/* ---------- 반응형 (태블릿 & 모바일 360px+) ---------- */
+@media (max-width: 960px) {
+  .vocabulary-dialog.is-fullscreen .vocab-controls-bar {
+    flex-wrap: wrap;
+    padding-block: 6px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .tier-tabs {
+    flex: 1 1 100%;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-controls-right {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-shortcuts {
+    display: none;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocabulary-footer.vocab-bottombar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocabulary-pagination {
+    grid-column: 1;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 680px) {
+  .vocabulary-dialog.is-fullscreen {
+    width: 100vw;
+    height: 100svh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocabulary-header.vocab-topbar {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-topbar-lead {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-topbar-actions {
+    width: 100%;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-search {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-open-tab,
+  .vocabulary-dialog.is-fullscreen .vocab-home-link {
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-controls-bar {
+    padding: 6px 12px;
+    gap: 6px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .tier-count,
+  .vocabulary-dialog.is-fullscreen .vocab-meta-hint,
+  .vocabulary-dialog.is-fullscreen .vocab-table-header {
+    display: none;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-workspace {
+    padding: 8px 10px 14px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .word-entry summary {
+    grid-template-columns: 24px minmax(0, 1fr) auto 18px;
+    grid-template-areas:
+      "num term tier exp"
+      "num mean mean exp";
+    gap: 3px 8px;
+    padding: 8px 10px;
+    min-height: 46px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .word-number {
+    grid-area: num;
+    align-self: start;
+    padding-top: 2px;
+    font-size: 10px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .word-term {
+    grid-area: term;
+    font-size: calc(14px * var(--text-scale));
+  }
+
+  .vocabulary-dialog.is-fullscreen .word-meaning {
+    grid-area: mean;
+    font-size: calc(12px * var(--text-scale));
+  }
+
+  .vocabulary-dialog.is-fullscreen .word-tier {
+    grid-area: tier;
+    justify-self: end;
+    font-size: 9.5px;
+    padding: 2px 5px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .word-expand {
+    grid-area: exp;
+  }
+
+  .vocabulary-dialog.is-fullscreen .word-details {
+    grid-template-columns: 1fr;
+    padding: 8px 12px 10px 36px;
+    gap: 8px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .personal-word-row {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "num term pill"
+      "num mean pill";
+    gap: 3px 8px;
+    padding: 8px 10px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .personal-word-row .word-number {
+    grid-area: num;
+  }
+
+  .vocabulary-dialog.is-fullscreen .personal-word-row .word-term {
+    grid-area: term;
+  }
+
+  .vocabulary-dialog.is-fullscreen .personal-word-row .word-meaning {
+    grid-area: mean;
+  }
+
+  .vocabulary-dialog.is-fullscreen .personal-word-row .personal-reveal-pill {
+    grid-area: pill;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocabulary-footer.vocab-bottombar {
+    padding: 6px 12px;
+  }
+}
+
+.app:is([data-background-motion="off"], [data-background-motion="reduced"]) .vocabulary-dialog.is-fullscreen * {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vocabulary-dialog.is-fullscreen * {
+    transition: none !important;
+  }
+}
