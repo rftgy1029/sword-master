@@ -94,9 +94,39 @@ dialog.game-dialog.tutorial-dialog::backdrop { background: #100b1bbf; }
 .tutorial-word strong { margin-right: 8px; color: var(--sun); }
 .tutorial-dialog .tutorial-intent { margin: 0 0 12px; }
 .tutorial-lesson > .game-primary { min-height: 44px; width: 100%; }
-@media (max-width: 480px), (max-height: 540px) {
-  .tutorial-lesson { padding-top: 12px; }
-  .tutorial-stage { height: 118px; }
-  .tutorial-duel > :is(img, span) { width: 96px; }
-  .tutorial-hand .game-card { flex-basis: 120px; }
+@media (max-width: 650px) {
+  dialog.game-dialog.tutorial-dialog[open] {
+    width: min(540px, calc(100vw - 20px));
+    max-height: calc(100dvh - 20px);
+  }
+}
+@media (max-width: 520px), (max-height: 540px) {
+  .tutorial-stage { height: 140px; }
+  .tutorial-status,
+  .tutorial-enemy {
+    top: 6px;
+    padding: 3px 7px;
+    font-size: calc(10.5px * var(--text-scale));
+  }
+  .tutorial-duel > :is(img, span) {
+    width: 76px;
+    margin-bottom: 2px;
+  }
+  .tutorial-lesson { padding: 12px 14px max(16px, env(safe-area-inset-bottom)); }
+}
+@media (max-width: 440px) {
+  .tutorial-hand {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding-left: 0;
+  }
+  .tutorial-hand > div {
+    width: 100%;
+    text-align: center;
+  }
+  .tutorial-hand .game-card {
+    flex: 0 0 auto;
+    width: 128px;
+  }
 }

@@ -124,6 +124,25 @@ try{
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   assert.equal(await page.locator('.quiz-options').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);
   assert.ok(await page.locator('.quiz-options').evaluate(node=>node.clientWidth>=node.parentElement.clientWidth-40),'Mobile choices use the panel width');
+  const mobileBattle=await page.evaluate(()=>{
+    const topbar=document.querySelector('.is-battle-topbar')?.getBoundingClientRect();
+    const statsEl=document.querySelector('.topbar-stats');
+    const stats=statsEl?.getBoundingClientRect();
+    const field=document.querySelector('.battlefield')?.getBoundingClientRect();
+    const opts=[...document.querySelectorAll('.quiz-dock-option')].map(el=>el.getBoundingClientRect());
+    return {
+      topbarH:topbar?.height??999,
+      statsDir:statsEl?getComputedStyle(statsEl).flexDirection:'',
+      statsH:stats?.height??999,
+      fieldH:field?.height??0,
+      optsFit:opts.length===4&&opts.every(r=>r.left>=-1&&r.right<=innerWidth+2),
+    };
+  });
+  assert.ok(mobileBattle.topbarH<=60,`Mobile battle topbar stays single-row (${mobileBattle.topbarH}px)`);
+  assert.equal(mobileBattle.statsDir,'row','Mobile topbar stats remain horizontal');
+  assert.ok(mobileBattle.statsH<=46,`Mobile topbar stats stay single-row (${mobileBattle.statsH}px)`);
+  assert.ok(mobileBattle.fieldH>=90,`Mobile battlefield remains visible during inline quiz (${mobileBattle.fieldH}px)`);
+  assert.equal(mobileBattle.optsFit,true,'All 4 mobile quiz options fit horizontally inside viewport');
   await shot('quiz-mobile-large');
   const q=fixture.run.battle.pending.question;
   const wrong=q.options.findIndex(s=>!questionById(q.id).answers.includes(s));
@@ -168,6 +187,22 @@ try{
   await page.locator('.scene-view[data-renderer="3d"][aria-busy="false"]').waitFor({timeout:20000});
   await page.setViewportSize({width:360,height:740});await shot('title-mobile');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.waitForFunction(()=>!document.querySelector('.scene-transition'));
+  await page.getByRole('button',{name:'단어장',exact:false}).click();
+  await page.locator('.vocabulary-dialog[open] .tier-tab').nth(4).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('.scene-transition'));
+  const mobileVocab=await page.evaluate(()=>{
+    const tabs=[...document.querySelectorAll('.vocabulary-dialog[open] .tier-tab')].map(el=>el.getBoundingClientRect());
+    return {
+      fit:tabs.length===5&&tabs.every(r=>r.left>=-0.5&&r.right<=innerWidth+0.5&&r.width>20),
+      noOverflow:document.documentElement.scrollWidth<=innerWidth,
+    };
+  });
+  assert.equal(mobileVocab.fit,true,'All 5 vocabulary tier tabs fit within 360px viewport without clipping');
+  assert.equal(mobileVocab.noOverflow,true,'Mobile vocabulary dialog has zero horizontal overflow');
+  await page.getByRole('button',{name:'단어장 닫기',exact:true}).click();
+  await page.locator('.vocabulary-dialog[open]').waitFor({state:'detached'});
+  await page.waitForFunction(()=>!document.querySelector('.scene-transition'));
   console.log('settings: 2D -> 3D retries and reading preferences preserve all progress');
   for(const kind of ['tier','map','treasure','elite-reward','rest','forge']){
     const progress=kind==='forge'?forgeFixture():kind==='rest'?restFixture():kind==='treasure'?treasureMapFixture():kind==='elite-reward'?eliteRewardFixture():gameReducer(emptyProgress(),{type:'START',tier:'bronze',seed:42});
@@ -392,12 +427,11 @@ try{
   await surveyContext.addInitScript(p=>{localStorage.setItem('sword-master.adventure.v1',JSON.stringify({version:1,progress:p}));},cleared);
   const survey=await surveyContext.newPage();survey.on('pageerror',e=>errors.push(e.message));
   await survey.goto(BASE_URL);
-  await survey.locator('.graphics-setup-card').waitFor({timeout:15000});
-  assert.equal(await survey.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  await survey.locator('[data-quality-choice="low"]').click();
-  await survey.locator('.graphics-setup-actions .game-primary').click();
-  await survey.locator('.graphics-setup-card').waitFor({state:'detached',timeout:15000});
   await survey.locator('.scene-view[aria-busy="false"]').waitFor({timeout:25000});
+  assert.equal(await survey.locator('.graphics-setup-card').count(),0,'First visit auto-initializes graphics quality without a blocking picker');
+  const persistedSettings=await survey.evaluate(()=>JSON.parse(localStorage.getItem('sword-master.settings.v1')||'null'));
+  assert.ok(['lowest','low'].includes(persistedSettings?.settings?.graphicsQuality),`Expected mobile/SwiftShader auto quality (lowest or low), got ${persistedSettings?.settings?.graphicsQuality}`);
+  assert.equal(await survey.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   const surveyButton=survey.getByRole('button',{name:/^설문 참여/});
   await surveyButton.waitFor();
   assert.equal(await survey.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);

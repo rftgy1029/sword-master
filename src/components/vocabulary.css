@@ -917,17 +917,20 @@ html:has(.vocabulary-dialog.is-fullscreen.is-standalone) {
 @media (max-width: 680px) {
   .vocabulary-dialog.is-fullscreen {
     width: 100vw;
+    max-width: 100vw;
     height: 100svh;
-    max-width: none;
-    max-height: none;
+    height: 100dvh;
+    max-height: 100dvh;
     margin: 0;
+    border: 0;
     border-radius: 0;
+    box-shadow: none;
   }
 
   .vocabulary-dialog.is-fullscreen .vocabulary-header.vocab-topbar {
     flex-wrap: wrap;
-    padding: 8px 12px;
-    gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left));
+    gap: 6px;
   }
 
   .vocabulary-dialog.is-fullscreen .vocab-topbar-lead {
@@ -952,8 +955,59 @@ html:has(.vocabulary-dialog.is-fullscreen.is-standalone) {
   }
 
   .vocabulary-dialog.is-fullscreen .vocab-controls-bar {
-    padding: 6px 12px;
+    padding: 4px max(10px, env(safe-area-inset-right)) 6px max(10px, env(safe-area-inset-left));
     gap: 6px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .tier-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    overflow: visible;
+    width: 100%;
+    padding-bottom: 0;
+  }
+
+  .vocabulary-dialog.is-fullscreen .tier-tab {
+    flex: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 5px 2px;
+    text-align: center;
+  }
+
+  .vocabulary-dialog.is-fullscreen .tier-tab .tier-crest {
+    width: 16px;
+    height: 18px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .tier-name {
+    font-size: clamp(10px, 2.7vw, calc(11.5px * var(--text-scale)));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-controls-right {
+    gap: 6px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-scope button,
+  .vocabulary-dialog.is-fullscreen .vocab-mask-group button {
+    min-height: 32px;
+    padding: 4px 7px;
+    font-size: calc(11px * var(--text-scale));
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-scope button > span {
+    margin-left: 3px;
+    font-size: 9.5px;
   }
 
   .vocabulary-dialog.is-fullscreen .tier-count,
@@ -963,7 +1017,12 @@ html:has(.vocabulary-dialog.is-fullscreen.is-standalone) {
   }
 
   .vocabulary-dialog.is-fullscreen .vocab-workspace {
-    padding: 8px 10px 14px;
+    padding: 8px max(10px, env(safe-area-inset-right)) 14px max(10px, env(safe-area-inset-left));
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocab-meta-bar {
+    flex-wrap: wrap;
+    gap: 6px 10px;
   }
 
   .vocabulary-dialog.is-fullscreen .word-entry summary {
@@ -1036,7 +1095,16 @@ html:has(.vocabulary-dialog.is-fullscreen.is-standalone) {
   }
 
   .vocabulary-dialog.is-fullscreen .vocabulary-footer.vocab-bottombar {
-    padding: 6px 12px;
+    padding: 6px max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    gap: 8px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocabulary-pagination {
+    gap: 6px;
+  }
+
+  .vocabulary-dialog.is-fullscreen .vocabulary-pagination button {
+    padding: 3px 8px;
   }
 }
 

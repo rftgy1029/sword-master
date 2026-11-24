@@ -123,9 +123,8 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .game-dialog .tier-entry-actions .game-notice { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 0 0 8px; padding: 6px 10px; font-size: calc(11px * var(--text-scale)); line-height: 1.5; }
 .tier-entry-actions .game-notice strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 500px) {
-  .game-dialog.is-tier { height: calc(100svh - 24px); }
-  .tier-selection-scroll { padding: 8px 12px; }
-  .tier-selection-content { gap: 6px; }
+  .tier-selection-scroll { padding: 12px 12px 14px; }
+  .tier-selection-content { gap: 10px; }
   .game-dialog .tier-selection-heading h3 { font-size: calc(16px * var(--text-scale)); white-space: nowrap; }
   .tier-heading-actions { gap: 6px; }
   .tier-book-select { width: 110px; min-height: 36px; padding: 5px; font-size: calc(11px * var(--text-scale)); }
@@ -343,15 +342,11 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .adventure-tiers { gap: 6px; }
   .tier-choice { padding: 16px 6px; gap: 14px; min-height: 155px; }
   .tier-choice strong { font-size: calc(12px * var(--text-scale)); }
-  .is-battle .game-header { padding: 8px 14px; }
-  .is-battle .game-header > div:first-child { display: block; }
-  .is-battle .game-header .game-eyebrow { margin-bottom: 3px; }
   .battle-save-status { display: none; }
   .combat-hud { inset: 14px 14px auto; }
   .combatant-hud { padding: 11px 12px; }
   .battle-turn { top: auto; bottom: 14px; padding: 4px 10px; }
   .battle-turn strong { font-size: 20px; }
-  .battle-controls { padding: 12px 14px; }
   .hand-toolbar { gap: 14px; }
   .battle-controls .quiz-feedback { display: block; }
   .battle-controls .quiz-feedback p { margin-bottom: 6px; }
@@ -359,7 +354,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .game-card { flex-basis: 145px; }
 }
 @media (max-width: 500px) {
-  .game-dialog, .review-dialog { width: calc(100vw - 20px); height: calc(100svh - 24px); max-height: calc(100svh - 24px); }
   .game-header { padding: 12px 15px; }
   .game-dialog h2 { font-size: calc(21px * var(--text-scale)); }
   .game-dialog h3 { font-size: calc(20px * var(--text-scale)); }
@@ -372,14 +366,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .entrance-actions { justify-content: center; text-align: center; gap: 12px; }
   .entrance-actions .game-secondary { margin-left: 0; }
   .game-body.is-battle { padding: 0; }
-  .game-dialog.is-battle { width: 100vw; height: 100svh; max-height: 100svh; border: 0; box-shadow: none; }
-  .is-battle .game-header { padding: 8px 12px; gap: 8px; }
-  .is-battle .game-header h2 { font-size: calc(13px * var(--text-scale)); }
-  .is-battle .game-header .game-eyebrow { font-size: 7px; letter-spacing: 1px; }
-  .is-battle .game-header-actions { gap: 8px; }
-  .battle-menu summary { min-height: 38px; padding: 8px 10px; gap: 8px; }
-  .is-battle .settings-close { width: 38px; height: 38px; }
-  .battlefield { flex-basis: 280px; min-height: 280px; }
   .combat-hud { inset: 10px 10px auto; gap: 10px; }
   .combatant-hud { max-width: calc(50% - 5px); padding: 10px; }
   .game-dialog .combatant-heading h3 { font-size: calc(12px * var(--text-scale)); }
@@ -387,31 +373,21 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .combat-buffs { gap: 4px 8px; font-size: calc(9px * var(--text-scale)); }
   .enemy-intent strong { font-size: calc(10px * var(--text-scale)); }
   .battle-turn { bottom: 10px; }
-  .battle-controls { padding: 10px; }
   .hand-toolbar { gap: 12px; margin-bottom: 8px; }
   .energy-orb { gap: 6px; }
   .energy-orb > span { width: 36px; height: 36px; font-size: 23px; }
   .energy-orb small { font-size: 9px; }
   .game-dialog .hand-toolbar .battle-message { font-size: calc(9px * var(--text-scale)); }
   .end-turn { min-height: 40px; padding: 8px 11px; gap: 8px; font-size: calc(11px * var(--text-scale)); }
-  .card-hand { gap: 8px; }
-  .card-hand .game-card { flex-basis: 132px; min-height: 143px; padding: 10px; gap: 8px; }
   .battle-controls .quiz-panel h3 > span { font-size: calc(26px * var(--text-scale)); }
   .battle-controls .quiz-options { gap: 7px; }
   .battle-controls .quiz-options button { min-height: 48px; padding: 8px; gap: 8px; font-size: calc(11px * var(--text-scale)); }
   .battle-controls .quiz-feedback .game-primary { width: 100%; }
-  .game-footer { padding: 10px 14px; font-size: 9px; }
-  .game-footer > span:last-child { display: none; }
   .run-toolbar { padding: 10px 14px; }
   .run-toolbar > div { font-size: calc(11px * var(--text-scale)); gap: 10px; }
   .run-inspect-buttons { width: 100%; }
   .run-inspect-buttons button { flex: 1; }
   .adventure-tiers { grid-template-columns: 1fr; gap: 8px; margin: 20px 0; }
-  .tier-entry-actions { padding: 10px 12px 12px; }
-  .tier-entry-row { flex-direction: column; align-items: stretch; gap: 8px; }
-  .tier-entry-summary p[aria-live] { justify-content: space-between; gap: 4px 10px; }
-  .tier-entry-summary strong { font-size: calc(18px * var(--text-scale)); }
-  .tier-entry-actions .tier-start { width: 100%; min-width: 0; }
   .tier-choice { flex-direction: row; min-height: 66px; padding: 12px 16px; gap: 16px; }
   .tier-choice[aria-pressed="true"] { box-shadow: inset 3px 0 var(--amber); }
   .tier-choice > span { align-items: flex-start; }
@@ -424,12 +400,8 @@ html:has(.game-dialog[open]) { overflow: hidden; }
   .quiz-panel h3 > span { font-size: calc(28px * var(--text-scale)); }
   .quiz-options { grid-template-columns: 1fr; gap: 8px; }
   .quiz-options button { font-size: calc(12px * var(--text-scale)); }
-  .reward-cards { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 12px; }
-  .reward-cards .game-card { flex-basis: 155px; }
   .relic-item { padding: 16px 13px; gap: 12px; }
   .relic-icon { width: 27px; font-size: 25px; }
-  .service-tabs { gap: 6px; }
-  .service-tabs .game-secondary { flex: 1 1 80px; padding: 9px 7px; font-size: calc(10px * var(--text-scale)); }
   .upgrade-item { gap: 10px; padding: 15px 12px; }
   .upgrade-item > span:last-child { font-size: calc(10px * var(--text-scale)); }
   .deck-inspection { grid-template-columns: 1fr; }
@@ -499,7 +471,6 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 @keyframes success-glow { from { box-shadow: 0 0 28px #93d69a66; } to { box-shadow: inset 0 3px #a48b5138; } }
 @keyframes pile-light { to { box-shadow: -3px 3px #17261d,-4px 4px #a08d57,0 0 18px #edd58988; transform: translateY(-2px); } }
 @media (max-width: 500px) {
-  .game-dialog { margin: auto; }
   .pile-status { gap: 8px; min-height: 36px; margin-bottom: 6px; }
   .deck-pile { gap: 6px; }
   .deck-pile > span { width: 23px; height: 30px; }
@@ -571,6 +542,8 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .combat-overhead { position: absolute; top: 36%; left: 24%; display: grid; justify-items: center; gap: 5px; width: max-content; max-width: calc(50% - 12px); transform: translate(-50%, -100%); }
 .combat-overhead:not([data-renderer]) { visibility: hidden; }
 .combat-overhead.is-enemy { left: 74%; }
+.combat-overhead[data-renderer],
+.combat-overhead.is-enemy[data-renderer] { left: 0; top: 0; will-change: transform; }
 .overhead-intent-host { display: inline-flex; max-width: 100%; }
 :where(.overhead-intent, .intent-tooltip) {
   --intent-accent: #ff8e72; --intent-bg: #321b26f5; --intent-border: #d4745c;
@@ -759,15 +732,110 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .quiz-typing button { justify-content: center; }
 .quiz-panel h3, .quiz-feedback { overflow-wrap: anywhere; }
 @media (max-width: 650px) {
-  .review-dialog .learning-summary { grid-template-columns: 1fr; gap: 0; }
-  .review-dialog .learning-summary > div {
-    display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 8px; padding: 6px 0;
+  .game-dialog.review-dialog .game-header {
+    padding: max(10px, env(safe-area-inset-top)) 14px 10px;
   }
-  .review-dialog .learning-summary > div + div { border-top: 1px solid #513d60; }
-  .review-dialog .learning-summary dd { font-size: calc(22px * var(--text-scale)); }
-  .review-dialog .learning-summary small { grid-column: 1 / -1; }
+  .game-dialog.review-dialog .game-header .game-eyebrow {
+    margin-bottom: 2px;
+  }
+  .game-dialog .review-body {
+    padding: 12px 14px max(16px, env(safe-area-inset-bottom));
+    gap: 10px;
+  }
+  .review-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .review-downloads {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+  .review-downloads .game-secondary {
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px 6px;
+    font-size: calc(11px * var(--text-scale));
+    line-height: 1.3;
+    word-break: keep-all;
+  }
+  .review-dialog .learning-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px 6px;
+    text-align: center;
+  }
+  .review-dialog .learning-summary > div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    border-top: 0;
+    padding: 0;
+  }
+  .review-dialog .learning-summary dt {
+    font-size: calc(10.5px * var(--text-scale));
+    line-height: 1.25;
+  }
+  .review-dialog .learning-summary dd {
+    margin: 0;
+    font-size: calc(19px * var(--text-scale));
+    line-height: 1.15;
+  }
+  .review-dialog .learning-summary small {
+    font-size: calc(9.5px * var(--text-scale));
+    line-height: 1.25;
+    word-break: keep-all;
+  }
+  .review-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .review-status-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+  .review-status-filters .game-secondary {
+    min-width: 0;
+    min-height: 38px;
+    padding: 6px 4px;
+    font-size: calc(11px * var(--text-scale));
+  }
   .review-field select { max-width: 100%; }
-  .review-search { max-width: none; }
+  .review-search { max-width: none; width: 100%; }
+  .review-list-heading {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+  .review-list-heading p {
+    font-size: calc(12px * var(--text-scale));
+  }
+  .review-list-heading .game-primary {
+    width: 100%;
+    min-height: 44px;
+  }
+  .review-body .review-item {
+    gap: 8px;
+    min-height: 58px;
+    padding: 12px;
+  }
+  .tier-entry-actions { padding: 10px 12px max(12px, env(safe-area-inset-bottom)); }
+  .tier-entry-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .tier-entry-summary p[aria-live] { justify-content: space-between; gap: 4px 10px; }
+  .tier-entry-summary strong { font-size: calc(18px * var(--text-scale)); }
+  .tier-entry-actions .tier-start { width: 100%; min-width: 0; }
 }
 
 /* 사용자 경험 조사: 작은 안내 창 하나. 기록 요약은 오답 복습의 학습 요약과 같은 모양을 쓴다.
@@ -777,30 +845,60 @@ html:has(.game-dialog[open]) { overflow: hidden; }
 .survey-dialog .survey-body p { margin: 0; }
 .survey-dialog .survey-intro { color: var(--ivory); font-size: calc(14px * var(--text-scale)); }
 .survey-dialog .survey-record { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 16px; }
-.survey-record dt { font-size: calc(12px * var(--text-scale)); color: var(--muted); }
-.survey-record dd { margin: 5px 0; color: var(--sun, var(--amber)); font-size: calc(24px * var(--text-scale)); }
-.survey-record small { color: var(--muted); font-size: calc(11px * var(--text-scale)); line-height: 1.55; }
+.survey-record > div { min-width: 0; }
+.survey-record dt { font-size: calc(12px * var(--text-scale)); color: var(--muted); overflow-wrap: anywhere; }
+.survey-record dd { margin: 5px 0; color: var(--sun, var(--amber)); font-size: calc(24px * var(--text-scale)); overflow-wrap: anywhere; }
+.survey-record small { color: var(--muted); font-size: calc(11px * var(--text-scale)); line-height: 1.55; overflow-wrap: anywhere; }
 .survey-dialog .survey-open { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 10px 18px;
   text-decoration: none; font-size: calc(15px * var(--text-scale)); }
 .survey-dialog .survey-open:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
 .survey-dialog .survey-open > span { color: inherit; }
 .survey-dialog .survey-later { min-height: 44px; padding: 8px 16px; font-size: calc(13px * var(--text-scale)); }
 .survey-dialog .survey-pending { color: var(--muted); text-align: center; }
-@media (max-width: 500px) {
-  .game-dialog.survey-dialog { width: calc(100vw - 20px); height: fit-content; max-height: calc(100svh - 24px); }
-  .survey-dialog .survey-body { padding: 18px 16px; }
+@media (max-width: 650px) {
+  dialog.game-dialog.survey-dialog[open],
+  .game-dialog.survey-dialog {
+    inset: 0;
+    margin: auto;
+    width: min(560px, calc(100vw - 20px));
+    max-width: calc(100vw - 20px);
+    height: fit-content;
+    max-height: calc(100dvh - 20px);
+    border-radius: 16px;
+  }
+  .survey-dialog .survey-body { padding: 16px 14px; }
   .survey-dialog .survey-record { gap: 8px; padding: 12px 10px; }
   .survey-record dd { font-size: calc(19px * var(--text-scale)); }
 }
 
 /* 모험 화면은 팝업이 아니라 창 전체를 쓴다. (지도·전투·보상·휴식·결과·티어 선택 공통)
    예전 크기 규칙(일반·전투·티어 선택·좁은 화면)보다 우선하도록 dialog 요소 선택자로 덮는다. */
-dialog.game-dialog[open] {
+dialog.game-dialog[open]:not(.tutorial-dialog):not(.survey-dialog) {
   inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0;
   border: 0; border-radius: 0; box-shadow: none;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 dialog.game-dialog[open]::backdrop { background: var(--night, #140f1b); }
+@media (max-width: 650px) {
+  dialog.game-dialog[open]:not(.tutorial-dialog):not(.survey-dialog),
+  dialog.review-dialog[open],
+  .game-dialog:not(.tutorial-dialog):not(.survey-dialog),
+  .review-dialog {
+    inset: 0;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100svh;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+@media (max-width: 650px), (hover: none) and (pointer: coarse) {
+  .game-footer { display: none; }
+}
 
 /* 보상·대장간·결과 화면: 본문은 자유롭게 스크롤하고, 다음 경로/복귀 버튼은 하단에 항상 고정한다. */
 .phase-layout { display: flex; flex-direction: column; flex: 1; width: 100%; min-width: 0; min-height: 0; }
@@ -962,13 +1060,7 @@ dialog.game-dialog[open]::backdrop { background: var(--night, #140f1b); }
   .reward-screen .phase-scroll { padding: 10px 14px 12px; }
   .reward-screen .reward-stage { margin: 0 auto; gap: 8px; }
   .reward-screen.has-cards .reward-hero { gap: 8px; }
-  .reward-screen.has-cards .reward-scene,
-  .reward-screen.has-cards.has-relic .reward-scene { height: clamp(82px, 12.5svh, 108px); }
-  .reward-screen.has-cards .reward-cards { display: flex; overflow-x: auto; flex-wrap: nowrap; justify-content: flex-start; gap: 10px; padding: 8px 4px 6px; }
-  .reward-screen.has-cards .reward-card-slot { flex: 0 0 164px; }
-  .reward-screen.has-cards .reward-cards .game-card { width: 100%; min-width: 0; min-height: 176px; padding: 9px 10px; gap: 5px; }
-  .reward-screen.has-cards .reward-cards .card-art { height: 46px; }
-  .phase-actions { padding: 10px 14px 12px; }
+  .phase-actions { padding: 10px 14px max(10px, env(safe-area-inset-bottom)); }
   .phase-actions-content { flex-direction: column; align-items: stretch; gap: 8px; }
   .game-dialog .phase-action-status { text-align: center; font-size: calc(12px * var(--text-scale)); }
   .phase-actions .phase-next-action { width: 100%; min-width: 0; }

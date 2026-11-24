@@ -591,6 +591,46 @@
   50% { opacity: 0.55; }
 }
 
+/* ---------- 캐릭터 발밑 보조 바(전달 시 3D/2D 좌표 투영) ---------- */
+.combat-underbars {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.combat-underbars.is-busy {
+  opacity: 0.72;
+}
+
+.combat-underbar {
+  position: absolute;
+  left: 24%;
+  top: 72%;
+  transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: max-content;
+  max-width: calc(48% - 12px);
+}
+
+.combat-underbar.is-enemy {
+  left: 72%;
+}
+
+.combat-underbar:not([data-renderer]) {
+  visibility: hidden;
+}
+
+.combat-underbar[data-renderer],
+.combat-underbar.is-enemy[data-renderer] {
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+
 /* ---------- 전장 위 카드 미리보기 (적 의도 + 용사 버프 예고) ---------- */
 .combat-overhead button.overhead-intent.is-preview {
   outline: 2px dashed var(--intent-accent);
@@ -1778,58 +1818,86 @@
   }
 }
 
-/* ---------- 태블릿 / 모바일 (<= 740px): 깔끔한 상하 스택 + 오버플로 0 ---------- */
+/* ---------- 태블릿 / 모바일 (<= 740px): 풀스크린 전투 + 스와이프 손패 + 인라인 퀴즈 도크 ---------- */
 @media (max-width: 740px) {
+  dialog.game-dialog.is-battle[open],
   .game-dialog.is-battle {
-    width: calc(100vw - 8px);
-    height: calc(100svh - 8px);
-    max-height: calc(100svh - 8px);
-    border-radius: 10px;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100svh;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
+  dialog.game-dialog.is-battle .game-header.is-battle-topbar,
   .game-dialog.is-battle .game-header.is-battle-topbar {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
     gap: 4px 8px;
-    min-height: 40px;
-    padding: 4px 8px;
+    min-height: 42px;
+    padding: max(4px, env(safe-area-inset-top)) 8px 4px;
   }
 
   .topbar-center {
     display: none;
   }
 
+  .game-dialog.is-battle .topbar-stats {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .topbar-scope {
     padding: 2px 6px 2px 4px;
+    flex-shrink: 0;
+  }
+
+  .topbar-scope .tier-crest.is-small {
+    width: 18px;
+    height: 21px;
   }
 
   .topbar-scope strong {
     display: none;
   }
 
-  .topbar-stats {
-    gap: 7px;
-  }
-
-  .topbar-stat {
+  .game-dialog.is-battle .topbar-stat {
     gap: 3px;
+    padding: 2px 6px;
     font-size: calc(11.5px * var(--text-scale));
   }
 
-  .topbar-stat .game-icon {
+  .game-dialog.is-battle .topbar-stat .game-icon {
     width: 15px;
     height: 15px;
   }
 
-  .game-dialog .topbar-icon-btn,
-  .is-battle-topbar .battle-menu summary,
-  .is-battle-topbar .settings-close {
-    width: 30px;
-    height: 30px;
-    min-height: 30px;
+  .game-dialog.is-battle .topbar-actions {
+    gap: 5px;
+    flex-shrink: 0;
   }
 
-  .game-dialog .topbar-icon-btn .game-icon,
-  .is-battle-topbar .battle-menu summary .game-icon {
+  .game-dialog.is-battle .topbar-icon-btn,
+  .game-dialog.is-battle .is-battle-topbar .battle-menu summary,
+  .game-dialog.is-battle .is-battle-topbar .settings-close {
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .game-dialog.is-battle .topbar-icon-btn .game-icon,
+  .game-dialog.is-battle .is-battle-topbar .battle-menu summary .game-icon {
     width: 16px;
     height: 16px;
   }
@@ -1851,7 +1919,7 @@
 
   .game-dialog.is-battle .battle-stage {
     flex: 1 1 0;
-    min-height: 160px;
+    min-height: 130px;
   }
 
   .game-dialog .battle-stage > .combat-hud.is-slim {
@@ -1887,7 +1955,8 @@
   }
 
   .game-dialog.is-battle .battlefield {
-    min-height: 140px;
+    flex: 1 1 0;
+    min-height: 110px;
   }
 
   .game-dialog.is-battle .battlefield::after {
@@ -1930,8 +1999,8 @@
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
     align-items: center;
-    gap: 6px 8px;
-    padding: 8px 10px 10px;
+    gap: 5px 8px;
+    padding: 6px 8px max(8px, env(safe-area-inset-bottom));
     border-top: 2px solid #594452;
     background: linear-gradient(180deg, #21182b, #140f1c);
   }
@@ -2021,65 +2090,145 @@
     grid-row: 2;
     justify-content: flex-start;
     align-items: stretch;
-    gap: 12px;
+    gap: 8px;
     margin-top: 0;
-    padding: 14px 14px 6px;
+    margin-inline: -8px;
+    padding: 10px 18px 4px 10px;
     overflow-x: auto;
     overflow-y: visible;
     pointer-events: auto;
     scroll-snap-type: x proximity;
-    scroll-padding-inline: 14px;
+    scroll-padding-inline: 10px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
 
   .battle-dock .card-hand > :first-child { margin-left: 0; }
   .battle-dock .card-hand > :last-child { margin-right: 0; }
 
-  .game-dialog .battle-dock .card-hand .game-card {
-    flex: 0 0 132px;
-    min-width: 132px;
-    max-width: 132px;
-    min-height: 162px;
+  .game-dialog.is-battle .battle-dock .card-hand .game-card {
+    flex: 0 0 clamp(106px, 29vw, 122px);
+    min-width: 104px;
+    max-width: 122px;
+    min-height: 146px;
     margin-inline: 0;
-    padding: 8px 7px 8px;
-    gap: 5px;
+    padding: 6px 6px 7px;
+    gap: 4px;
     transform: none;
     scroll-snap-align: start;
   }
 
-  .game-dialog .battle-dock .card-hand .game-card:is(:hover, :focus-visible):not(:disabled) {
+  .game-dialog.is-battle .battle-dock .card-hand .game-card:is(:hover, :focus-visible):not(:disabled) {
     transform: translateY(-6px) scale(1.03) !important;
   }
 
-  .game-dialog .game-card .card-art { height: 42px; }
-  .game-dialog .game-card .card-art > .game-icon { width: 26px; height: 26px; }
-  .card-banner { min-height: 22px; padding: 2px 12px; }
-  .card-banner > strong { font-size: calc(11.5px * var(--text-scale)); }
-  .game-dialog .game-card .card-description { font-size: calc(10.5px * var(--text-scale)); padding: 5px; }
+  .game-dialog.is-battle .battle-dock .game-card .card-art { height: 48px; }
+  .game-dialog.is-battle .battle-dock .game-card .card-art > .game-icon { width: 26px; height: 26px; }
+  .game-dialog.is-battle .battle-dock .game-card .card-banner { min-height: 20px; padding: 2px 6px 2px 18px; gap: 4px; }
+  .game-dialog.is-battle .battle-dock .game-card .card-banner > strong { font-size: calc(11px * var(--text-scale)); }
+  .game-dialog.is-battle .battle-dock .game-card .card-description {
+    margin-top: 4px;
+    padding: 4px 5px;
+    font-size: calc(10px * var(--text-scale));
+    line-height: 1.3;
+  }
+  .game-dialog.is-battle .battle-dock .game-card .card-kind-pill {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
 
+  /* 퀴즈 중에는 에너지·더미·턴종료를 숨겨 전장과 문제 시야를 넓힌다. */
+  .game-dialog .battle-controls.battle-dock.is-quiz-mode {
+    grid-template-rows: auto;
+    padding: 6px 8px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .battle-dock.is-quiz-mode .dock-left,
+  .battle-dock.is-quiz-mode .dock-right {
+    display: none;
+  }
+
+  .battle-dock.is-quiz-mode .battle-quiz-dock {
+    grid-row: 1;
+  }
+
+  .battle-quiz-dock,
   .battle-dock .battle-quiz-dock {
     grid-column: 1 / -1;
-    grid-row: 2;
     width: 100%;
-    padding: 9px 10px 10px;
-    gap: 8px;
+    padding: 8px 10px 9px;
+    gap: 6px;
+    max-height: 58svh;
+    max-height: 58dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .quiz-dock-head {
+    gap: 5px;
   }
 
   .quiz-dock-top {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 5px;
+    justify-content: space-between;
+    gap: 4px 8px;
   }
 
-  .quiz-dock-card { justify-self: center; }
+  .quiz-dock-top > span[aria-hidden="true"]:empty {
+    display: none;
+  }
+
+  .quiz-dock-card {
+    padding: 2px 7px;
+    font-size: calc(10.5px * var(--text-scale));
+  }
+
   .quiz-dock-card-effect { display: inline-block; }
 
   .game-dialog .quiz-dock-task {
-    padding: 3px 10px;
+    padding: 2px 8px;
+    font-size: calc(10.5px * var(--text-scale));
+  }
+
+  .quiz-dock-task strong {
     font-size: calc(11px * var(--text-scale));
   }
 
   .quiz-dock-task small { display: none; }
+
+  .game-dialog .quiz-dock-prompt h3 > span {
+    font-size: clamp(20px, 6vw, calc(26px * var(--text-scale)));
+    line-height: 1.15;
+  }
+
+  .battle-quiz-dock .quiz-dock-options {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .battle-quiz-dock .quiz-options button.quiz-dock-option,
+  .battle-quiz-dock .quiz-dock-option {
+    min-height: 44px;
+    padding: 7px 10px;
+    gap: 8px;
+    font-size: calc(13px * var(--text-scale));
+    line-height: 1.3;
+  }
+
+  .battle-quiz-dock .quiz-options button.quiz-dock-option > .quiz-dock-option-key,
+  .battle-quiz-dock .quiz-dock-option > .quiz-dock-option-key {
+    width: 21px;
+    height: 21px;
+    font-size: 10.5px;
+  }
+
+  .quiz-dock-typing input,
+  .quiz-dock-typing button {
+    min-height: 44px;
+  }
 
   .battle-answer-toast {
     top: 6px;
@@ -2094,26 +2243,468 @@
   .battle-answer-toast .toast-card { display: none; }
 }
 
-@media (max-width: 650px) {
-  .battle-dock.is-quiz-mode .end-turn {
+@media (max-width: 360px) {
+  .game-dialog.is-battle .topbar-stats {
+    gap: 4px;
+  }
+
+  .topbar-scope {
+    padding: 2px 4px;
+  }
+
+  .topbar-scope .tier-crest.is-small {
+    width: 17px;
+    height: 20px;
+  }
+
+  .game-dialog.is-battle .topbar-stat {
+    padding: 2px 5px;
+    font-size: calc(11px * var(--text-scale));
+  }
+
+  .game-dialog.is-battle .topbar-actions {
+    gap: 4px;
+  }
+
+  .game-dialog.is-battle .topbar-icon-btn,
+  .game-dialog.is-battle .is-battle-topbar .battle-menu summary,
+  .game-dialog.is-battle .is-battle-topbar .settings-close {
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
+  }
+}
+
+@media (max-width: 740px) and (max-height: 700px) {
+  .game-dialog.is-battle .battle-dock .card-hand .game-card {
+    min-height: 132px;
+  }
+
+  .game-dialog.is-battle .battle-dock .game-card .card-art {
+    height: 40px;
+  }
+
+  .sts-energy-orb {
+    width: 38px;
+    height: 38px;
+  }
+
+  .sts-energy-current {
+    font-size: 17px;
+  }
+}
+
+@media (max-width: 740px) and (max-height: 680px) {
+  .game-dialog.is-battle .battle-stage {
+    min-height: 140px;
+  }
+
+  .game-dialog.is-battle .battlefield {
+    min-height: 100px;
+  }
+
+  .battle-quiz-dock,
+  .battle-dock .battle-quiz-dock {
+    padding: 6px 8px 7px;
+    gap: 5px;
+    max-height: 60svh;
+    max-height: 60dvh;
+  }
+
+  .battle-quiz-dock .quiz-options button.quiz-dock-option,
+  .battle-quiz-dock .quiz-dock-option {
+    min-height: 40px;
+    padding: 6px 9px;
+    font-size: calc(12.5px * var(--text-scale));
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .game-dialog .battle-dock .game-card .card-shortcut,
+  .game-dialog .game-card .card-shortcut,
+  .card-shortcut {
+    display: none;
+  }
+}
+
+/* ---------- 모바일 가로 화면 (<= 460px 높이 & >= 560px 너비) ---------- */
+@media (max-height: 460px) and (min-width: 560px) {
+  dialog.game-dialog.is-battle[open],
+  .game-dialog.is-battle {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100svh;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  dialog.game-dialog.is-battle .game-header.is-battle-topbar,
+  .game-dialog.is-battle .game-header.is-battle-topbar {
+    min-height: 34px;
+    padding: 2px 10px;
+    gap: 4px 10px;
+  }
+
+  .topbar-scope {
+    padding: 1px 7px 1px 5px;
+  }
+
+  .topbar-scope .tier-crest.is-small {
+    width: 17px;
+    height: 20px;
+  }
+
+  .game-dialog.is-battle .topbar-stat {
+    padding: 1px 6px;
+    font-size: calc(11.5px * var(--text-scale));
+  }
+
+  .game-dialog.is-battle .topbar-stat .game-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .game-dialog .topbar-floor {
+    padding: 1px 8px;
+  }
+
+  .game-dialog .topbar-floor strong {
+    font-size: calc(12px * var(--text-scale));
+  }
+
+  .game-dialog.is-battle .topbar-icon-btn,
+  .game-dialog.is-battle .is-battle-topbar .battle-menu summary,
+  .game-dialog.is-battle .is-battle-topbar .settings-close {
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+  }
+
+  .game-dialog.is-battle .topbar-icon-btn .game-icon,
+  .game-dialog.is-battle .is-battle-topbar .battle-menu summary .game-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .game-dialog.is-battle .battle-stage {
+    flex: 1 1 0;
+    min-height: 100px;
+  }
+
+  .game-dialog.is-battle .battlefield {
+    flex: 1 1 0;
+    min-height: 70px;
+  }
+
+  .game-dialog.is-battle .battlefield::after {
+    height: 22px;
+  }
+
+  .game-dialog .battle-stage > .combat-hud.is-slim {
+    padding: 3px 10px;
+    gap: 8px;
+  }
+
+  .game-dialog .combat-hud.is-slim .combatant-hud {
+    padding: 3px 8px 4px;
+    border-radius: 8px;
+  }
+
+  .game-dialog .combat-hud.is-slim .combatant-heading {
+    margin-bottom: 2px;
+  }
+
+  .game-dialog .combat-hud.is-slim .combatant-heading h3 {
+    font-size: calc(11px * var(--text-scale));
+  }
+
+  .combat-hud.is-slim .battle-turn {
+    min-width: 44px;
+    padding: 2px 7px;
+    font-size: 8px;
+  }
+
+  .combat-hud.is-slim .battle-turn strong {
+    font-size: 13px;
+  }
+
+  .combat-health-wrap .combat-health-bar {
+    height: 15px;
+  }
+
+  .combat-health-bar .health-value {
+    font-size: calc(9.5px * var(--text-scale));
+  }
+
+  .health-shield-chip {
+    height: 18px;
+    min-width: 22px;
+    font-size: calc(9px * var(--text-scale));
+  }
+
+  .battle-relic-bar {
+    top: 4px;
+    left: 8px;
+    gap: 4px;
+  }
+
+  .game-dialog .battle-relic-chip {
+    width: 26px;
+    height: 26px;
+  }
+
+  .battle-relic-glyph {
+    font-size: 12px;
+  }
+
+  .battle-answer-toast {
+    top: 4px;
+    padding: 3px 9px;
+    font-size: calc(11px * var(--text-scale));
+  }
+
+  .battle-answer-toast strong {
+    font-size: calc(12.5px * var(--text-scale));
+  }
+
+  .game-dialog .battle-controls.battle-dock {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    pointer-events: auto;
+    grid-template-columns: 108px minmax(0, 1fr) 108px;
+    grid-template-rows: auto;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 4px 10px 6px;
+    border-top: 2px solid #594452;
+    background: linear-gradient(180deg, #21182b, #140f1c);
+  }
+
+  .dock-left {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .dock-right {
+    grid-column: 3;
+    grid-row: 1;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .battle-dock .combat-energy {
+    flex-direction: row;
+    margin-left: 0;
+    gap: 5px;
+  }
+
+  .sts-energy-orb {
+    width: 42px;
+    height: 42px;
+    border-width: 2px;
+  }
+
+  .sts-energy-ring { inset: -3px; border-width: 1.5px; }
+  .sts-energy-current { font-size: 17px; }
+  .sts-energy-max { font-size: 10px; }
+  .energy-meta { display: none; }
+
+  .game-dialog .battle-dock .deck-pile {
+    padding: 2px 6px 2px 4px;
+    gap: 4px;
+    border-radius: 8px;
+  }
+
+  .game-dialog .battle-dock .deck-pile.discard-pile {
+    padding: 2px 4px 2px 6px;
+  }
+
+  .pile-stack {
+    width: 22px;
+    height: 26px;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .pile-stack .game-icon { width: 13px; height: 13px; }
+
+  .pile-count {
+    position: static;
+    min-width: 17px;
+    height: 17px;
+    font-size: 9.5px;
+    border-width: 1px;
+    box-shadow: none;
+  }
+
+  .pile-label { display: none; }
+
+  .game-dialog .battle-dock .exhaust-pile {
+    min-height: 22px;
+    padding: 2px 6px;
+    font-size: 9.5px;
+  }
+
+  .game-dialog .battle-dock .end-turn {
+    min-width: 96px;
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: calc(11.5px * var(--text-scale));
+  }
+
+  .end-turn-key { display: none; }
+
+  .battle-dock .card-hand {
+    grid-column: 2;
+    grid-row: 1;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 8px;
+    margin-top: 0;
+    padding: 8px 12px 4px;
+    overflow-x: auto;
+    overflow-y: visible;
+    pointer-events: auto;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 12px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .battle-dock .card-hand > :first-child { margin-left: 0; }
+  .battle-dock .card-hand > :last-child { margin-right: 0; }
+
+  .game-dialog.is-battle .battle-dock .card-hand .game-card {
+    flex: 0 0 112px;
+    min-width: 104px;
+    max-width: 122px;
+    min-height: 122px;
+    margin-inline: 0;
+    padding: 5px 6px 6px;
+    gap: 3px;
+    transform: none;
+    scroll-snap-align: start;
+  }
+
+  .game-dialog.is-battle .battle-dock .card-hand .game-card:is(:hover, :focus-visible):not(:disabled) {
+    transform: translateY(-5px) scale(1.03) !important;
+  }
+
+  .game-dialog.is-battle .battle-dock .game-card .card-art { height: 34px; }
+  .game-dialog.is-battle .battle-dock .game-card .card-art > .game-icon { width: 22px; height: 22px; }
+  .game-dialog.is-battle .battle-dock .game-card .card-banner { min-height: 19px; padding: 2px 5px 2px 18px; gap: 3px; }
+  .game-dialog.is-battle .battle-dock .game-card .card-banner > strong { font-size: calc(10.5px * var(--text-scale)); }
+  .game-dialog.is-battle .battle-dock .game-card .card-description {
+    margin-top: 3px;
+    padding: 3px 4px;
+    font-size: calc(9.5px * var(--text-scale));
+    line-height: 1.25;
+  }
+  .game-dialog.is-battle .battle-dock .game-card .card-kind-pill {
+    font-size: 8.5px;
+    padding: 1px 5px;
+  }
+
+  .game-dialog .battle-controls.battle-dock.is-quiz-mode {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    padding: 4px 10px 6px;
+  }
+
+  .battle-dock.is-quiz-mode .dock-left,
+  .battle-dock.is-quiz-mode .dock-right {
     display: none;
   }
 
-  .battle-quiz-dock {
-    max-height: 58svh;
+  .battle-dock.is-quiz-mode .battle-quiz-dock {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .battle-quiz-dock,
+  .battle-dock .battle-quiz-dock {
+    width: 100%;
+    padding: 6px 10px 7px;
+    gap: 5px;
+    max-height: 62svh;
+    max-height: 62dvh;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
 
-  .battle-quiz-dock .quiz-dock-options {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 7px;
+  .quiz-dock-head {
+    gap: 4px;
   }
 
+  .quiz-dock-top {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 8px;
+  }
+
+  .quiz-dock-top > span[aria-hidden="true"]:empty {
+    display: none;
+  }
+
+  .quiz-dock-card {
+    padding: 2px 7px;
+    font-size: calc(10.5px * var(--text-scale));
+  }
+
+  .quiz-dock-card-effect {
+    display: inline-block;
+  }
+
+  .game-dialog .quiz-dock-task {
+    padding: 2px 8px;
+    font-size: calc(10.5px * var(--text-scale));
+  }
+
+  .quiz-dock-task small {
+    display: none;
+  }
+
+  .game-dialog .quiz-dock-prompt h3 > span {
+    font-size: clamp(18px, 3.2vw, 24px);
+    line-height: 1.15;
+  }
+
+  .battle-dock.is-quiz-mode .quiz-dock-options,
+  .battle-quiz-dock .quiz-dock-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .battle-quiz-dock .quiz-options button.quiz-dock-option,
   .battle-quiz-dock .quiz-dock-option {
-    min-height: 46px;
-    padding: 9px 11px;
-    font-size: calc(14px * var(--text-scale));
+    min-height: 36px;
+    padding: 5px 8px;
+    gap: 7px;
+    font-size: calc(12.5px * var(--text-scale));
+    line-height: 1.25;
+  }
+
+  .battle-quiz-dock .quiz-options button.quiz-dock-option > .quiz-dock-option-key,
+  .battle-quiz-dock .quiz-dock-option > .quiz-dock-option-key {
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
   }
 }
 
