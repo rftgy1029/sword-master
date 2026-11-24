@@ -1,5 +1,6 @@
-import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import { Component, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGraphics } from './GraphicsContext.jsx';
+import { useSharedStage } from './SharedStageContext.jsx';
 import { heroImage } from '../game/spriteAssets.js';
 
 const ThreeStage = lazy(() => import('../game/three/ThreeStage.jsx'));
@@ -17,8 +18,12 @@ function PaintedFallback({ mode }) {
 
 function SceneChoice({ mode='battle', fallback, onFailure, onLoaded, motionPreference, className='', active=true, ...props }) {
   const graphics=useGraphics();
+  const shared=useSharedStage();
   const [failed,setFailed]=useState(false), [ready,setReady]=useState(false);
   const reported=useRef(false);
+  const slotRef=useRef(null);
+  const claimIdRef=useRef(null);
+  const justClaimedRef=useRef(false);
   const latest=useRef({onFailure,onLoaded,graphics}); latest.current={onFailure,onLoaded,graphics};
   const loaded=useCallback(()=>{setReady(true);latest.current.onLoaded?.();},[]);
   const fail=useCallback(()=>{
@@ -27,18 +32,56 @@ function SceneChoice({ mode='battle', fallback, onFailure, onLoaded, motionPrefe
     setFailed(true);latest.current.onFailure?.();latest.current.graphics.reportFailure();
   },[]);
   const use3d=graphics.renderer!=='2d' && !graphics.unavailable && !failed;
+  const resolvedMotion=motionPreference ?? graphics.backgroundMotion;
+  useEffect(()=>{
+    if(!active||!use3d)setReady(false);
+  },[active,use3d]);
   useEffect(()=>{
     if(!active||!use3d||ready)return;
     const timer=setTimeout(fail,25000);
     return()=>clearTimeout(timer);
   },[active,use3d,ready,fail]);
+  const propsRef=useRef(null);
+  propsRef.current={...props,mode,motionPreference:resolvedMotion};
+  useLayoutEffect(()=>{
+    if(!shared||!active||!use3d||!slotRef.current)return undefined;
+    const id=shared.claim({
+      slotEl:slotRef.current,
+      props:propsRef.current,
+      onReady:loaded,
+      onFailure:fail,
+    });
+    claimIdRef.current=id;
+    justClaimedRef.current=true;
+    return()=>{
+      claimIdRef.current=null;
+      justClaimedRef.current=false;
+      shared.release(id);
+    };
+  },[shared,active,use3d,loaded,fail]);
+  useLayoutEffect(()=>{
+    if(!shared||!active||!use3d||claimIdRef.current===null||!slotRef.current)return;
+    if(justClaimedRef.current){justClaimedRef.current=false;return;}
+    shared.update(claimIdRef.current,{
+      slotEl:slotRef.current,
+      props:propsRef.current,
+      onReady:loaded,
+      onFailure:fail,
+    });
+  });
   if(!active)return <div className={`scene-view ${className}`} />;
   if(!use3d)return <div className={`scene-view ${className}`} data-renderer="2d">{fallback ?? <PaintedFallback mode={mode}/>}</div>;
+  if(shared){
+    return <div className={`scene-view scene-${mode} ${className}`} data-renderer="3d" aria-busy={!ready}>
+      <div ref={slotRef} className="scene-view-slot" style={{width:'100%',height:'100%'}} />
+      {!ready&&<div className="scene-loading" role="status"><span/>석문이 열린다…</div>}
+    </div>;
+  }
   return <div className={`scene-view scene-${mode} ${className}`} data-renderer="3d" aria-busy={!ready}>
     <SceneBoundary onFailure={fail}>
       <Suspense fallback={<div className="scene-loading" role="status"><span/>석문이 열린다…</div>}>
         <ThreeStage {...props} mode={mode} graphicsQuality={graphics.graphicsQuality}
-          motionPreference={motionPreference ?? graphics.backgroundMotion} onFailure={fail} onLoaded={loaded} />
+          motionPreference={resolvedMotion} onFailure={fail} onLoaded={loaded} />
       </Suspense>
     </SceneBoundary>
     {!ready&&<div className="scene-loading" role="status"><span/>석문이 열린다…</div>}

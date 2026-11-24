@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import TitleScene from './components/TitleScene.jsx';
 import AdventureDialog from './components/AdventureDialog.jsx';
 import ReviewDialog from './components/ReviewDialog.jsx';
@@ -9,7 +10,7 @@ import TutorialDialog from './components/TutorialDialog.jsx';
 import { shouldOpenTutorialForMenu } from './game/tutorial.js';
 import SurveyDialog from './components/SurveyDialog.jsx';
 import { SURVEY_FORM_URL, surveyUnlocked } from './survey.js';
-import { DEFAULT_SETTINGS, hasChosenGraphicsQuality, normalizeSettings, readSettings, saveSettings } from './settings.js';
+import { DEFAULT_SETTINGS, normalizeSettings, resolveInitialSettings, saveSettings } from './settings.js';
 import { listenForMenuNavigation } from './menuNavigation.js';
 import { gameReducer } from './game/engine.js';
 import { useProgress } from './game/useProgress.js';
@@ -18,8 +19,8 @@ import { TIERS } from './vocabulary.js';
 import { SceneTransitionProvider, useSceneTransition } from './components/SceneTransition.jsx';
 import { GraphicsProvider, useGraphics } from './components/GraphicsContext.jsx';
 import AssetDownloadOverlay from './components/AssetDownloadOverlay.jsx';
-import GraphicsQualityOverlay from './components/GraphicsQualityOverlay.jsx';
 import { isEmbeddedAssetBundle, isTitlePreloadReady, preloadCombatAssets, preloadTitleAssets } from './game/assetPreload.js';
+import { QUALITY_LABELS, recommendGraphicsQuality } from './game/three/quality.js';
 import { version } from '../package.json';
 import SwordLogo from './components/ui/SwordLogo.jsx';
 import { MENU_REACTIONS, MENU_WORDS, matchTyped, typeKey } from './titleWords.js';
@@ -36,6 +37,49 @@ const MENU = [
 const CONTINUE = 1;
 const SURVEY = 5; // 학교 티어를 클리어한 기록이 있을 때만 보인다
 const TYPED_SWING = 650; // 단어를 끝까지 치면 기사가 칼을 휘두른 뒤 메뉴가 열린다
+
+function PerfSuggestionBanner({ suggestion, onSwitch, onDismiss }) {
+  const [portalTarget, setPortalTarget] = useState(null);
+
+  useLayoutEffect(() => {
+    const syncTarget = () => {
+      const dialogs = [...document.querySelectorAll('dialog[open]')];
+      const next = dialogs.at(-1) ?? null;
+      setPortalTarget((prev) => (prev === next ? prev : next));
+    };
+    syncTarget();
+    const observer = new MutationObserver(syncTarget);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['open'],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const suggested = suggestion?.suggestedQuality;
+  const label = suggested ? QUALITY_LABELS[suggested] : null;
+  if (!suggested || !label) return null;
+
+  const banner = (
+    <aside className="perf-suggest-toast" role="status" aria-live="polite">
+      <p className="perf-suggest-message">
+        전투 화면이 다소 느리게 움직여요. 더 가벼운 그래픽({label})으로 전환할까요?
+      </p>
+      <div className="perf-suggest-actions">
+        <button type="button" className="game-primary" onClick={() => onSwitch(suggested)}>
+          {label}로 전환
+        </button>
+        <button type="button" className="game-secondary" onClick={onDismiss}>
+          유지
+        </button>
+      </div>
+    </aside>
+  );
+
+  return portalTarget ? createPortal(banner, portalTarget) : banner;
+}
 
 function GameApp({ settings, setSettings }) {
   const transition = useSceneTransition();
@@ -83,8 +127,9 @@ function GameApp({ settings, setSettings }) {
   const swing = useRef(null);
   const reducedMotion = settings.backgroundMotion !== 'normal';
 
-  const needsPreload = !standaloneVocabulary && settings.renderer !== '2d' && !graphics.unavailable && !isEmbeddedAssetBundle();
-  const [qualityChosen, setQualityChosen] = useState(() => settings.renderer === '2d' || hasChosenGraphicsQuality());
+  const needs3d = !standaloneVocabulary && settings.renderer !== '2d' && !graphics.unavailable;
+  const embeddedBundle = isEmbeddedAssetBundle();
+  const needsPreload = needs3d && !embeddedBundle;
   const [preloadAttempt, setPreloadAttempt] = useState(0);
   const [preloadState, setPreloadState] = useState(() => ({
     ready: !needsPreload || isTitlePreloadReady(),
@@ -92,26 +137,24 @@ function GameApp({ settings, setSettings }) {
     progress: { percent: 0, loadedBytes: 0, totalBytes: 0, label: '3D 자산 확인 중…', phase: 'downloading' },
     error: '',
   }));
-  const [titleSceneReady, setTitleSceneReady] = useState(() => !needsPreload || isTitlePreloadReady());
+  const [titleSceneReady, setTitleSceneReady] = useState(() => !needs3d);
   const hadBlockingOverlay = useRef(false);
-  const needsQualityChoice = !standaloneVocabulary && !qualityChosen && settings.renderer !== '2d' && !graphics.unavailable;
-  const titleAssetsReady = (!needsPreload || preloadState.ready) && !needsQualityChoice;
-  const preloadBlocking = needsQualityChoice || (needsPreload && (!preloadState.ready || !titleSceneReady));
-  const qualityPickerVisible = needsQualityChoice && openedMenu === null;
-  const downloadVisible = !qualityPickerVisible && preloadBlocking && openedMenu === null;
+  const combatIdlePrimed = useRef(false);
+  const warmupDone = !needs3d || graphics.warmupStatus === 'ready' || graphics.warmupStatus === 'skipped';
+  const titleAssetsReady = (!needsPreload || preloadState.ready) && warmupDone;
+  const preloadBlocking = needs3d && ((needsPreload && !preloadState.ready) || !warmupDone || !titleSceneReady);
+  const downloadVisible = preloadBlocking && openedMenu === null;
   const tutorialVisible = tutorialOpen && (!preloadBlocking || openedMenu !== null);
   const titleBlocked = standaloneVocabulary || preloadBlocking || tutorialOpen;
-  const overlayVisible = qualityPickerVisible || downloadVisible || tutorialVisible;
+  const overlayVisible = downloadVisible || tutorialVisible;
 
   useEffect(() => {
-    if (!needsPreload) {
+    if (!needs3d) {
       setTitleSceneReady(true);
       return undefined;
     }
-    if (isTitlePreloadReady()) {
-      setTitleSceneReady(true);
+    if (!needsPreload || isTitlePreloadReady()) {
       setPreloadState((prev) => (prev.ready ? prev : { ...prev, ready: true, status: 'ready', error: '' }));
-      preloadCombatAssets();
       return undefined;
     }
     let cancelled = false;
@@ -126,7 +169,6 @@ function GameApp({ settings, setSettings }) {
       .then(() => {
         if (cancelled) return;
         setPreloadState((prev) => ({ ...prev, ready: true, status: 'ready', error: '' }));
-        preloadCombatAssets();
       })
       .catch((err) => {
         if (cancelled) return;
@@ -141,7 +183,22 @@ function GameApp({ settings, setSettings }) {
       cancelled = true;
       task.unsubscribe();
     };
-  }, [needsPreload, preloadAttempt]);
+  }, [needs3d, needsPreload, preloadAttempt]);
+
+  useEffect(() => {
+    if (!needs3d) return;
+    if (needsPreload && !preloadState.ready) return;
+    if (graphics.warmupStatus === 'idle') {
+      setTitleSceneReady(false);
+      graphics.requestWarmup();
+    }
+  }, [needs3d, needsPreload, preloadState.ready, graphics.warmupStatus, graphics.requestWarmup]);
+
+  useEffect(() => {
+    if (!needsPreload || !preloadState.ready || !warmupDone || combatIdlePrimed.current) return;
+    combatIdlePrimed.current = true;
+    preloadCombatAssets({ primeAllInIdle: true });
+  }, [needsPreload, preloadState.ready, warmupDone]);
 
   useEffect(() => {
     if (overlayVisible) {
@@ -186,9 +243,8 @@ function GameApp({ settings, setSettings }) {
   }, [tutorialOpen, openedMenu]);
 
   useEffect(() => {
-    if (!qualityChosen) return;
     setSettingsSaved(saveSettings(settings));
-  }, [settings, qualityChosen]);
+  }, [settings]);
   useEffect(() => {
     if (openedMenu !== null || titleBlocked) return;
     const indices = MENU.map((_, i) => i).filter(isEnabled);
@@ -250,9 +306,13 @@ function GameApp({ settings, setSettings }) {
   function returnToGameFromVocabulary() {
     const homeUrl = buildGameHomeUrl(window.location.href);
     try { window.history.replaceState(null, '', homeUrl); } catch {}
-    if (settings.renderer !== '2d' && !graphics.unavailable && !isEmbeddedAssetBundle() && !isTitlePreloadReady()) {
-      setTitleSceneReady(false);
-      setPreloadState((prev) => ({ ...prev, ready: false, status: 'loading', error: '' }));
+    if (settings.renderer !== '2d' && !graphics.unavailable) {
+      if (!isEmbeddedAssetBundle() && !isTitlePreloadReady()) {
+        setTitleSceneReady(false);
+        setPreloadState((prev) => ({ ...prev, ready: false, status: 'loading', error: '' }));
+      } else if (graphics.warmupStatus === 'idle') {
+        setTitleSceneReady(false);
+      }
     }
     setOpenedMenu(null);
     setStandaloneVocabulary(false);
@@ -291,9 +351,14 @@ function GameApp({ settings, setSettings }) {
   }
 
   const heroAction = swinging ? 'attack' : MENU_REACTIONS[selected] ?? 'idle';
-  const overlayProgress = preloadState.ready && !titleSceneReady
-    ? { ...preloadState.progress, percent: 99, label: '3D 무대 초기화 중…', phase: 'initializing' }
-    : preloadState.progress;
+  const scaledDownloadPercent = Math.min(80, Math.round(Math.max(0, Math.min(100, preloadState.progress?.percent ?? 0)) * 0.8));
+  const overlayProgress = needsPreload && !preloadState.ready
+    ? { ...preloadState.progress, percent: scaledDownloadPercent, phase: preloadState.progress?.phase ?? 'downloading' }
+    : !warmupDone
+      ? { ...preloadState.progress, percent: 90, label: '그래픽 셰이더 준비 중… (최초 1회)', phase: 'warming' }
+      : preloadState.ready && !titleSceneReady
+        ? { ...preloadState.progress, percent: 99, label: '3D 무대 초기화 중…', phase: 'initializing' }
+        : preloadState.progress;
 
   return (
     <div className="app" data-text-size={settings.textSize} data-selection-effect={settings.selectionEffect} data-background-motion={settings.backgroundMotion}>
@@ -348,29 +413,28 @@ function GameApp({ settings, setSettings }) {
               : ['새 모험', '이어하기'].includes(openedMenu) ? <AdventureDialog progress={progress} dispatch={dispatch} error={error} motionPreference={settings.backgroundMotion}
                 shortcutConfirm={settings.shortcutConfirm} newAdventure={openedMenu === '새 모험'} onTutorial={(event) => openTutorial(event?.currentTarget ?? null)} onClose={closeAdventure} /> : null}
           {tutorialVisible && <TutorialDialog replay={openedMenu === '설정'} onClose={closeTutorial} />}
-          {qualityPickerVisible && (
-            <GraphicsQualityOverlay
-              recommended={graphics.recommendedQuality}
-              preloadReady={preloadState.ready}
-              preloadStatus={preloadState.status}
-              preloadProgress={preloadState.progress}
-              onConfirm={(chosen) => {
-                const next = normalizeSettings({ ...settings, graphicsQuality: chosen });
-                setSettings(next);
-                setQualityChosen(true);
-                setSettingsSaved(saveSettings(next));
-              }}
-            />
-          )}
           {downloadVisible && (
             <AssetDownloadOverlay
               progress={overlayProgress}
               status={preloadState.status}
               error={preloadState.error}
+              activeQuality={settings.graphicsQuality}
               onRetry={() => setPreloadAttempt((n) => n + 1)}
               onUse2d={() => {
                 graphics.reportFailure();
               }}
+            />
+          )}
+          {needs3d && !downloadVisible && graphics.perfSuggestion && (
+            <PerfSuggestionBanner
+              suggestion={graphics.perfSuggestion}
+              onSwitch={(suggested) => {
+                const next = normalizeSettings({ ...settings, graphicsQuality: suggested });
+                setSettings(next);
+                setSettingsSaved(saveSettings(next));
+                graphics.dismissPerfSuggestion();
+              }}
+              onDismiss={graphics.dismissPerfSuggestion}
             />
           )}
           {ADMIN_MODE && (
@@ -383,6 +447,6 @@ function GameApp({ settings, setSettings }) {
 }
 
 export default function App() {
-  const [settings, setSettings] = useState(readSettings);
+  const [settings, setSettings] = useState(() => resolveInitialSettings(recommendGraphicsQuality()).settings);
   return <AdminProvider><GraphicsProvider settings={settings}><SceneTransitionProvider motionPreference={settings.backgroundMotion}><GameApp settings={settings} setSettings={setSettings} /></SceneTransitionProvider></GraphicsProvider></AdminProvider>;
 }

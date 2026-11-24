@@ -210,3 +210,133 @@ test('standalone preloadCombatAssets warms textures, prioritizes requested monst
   assert.equal(primedModels.length, 1);
   assert.equal(seededModels.length, COMBAT_MONSTER_TYPES.length - 2);
 });
+
+test('preloadCombatAssets with primeAllInIdle primes all unprimed monsters in idle slices and skips while hidden', async () => {
+  resetAssetPreloadForTest();
+  const primedModels = [];
+  const seededModels = [];
+  const stageModule = {
+    primeModelCache: (entries) => primedModels.push(...entries.map(([url]) => url)),
+    seedModelCache: (entries) => seededModels.push(...entries.map(([url]) => url)),
+    seedTextureCache: async () => {},
+    primeTextureCache: () => {},
+  };
+
+  await preloadTitleAssets({
+    embedded: false,
+    loadStage: async () => stageModule,
+    fetchImpl: async () => streamResponse(2048),
+  }).promise;
+  assert.equal(primedModels.length, 2);
+  assert.equal(seededModels.length, COMBAT_MONSTER_TYPES.length);
+
+  const origDoc = globalThis.document;
+  const origIdle = globalThis.requestIdleCallback;
+  let idleCallbacks = 0;
+
+  try {
+    // Hidden tab skips priming unprimed monsters
+    globalThis.document = { hidden: true };
+    globalThis.requestIdleCallback = (cb) => {
+      idleCallbacks++;
+      return setTimeout(cb, 0);
+    };
+
+    await preloadCombatAssets({
+      embedded: false,
+      primeAllInIdle: true,
+      yieldMs: 0,
+      loadStage: async () => stageModule,
+      fetchImpl: async () => { throw new Error('should not refetch already-downloaded monsters'); },
+    });
+    assert.equal(primedModels.length, 2);
+    assert.equal(idleCallbacks, 0);
+
+    // Visible tab uses requestIdleCallback and primes all 12 remaining monsters with zero extra fetches
+    globalThis.document = { hidden: false };
+    await preloadCombatAssets({
+      embedded: false,
+      primeAllInIdle: true,
+      yieldMs: 0,
+      loadStage: async () => stageModule,
+      fetchImpl: async () => { throw new Error('should not refetch already-downloaded monsters'); },
+    });
+    assert.equal(idleCallbacks, COMBAT_MONSTER_TYPES.length);
+    assert.equal(primedModels.length, 2 + COMBAT_MONSTER_TYPES.length);
+    for (const monster of COMBAT_MONSTER_TYPES) {
+      assert.ok(primedModels.some((url) => url.includes(`/${monster}.glb`)), `idle-primed ${monster}.glb`);
+    }
+
+    // Fallback to setTimeout when requestIdleCallback is unavailable
+    resetAssetPreloadForTest();
+    primedModels.length = 0;
+    delete globalThis.requestIdleCallback;
+    await preloadCombatAssets({
+      embedded: false,
+      primeAllInIdle: true,
+      yieldMs: 0,
+      loadStage: async () => stageModule,
+      fetchImpl: async () => streamResponse(1024),
+    });
+    assert.equal(primedModels.length, COMBAT_MONSTER_TYPES.length);
+  } finally {
+    if (origDoc === undefined) delete globalThis.document;
+    else globalThis.document = origDoc;
+    if (origIdle === undefined) delete globalThis.requestIdleCallback;
+    else globalThis.requestIdleCallback = origIdle;
+  }
+});
+
+test('fetchBufferWithProgress reads from and stores into Cache API when using global fetch', async () => {
+  resetAssetPreloadForTest();
+  const origFetch = globalThis.fetch;
+  const origCaches = globalThis.caches;
+  const cacheStore = new Map();
+  let networkFetches = 0;
+
+  try {
+    globalThis.fetch = async () => {
+      networkFetches++;
+      return streamResponse(4096, { chunkSize: 1024 });
+    };
+    globalThis.caches = {
+      open: async (name) => {
+        assert.equal(name, 'sword-master-assets-v1');
+        return {
+          match: async (url) => cacheStore.get(url),
+          put: async (url, response) => {
+            cacheStore.set(url, response);
+          },
+        };
+      },
+    };
+
+    const first = await fetchBufferWithProgress('/models/crawler.glb');
+    assert.equal(first.byteLength, 4096);
+    assert.equal(networkFetches, 1);
+    assert.equal(cacheStore.has('/models/crawler.glb'), true);
+
+    // Clear in-memory downloadedBuffers to force Cache API lookup on next visit
+    resetAssetPreloadForTest();
+    const events = [];
+    const second = await fetchBufferWithProgress('/models/crawler.glb', {
+      onBytes: (loaded, total) => events.push([loaded, total]),
+    });
+    assert.equal(second.byteLength, 4096);
+    assert.equal(networkFetches, 1, 'second call served from Cache API without network fetch');
+    assert.deepEqual(events, [[4096, 4096]]);
+
+    // Cache quota/open error never breaks network fallback
+    resetAssetPreloadForTest();
+    globalThis.caches = {
+      open: async () => { throw new Error('QuotaExceededError'); },
+    };
+    const third = await fetchBufferWithProgress('/models/sentinel.glb');
+    assert.equal(third.byteLength, 4096);
+    assert.equal(networkFetches, 2);
+  } finally {
+    globalThis.fetch = origFetch;
+    if (origCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = origCaches;
+  }
+});

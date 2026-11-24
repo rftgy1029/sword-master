@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { recommendGraphicsQuality } from '../game/three/quality.js';
+import { SharedStageProvider } from './SharedStageContext.jsx';
 
 const GraphicsContext = createContext({
   renderer: 'auto',
@@ -9,7 +10,19 @@ const GraphicsContext = createContext({
   recommendedQuality: 'balanced',
   effectiveQuality: 'balanced',
   reportFailure: () => {},
+  warmupStatus: 'idle',
+  requestWarmup: () => {},
+  perfSuggestion: null,
+  dismissPerfSuggestion: () => {},
 });
+
+function GraphicsContextBridge({ baseValue, stageInfo, children }) {
+  const value = useMemo(() => ({
+    ...baseValue,
+    ...stageInfo,
+  }), [baseValue, stageInfo]);
+  return <GraphicsContext.Provider value={value}>{children}</GraphicsContext.Provider>;
+}
 
 export function GraphicsProvider({ settings, children }) {
   const [unavailable, setUnavailable] = useState(false);
@@ -30,7 +43,7 @@ export function GraphicsProvider({ settings, children }) {
     };
   }, [effectiveQuality]);
 
-  const value = useMemo(() => ({
+  const baseValue = useMemo(() => ({
     ...settings,
     unavailable,
     recommendedQuality,
@@ -38,7 +51,15 @@ export function GraphicsProvider({ settings, children }) {
     reportFailure,
   }), [settings, unavailable, recommendedQuality, effectiveQuality, reportFailure]);
 
-  return <GraphicsContext.Provider value={value}>{children}</GraphicsContext.Provider>;
+  return (
+    <SharedStageProvider settings={settings} unavailable={unavailable} reportFailure={reportFailure}>
+      {(stageInfo) => (
+        <GraphicsContextBridge baseValue={baseValue} stageInfo={stageInfo}>
+          {children}
+        </GraphicsContextBridge>
+      )}
+    </SharedStageProvider>
+  );
 }
 
 export function useGraphics() { return useContext(GraphicsContext); }

@@ -51,6 +51,7 @@ export const INITIAL_ASSET_SPECS = Object.freeze([
   ...MONSTER_MODEL_SPECS,
 ]);
 
+const ASSET_CACHE_NAME = 'sword-master-assets-v1';
 const defaultLoadStage = () => import('./three/ThreeStage.jsx');
 
 const downloadedBuffers = new Map();
@@ -64,6 +65,7 @@ let cachedStageModule = null;
 let texturesPrimed = false;
 let combatQueuePromise = null;
 let queuedPriorityType = null;
+let queuedPrimeAllInIdle = false;
 
 export function isEmbeddedAssetBundle() {
   return Boolean(globalThis.__SWORD_MASTER_ASSETS__);
@@ -84,6 +86,30 @@ export function resetAssetPreloadForTest() {
   texturesPrimed = false;
   combatQueuePromise = null;
   queuedPriorityType = null;
+  queuedPrimeAllInIdle = false;
+}
+
+function storeInAssetCache(cache, url, buffer) {
+  if (!cache || typeof globalThis.Response !== 'function') return;
+  try {
+    const entry = new globalThis.Response(buffer.slice(0), {
+      status: 200,
+      headers: { 'Content-Length': String(buffer.byteLength) },
+    });
+    Promise.resolve(cache.put(url, entry)).catch(() => {});
+  } catch {
+    // Ignore Cache API quota, private-browsing, or unsupported runtime errors.
+  }
+}
+
+function scheduleIdle(yieldMs = 40) {
+  return new Promise((resolve) => {
+    if (typeof globalThis.requestIdleCallback === 'function') {
+      globalThis.requestIdleCallback(() => resolve(), { timeout: Math.max(50, yieldMs * 4 || 120) });
+    } else {
+      setTimeout(resolve, Math.max(0, yieldMs));
+    }
+  });
 }
 
 /**
@@ -109,38 +135,63 @@ export function fetchBufferWithProgress(url, { fetchImpl = globalThis.fetch, onB
   };
 
   const promise = (async () => {
+    const useCacheApi =
+      fetchImpl === globalThis.fetch
+      && typeof globalThis.caches?.open === 'function'
+      && typeof url === 'string'
+      && !url.startsWith('data:');
+
+    let cache = null;
+    if (useCacheApi) {
+      try {
+        cache = await globalThis.caches.open(ASSET_CACHE_NAME);
+        const cached = await cache.match(url);
+        if (cached && cached.ok !== false) {
+          const buffer = await cached.arrayBuffer();
+          emit(buffer.byteLength, buffer.byteLength);
+          downloadedBuffers.set(url, buffer);
+          return buffer;
+        }
+      } catch {
+        cache = null;
+      }
+    }
+
     const response = await fetchImpl(url);
     if (!response?.ok) throw new Error(`자산을 불러오지 못했습니다 (${response?.status ?? 'network'}): ${url}`);
 
     const headerTotal = Number(response.headers?.get?.('content-length')) || 0;
+    let buffer;
+    let totalBytes;
     if (!response.body?.getReader) {
-      const buffer = await response.arrayBuffer();
-      emit(buffer.byteLength, buffer.byteLength);
-      downloadedBuffers.set(url, buffer);
-      return buffer;
+      buffer = await response.arrayBuffer();
+      totalBytes = buffer.byteLength;
+    } else {
+      const reader = response.body.getReader();
+      const chunks = [];
+      let loaded = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value?.byteLength) {
+          chunks.push(value);
+          loaded += value.byteLength;
+          emit(loaded, headerTotal || loaded);
+        }
+      }
+      const merged = new Uint8Array(loaded);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      buffer = merged.buffer;
+      totalBytes = headerTotal || buffer.byteLength;
     }
 
-    const reader = response.body.getReader();
-    const chunks = [];
-    let loaded = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value?.byteLength) {
-        chunks.push(value);
-        loaded += value.byteLength;
-        emit(loaded, headerTotal || loaded);
-      }
-    }
-    const merged = new Uint8Array(loaded);
-    let offset = 0;
-    for (const chunk of chunks) {
-      merged.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    const buffer = merged.buffer;
-    emit(buffer.byteLength, headerTotal || buffer.byteLength);
+    emit(buffer.byteLength, totalBytes);
     downloadedBuffers.set(url, buffer);
+    storeInAssetCache(cache, url, buffer);
     return buffer;
   })().finally(() => {
     inflightBuffers.delete(url);
@@ -339,12 +390,15 @@ export function preloadCombatAssets({
   fetchImpl = globalThis.fetch,
   embedded = isEmbeddedAssetBundle(),
   yieldMs = 40,
+  primeAllInIdle = false,
 } = {}) {
   if (embedded) return Promise.resolve();
   if (priorityType && COMBAT_MONSTER_TYPES.includes(priorityType)) queuedPriorityType = priorityType;
+  if (primeAllInIdle) queuedPrimeAllInIdle = true;
   if (combatQueuePromise) return combatQueuePromise;
 
-  combatQueuePromise = (async () => {
+  let finished = false;
+  const task = (async () => {
     try {
       const threeModule = cachedStageModule ?? await loadStage();
       cachedStageModule = threeModule;
@@ -364,16 +418,22 @@ export function preloadCombatAssets({
         threeModule?.primeTextureCache?.(effectUrls);
       }
       const pending = new Set(COMBAT_MONSTER_TYPES);
-      while (pending.size > 0) {
-        const prioritized = queuedPriorityType && pending.has(queuedPriorityType);
+      while (pending.size > 0 || queuedPriorityType) {
+        const prioritized = Boolean(queuedPriorityType);
         const nextType = prioritized ? queuedPriorityType : pending.values().next().value;
         if (prioritized) queuedPriorityType = null;
         pending.delete(nextType);
         const url = modelUrl(nextType);
-        if (prioritized ? primedModels.has(url) : seededModels.has(url)) continue;
+        const shouldPrime = prioritized || queuedPrimeAllInIdle;
+        if (shouldPrime ? primedModels.has(url) : seededModels.has(url)) continue;
+        if (queuedPrimeAllInIdle && !prioritized) {
+          if (globalThis.document?.hidden) continue;
+          await scheduleIdle(yieldMs);
+          if (globalThis.document?.hidden) continue;
+        }
         try {
           const buffer = await fetchBufferWithProgress(url, { fetchImpl });
-          if (prioritized) {
+          if (shouldPrime) {
             threeModule?.primeModelCache?.([[url, buffer]]);
             seededModels.add(url);
             primedModels.add(url);
@@ -384,14 +444,20 @@ export function preloadCombatAssets({
         } catch {
           // Background preload failure is non-fatal; CombatScene still attempts live loading if needed.
         }
-        if (yieldMs > 0 && pending.size > 0) await new Promise((resolve) => setTimeout(resolve, yieldMs));
+        if (!queuedPrimeAllInIdle && yieldMs > 0 && pending.size > 0) {
+          await new Promise((resolve) => setTimeout(resolve, yieldMs));
+        }
       }
     } catch {
       // Ignore background stage-load errors; foreground callers handle explicit retries.
     } finally {
+      finished = true;
       combatQueuePromise = null;
+      queuedPriorityType = null;
+      queuedPrimeAllInIdle = false;
     }
   })();
 
-  return combatQueuePromise;
+  if (!finished) combatQueuePromise = task;
+  return task;
 }

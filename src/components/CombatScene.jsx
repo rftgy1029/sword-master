@@ -40,8 +40,7 @@ export default function CombatScene({
         if (force || !prev || prev.visible !== visible || prev.renderer !== renderer
           || Math.abs(prev.x - x) >= 0.4 || Math.abs(prev.y - y) >= 0.4) {
           applied.current[side] = { x, y, visible, renderer };
-          node.style.left = `${x.toFixed(1)}px`;
-          node.style.top = `${y.toFixed(1)}px`;
+          node.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -100%)`;
           node.style.visibility = visible ? 'visible' : 'hidden';
           node.dataset.renderer = renderer;
         }
@@ -59,8 +58,7 @@ export default function CombatScene({
         if (force || !prevU || prevU.visible !== visible || prevU.renderer !== renderer
           || Math.abs(prevU.x - ux) >= 0.4 || Math.abs(prevU.y - uy) >= 0.4) {
           applied.current[underKey] = { x: ux, y: uy, visible, renderer };
-          uNode.style.left = `${ux.toFixed(1)}px`;
-          uNode.style.top = `${uy.toFixed(1)}px`;
+          uNode.style.transform = `translate3d(${ux.toFixed(1)}px, ${uy.toFixed(1)}px, 0) translate(-50%, 0)`;
           uNode.style.visibility = visible ? 'visible' : 'hidden';
           uNode.dataset.renderer = renderer;
         }

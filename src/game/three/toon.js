@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // 3단계 명암 램프: 어두운 면·중간 면·밝은 면으로 나누되, 경계는 선형 보간으로 살짝 풀어
 // 저폴리 구에서 계단처럼 깨지는 얼룩을 줄인다.
@@ -114,6 +115,155 @@ const facialDetail = material => /\sdetail$/.test(material.name ?? '');
 const box = new THREE.Box3();
 const size = new THREE.Vector3();
 
+const BOUNDARY_ANCHORS = ['head', 'weapon', 'weapon_tip'];
+const invAncestorMatrix = new THREE.Matrix4();
+const relativeMeshMatrix = new THREE.Matrix4();
+const vertexColorSample = new THREE.Color();
+
+function collectBoundaryAnchors(animations = []) {
+  const anchors = new Set(BOUNDARY_ANCHORS);
+  for (const clip of animations ?? []) {
+    for (const track of clip?.tracks ?? []) {
+      const target = track?.name?.split('.')[0];
+      if (target) anchors.add(target);
+    }
+  }
+  return anchors;
+}
+
+function nearestBoundaryAncestor(mesh, root, anchors) {
+  let cursor = mesh.parent;
+  while (cursor && cursor !== root && cursor.parent && !anchors.has(cursor.name)) {
+    cursor = cursor.parent;
+  }
+  return cursor ?? mesh.parent;
+}
+
+function prepareMergedGeometry(mesh, relMatrix) {
+  const sourceGeometry = mesh.geometry;
+  if (!sourceGeometry?.getAttribute('position')) return null;
+  const cloned = sourceGeometry.index ? sourceGeometry.toNonIndexed() : sourceGeometry.clone();
+  cloned.clearGroups();
+  cloned.morphAttributes = {};
+  cloned.applyMatrix4(relMatrix);
+  if (!cloned.getAttribute('normal')) cloned.computeVertexNormals();
+
+  const position = cloned.getAttribute('position');
+  const count = position.count;
+  const mat = mesh.material;
+  const matColor = mat.color ?? new THREE.Color('#ffffff');
+  const existingColor = mat.vertexColors ? cloned.getAttribute('color') : null;
+  const colors = new Float32Array(count * 3);
+
+  if (existingColor && existingColor.count === count) {
+    for (let i = 0; i < count; i += 1) {
+      vertexColorSample.fromBufferAttribute(existingColor, i);
+      colors[i * 3] = vertexColorSample.r * matColor.r;
+      colors[i * 3 + 1] = vertexColorSample.g * matColor.g;
+      colors[i * 3 + 2] = vertexColorSample.b * matColor.b;
+    }
+  } else {
+    for (let i = 0; i < count; i += 1) {
+      colors[i * 3] = matColor.r;
+      colors[i * 3 + 1] = matColor.g;
+      colors[i * 3 + 2] = matColor.b;
+    }
+  }
+
+  for (const attrName of Object.keys(cloned.attributes)) {
+    if (attrName !== 'position' && attrName !== 'normal') cloned.deleteAttribute(attrName);
+  }
+  cloned.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  return cloned;
+}
+
+/**
+ * 같은 경계 관절(애니메이션 대상·head·weapon·weapon_tip) 아래의 정적 불투명 하위 메시들을
+ * 정점 색상을 구운 단일 지오메트리로 병합해 드로우콜을 줄인다.
+ */
+export function mergeStaticJointMeshes(object, animations = []) {
+  const mergedGeometries = [];
+  const tempMaterials = [];
+  const dispose = () => {
+    for (const geometry of mergedGeometries) geometry.dispose();
+    mergedGeometries.length = 0;
+    for (const material of tempMaterials) material.dispose();
+    tempMaterials.length = 0;
+  };
+  if (!object) return { mergedCount: 0, mergedGeometries, tempMaterials, dispose };
+
+  const anchors = collectBoundaryAnchors(animations);
+  object.updateMatrixWorld(true);
+
+  const buckets = new Map();
+  object.traverse((node) => {
+    if (!node.isMesh || node.isSkinnedMesh || node.userData.outline) return;
+    if (node.children.length > 0 || anchors.has(node.name)) return;
+    const mat = node.material;
+    if (!mat || Array.isArray(mat)) return;
+    if (glowing(mat) || facialDetail(mat) || mat.map || mat.emissiveMap || mat.alphaMap) return;
+
+    const ancestor = nearestBoundaryAncestor(node, object, anchors);
+    if (!ancestor || ancestor.matrixWorld.determinant() === 0) return;
+    invAncestorMatrix.copy(ancestor.matrixWorld).invert();
+    relativeMeshMatrix.multiplyMatrices(invAncestorMatrix, node.matrixWorld);
+    if (relativeMeshMatrix.determinant() < 0) return;
+
+    const key = `${ancestor.uuid}|${mat.side}`;
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = { ancestor, side: mat.side, items: [] };
+      buckets.set(key, bucket);
+    }
+    bucket.items.push({ mesh: node, relMatrix: relativeMeshMatrix.clone() });
+  });
+
+  let mergedCount = 0;
+  for (const { ancestor, side, items } of buckets.values()) {
+    if (items.length < 2) continue;
+    const prepared = [];
+    let merged = null;
+    try {
+      for (const { mesh, relMatrix } of items) {
+        const geometry = prepareMergedGeometry(mesh, relMatrix);
+        if (!geometry) {
+          prepared.length = 0;
+          break;
+        }
+        prepared.push(geometry);
+      }
+      if (prepared.length === items.length) {
+        merged = mergeGeometries(prepared, false);
+      }
+    } finally {
+      for (const geometry of prepared) geometry.dispose();
+    }
+    if (!merged) continue;
+
+    const material = new THREE.MeshStandardMaterial({
+      color: '#ffffff',
+      metalness: 0,
+      roughness: 0.6,
+      vertexColors: true,
+      side,
+    });
+    const batchMesh = new THREE.Mesh(merged, material);
+    batchMesh.name = `${ancestor.name || 'joint'}_batch_${side}`;
+    batchMesh.castShadow = true;
+    batchMesh.receiveShadow = true;
+    batchMesh.userData.mergedGeometry = true;
+
+    ancestor.add(batchMesh);
+    for (const { mesh } of items) mesh.parent?.remove(mesh);
+
+    mergedGeometries.push(merged);
+    tempMaterials.push(material);
+    mergedCount += 1;
+  }
+
+  return { mergedCount, mergedGeometries, tempMaterials, dispose };
+}
+
 function attachOutlines(object, outlineMaterial, candidates) {
   if (outlineMaterial.userData.built) return;
   object.updateMatrixWorld(true);
@@ -133,6 +283,8 @@ function attachOutlines(object, outlineMaterial, candidates) {
     } else outline = new THREE.Mesh(mesh.geometry, material);
     outline.name = `${mesh.name} outline`;
     outline.userData.outline = true;
+    outline.castShadow = false;
+    outline.receiveShadow = false;
     outline.raycast = () => {};
     mesh.add(outline);
     list.push(outline);
@@ -145,7 +297,10 @@ function attachOutlines(object, outlineMaterial, candidates) {
  * 액터 메시를 툰 재질로 바꾸고, 필요할 때 충분히 큰 불투명 부위에 뒷면 외곽선을 붙인다.
  * 저사양(outlines: false)에서는 외곽선 복제와 법선 계산을 생략해 드로우콜과 초기화 시간을 절반 가까이 줄인다.
  */
-export function stylizeActor(object, { outlines = true } = {}) {
+export function stylizeActor(object, { outlines = true, animations = [], batch = false } = {}) {
+  const batchResult = batch ? mergeStaticJointMeshes(object, animations) : null;
+  const batchTempSet = new Set(batchResult?.tempMaterials ?? []);
+  const batchToonMaterials = [];
   const handle = {
     userData: {
       flashTargets: new Set(),
@@ -154,17 +309,28 @@ export function stylizeActor(object, { outlines = true } = {}) {
       built: false,
       shaderMaterial: null,
       scale: 1,
+      mergedGeometries: batchResult?.mergedGeometries ?? [],
+      batchTempMaterials: batchResult?.tempMaterials ?? [],
+      batchToonMaterials,
     },
     dispose() {
       this.userData.shaderMaterial?.dispose();
       this.userData.shaderMaterial = null;
+      for (const geometry of this.userData.mergedGeometries) geometry.dispose();
+      this.userData.mergedGeometries.length = 0;
+      for (const material of this.userData.batchTempMaterials) material.dispose();
+      this.userData.batchTempMaterials.length = 0;
+      for (const material of this.userData.batchToonMaterials) material.dispose();
+      this.userData.batchToonMaterials.length = 0;
     },
   };
   const meshes = [];
   object.traverse(node => { if (node.isMesh && !node.userData.outline) meshes.push(node); });
   for (const mesh of meshes) {
     const sources = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const isBatchMesh = !Array.isArray(mesh.material) && batchTempSet.has(mesh.material);
     mesh.material = Array.isArray(mesh.material) ? sources.map(toonMaterial) : toonMaterial(mesh.material);
+    if (isBatchMesh && mesh.material) batchToonMaterials.push(mesh.material);
     for (const material of [mesh.material].flat()) if (material.userData.hitFlash) handle.userData.flashTargets.add(material);
     if (sources.some(glowing) || sources.some(facialDetail)) continue;
     handle.userData.candidates.push(mesh);

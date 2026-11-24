@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {CombatPlayback,combatMotionMode,impactAges} from '../src/game/three/playback.js';
 import {
-  MODEL_TYPES, QUALITY_PRESETS, effectiveFrameRate, qualityProfile, recommendGraphicsQuality,
+  MODEL_TYPES, QUALITY_LABELS, QUALITY_PRESETS, effectiveFrameRate, lighterQuality, qualityProfile, recommendGraphicsQuality,
 } from '../src/game/three/quality.js';
 import { setActorOutlines, setHitFlash, stylizeActor } from '../src/game/three/toon.js';
 import {MONSTERS,CARDS} from '../src/game/catalog.js';
@@ -92,7 +92,7 @@ test('motion off finishes all supported card effects immediately, while disposal
 
 test('graphics quality caps resolution, particles and shadows for compact screens',()=>{
   const low=qualityProfile('auto',{compact:true,pixelRatio:3});
-  assert.equal(low.dpr,1);assert.equal(low.shadows,false);assert.equal(low.fps,30);
+  assert.equal(low.dpr,1);assert.equal(low.shadows,false);assert.equal(low.fps,60);
   assert.ok(qualityProfile('high',{pixelRatio:3}).dpr<=2);
   assert.ok(low.particles<qualityProfile('high').particles);
 });
@@ -239,37 +239,58 @@ test('the first hit can finish an enemy before a second animation beat with zero
   assert.equal(hits[1].lethal, false);
 });
 
-test('lowest quality profile trims DPR, lights, environment and outlines while keeping core combat VFX', () => {
+test('lowest and low quality profiles trim heavy features for 60fps Chromebook and 30fps ultralow tiers', () => {
   const lowest = qualityProfile('lowest', { pixelRatio: 2 });
   assert.equal(lowest.level, 'lowest');
   assert.equal(lowest.dpr, 0.75);
+  assert.equal(lowest.minDpr, 0.65);
   assert.equal(lowest.antialias, false);
   assert.equal(lowest.shadows, false);
   assert.equal(lowest.environment, false);
   assert.equal(lowest.outlines, false);
   assert.equal(lowest.pointLights, false);
   assert.equal(lowest.rimLight, false);
+  assert.equal(lowest.lightweightDungeon, true);
   assert.equal(lowest.motes, 0);
-  assert.equal(lowest.fps, 24);
+  assert.equal(lowest.fps, 30);
   assert.equal(lowest.idleFps, 10);
   assert.equal(lowest.studyFps, 0);
   assert.ok(lowest.trail >= 6 && lowest.particles >= 8 && lowest.debris >= 3 && lowest.projectileParts >= 3);
 
   const low = qualityProfile('low', { pixelRatio: 2 });
+  assert.equal(low.dpr, 1);
+  assert.equal(low.minDpr, 0.75);
   assert.equal(low.outlines, true);
   assert.equal(low.environment, false);
   assert.equal(low.pointLights, false);
-  assert.equal(low.studyFps, 15);
+  assert.equal(low.lightweightDungeon, true);
+  assert.equal(low.fps, 60);
   assert.equal(low.idleFps, 20);
+  assert.equal(low.studyFps, 0);
 
   const balanced = qualityProfile('balanced', { pixelRatio: 2 });
+  assert.equal(balanced.minDpr, 1);
+  assert.equal(balanced.lightweightDungeon, false);
   assert.equal(balanced.fps, 60);
-  assert.equal(balanced.idleFps, 60);
-  assert.equal(balanced.studyFps, 30);
+  assert.equal(balanced.idleFps, 30);
+  assert.equal(balanced.studyFps, 15);
+
+  const high = qualityProfile('high', { pixelRatio: 2 });
+  assert.equal(high.minDpr, 1.25);
+  assert.equal(high.lightweightDungeon, false);
+  assert.equal(high.fps, 60);
+  assert.equal(high.idleFps, 60);
+  assert.equal(high.studyFps, 30);
+  assert.equal(high.bloom, true);
 });
 
-test('graphics preset recommendation suggests high/balanced/low/lowest accurately without overriding explicit picks', () => {
+test('graphics preset recommendation suggests high/balanced/low/lowest accurately including ChromeOS', () => {
   assert.deepEqual(QUALITY_PRESETS.map((p) => p.id), ['lowest', 'low', 'balanced', 'high']);
+  assert.deepEqual(QUALITY_LABELS, { lowest: '매우 낮음', low: '가벼움', balanced: '보통', high: '높음' });
+  assert.equal(lighterQuality('high'), 'balanced');
+  assert.equal(lighterQuality('balanced'), 'low');
+  assert.equal(lighterQuality('low'), 'lowest');
+  assert.equal(lighterQuality('lowest'), null);
 
   // Software / caveat / ultra-low -> lowest
   assert.equal(recommendGraphicsQuality({ gpuRenderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device))', hardwareConcurrency: 8, deviceMemory: 8 }), 'lowest');
@@ -278,6 +299,13 @@ test('graphics preset recommendation suggests high/balanced/low/lowest accuratel
   assert.equal(recommendGraphicsQuality({ gpuRenderer: 'WebKit WebGL', majorPerformanceCaveat: true, hardwareConcurrency: 8, deviceMemory: 16 }), 'lowest');
   assert.equal(recommendGraphicsQuality({ gpuRenderer: '', hardwareConcurrency: 4, deviceMemory: 2 }), 'lowest');
   assert.equal(recommendGraphicsQuality({ gpuRenderer: 'NVIDIA GeForce RTX 4060', saveData: true, hardwareConcurrency: 16, deviceMemory: 32 }), 'lowest');
+
+  // ChromeOS Chromebooks -> low by default (unless hitting software/caveat/saveData/<=2GB RAM)
+  const crosUa = 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36';
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Mesa Intel(R) Iris(R) Xe Graphics', userAgent: crosUa, hardwareConcurrency: 8, deviceMemory: 8 }), 'low');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Intel(R) UHD Graphics 600', userAgent: crosUa, hardwareConcurrency: 4, deviceMemory: 4 }), 'low');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'ANGLE (Google, SwiftShader Device)', userAgent: crosUa, hardwareConcurrency: 4, deviceMemory: 4 }), 'lowest');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Intel(R) UHD Graphics 605', userAgent: crosUa, deviceMemory: 2 }), 'lowest');
 
   // High-end desktop GPUs & Apple Silicon -> high
   assert.equal(recommendGraphicsQuality({ gpuRenderer: 'NVIDIA GeForce RTX 3060', compact: false, coarsePointer: false, hardwareConcurrency: 2, deviceMemory: 4 }), 'high');
@@ -289,10 +317,12 @@ test('graphics preset recommendation suggests high/balanced/low/lowest accuratel
   assert.equal(recommendGraphicsQuality({ gpuRenderer: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11)', compact: false, coarsePointer: false, hardwareConcurrency: 8, deviceMemory: 8 }), 'balanced');
   assert.equal(recommendGraphicsQuality({ gpuRenderer: '', compact: false, coarsePointer: false, hardwareConcurrency: 8, deviceMemory: 8 }), 'balanced');
 
-  // Modern phones & budget iGPUs -> low
+  // Modern phones & budget iGPUs (including Celeron UHD 600/605) -> low
   assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Apple GPU', compact: true, hardwareConcurrency: 4 }), 'low');
   assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Adreno (TM) 750', compact: true, hardwareConcurrency: 8, deviceMemory: 8 }), 'low');
   assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Intel(R) UHD Graphics 620', hardwareConcurrency: 8, deviceMemory: 8 }), 'low');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Intel(R) UHD Graphics 600', hardwareConcurrency: 4, deviceMemory: 4 }), 'low');
+  assert.equal(recommendGraphicsQuality({ gpuRenderer: 'Intel(R) UHD Graphics 605', hardwareConcurrency: 4, deviceMemory: 4 }), 'low');
 });
 
 test('explicit quality choices are honored directly and adaptive FPS prioritizes active combat over quiz idle', () => {
@@ -304,13 +334,18 @@ test('explicit quality choices are honored directly and adaptive FPS prioritizes
   const lowest = qualityProfile('lowest');
   assert.equal(effectiveFrameRate(lowest, { active: false, studying: true, reduced: false }), 0);
   assert.equal(effectiveFrameRate(lowest, { active: false, studying: false, reduced: false }), 10);
-  assert.equal(effectiveFrameRate(lowest, { active: true, studying: true, reduced: false }), 24);
-  assert.equal(effectiveFrameRate(lowest, { active: true, studying: false, reduced: true }), 24);
+  assert.equal(effectiveFrameRate(lowest, { active: true, studying: true, reduced: false }), 30);
+  assert.equal(effectiveFrameRate(lowest, { active: true, studying: false, reduced: true }), 30);
 
   const low = qualityProfile('low');
-  assert.equal(effectiveFrameRate(low, { active: false, studying: true, reduced: false }), 15);
+  assert.equal(effectiveFrameRate(low, { active: false, studying: true, reduced: false }), 0);
   assert.equal(effectiveFrameRate(low, { active: false, studying: false, reduced: false }), 20);
-  assert.equal(effectiveFrameRate(low, { active: true, studying: false, reduced: false }), 30);
+  assert.equal(effectiveFrameRate(low, { active: true, studying: false, reduced: false }), 60);
+
+  const balanced = qualityProfile('balanced');
+  assert.equal(effectiveFrameRate(balanced, { active: false, studying: true, reduced: false }), 15);
+  assert.equal(effectiveFrameRate(balanced, { active: false, studying: false, reduced: false }), 30);
+  assert.equal(effectiveFrameRate(balanced, { active: true, studying: false, reduced: false }), 60);
 
   const high = qualityProfile('high');
   assert.equal(effectiveFrameRate(high, { active: false, studying: true, reduced: false }), 30);

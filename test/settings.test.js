@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  DEFAULT_SETTINGS, SETTINGS_KEY, hasChosenGraphicsQuality, normalizeSettings, readSettings, saveSettings,
+  DEFAULT_SETTINGS, SETTINGS_KEY, hasChosenGraphicsQuality, normalizeSettings, readSettings, resolveInitialSettings, saveSettings,
 } from '../src/settings.js';
 
 test('missing or corrupt storage recovers to defaults', () => {
@@ -84,4 +84,35 @@ test('explicit graphics quality tiers persist and first-launch setup detects uns
     assert.deepEqual(readSettings(storage), saved);
     assert.equal(hasChosenGraphicsQuality(storage), true);
   }
+});
+
+test('resolveInitialSettings auto-initializes recommended quality once without overriding explicit picks', () => {
+  const data = new Map();
+  const storage = { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
+
+  // First visit: persists recommended quality and marks autoInitialized: true
+  const first = resolveInitialSettings('low', storage);
+  assert.equal(first.autoInitialized, true);
+  assert.equal(first.settings.graphicsQuality, 'low');
+  assert.equal(hasChosenGraphicsQuality(storage), true);
+  assert.equal(readSettings(storage).graphicsQuality, 'low');
+
+  // Second visit: preserves stored explicit choice even if recommendation differs
+  const second = resolveInitialSettings('high', storage);
+  assert.equal(second.autoInitialized, false);
+  assert.equal(second.settings.graphicsQuality, 'low');
+
+  // Legacy 'auto' save: preserves other settings and replaces graphicsQuality with normalized recommendation
+  data.set(SETTINGS_KEY, JSON.stringify({ version: 1, settings: { textSize: 'large', graphicsQuality: 'auto' } }));
+  const legacy = resolveInitialSettings('lowest', storage);
+  assert.equal(legacy.autoInitialized, true);
+  assert.equal(legacy.settings.textSize, 'large');
+  assert.equal(legacy.settings.graphicsQuality, 'lowest');
+  assert.equal(readSettings(storage).graphicsQuality, 'lowest');
+
+  // Invalid recommendedQuality normalizes to balanced
+  data.clear();
+  const invalid = resolveInitialSettings('ultra', storage);
+  assert.equal(invalid.autoInitialized, true);
+  assert.equal(invalid.settings.graphicsQuality, 'balanced');
 });

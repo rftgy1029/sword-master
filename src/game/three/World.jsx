@@ -26,23 +26,59 @@ const stoneGrain = new THREE.DataTexture(grainData,64,64);
 stoneGrain.wrapS=stoneGrain.wrapT=THREE.RepeatWrapping;
 stoneGrain.magFilter=THREE.LinearFilter;stoneGrain.minFilter=THREE.LinearFilter;stoneGrain.needsUpdate=true;
 const stoneMaterial = new THREE.MeshStandardMaterial({ roughness: .93, metalness: .06, bumpMap:stoneGrain,bumpScale:.055 });
+const stoneLambertMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
+const kitOriginalMaterials = new WeakMap();
+const kitStandardMaterials = new WeakMap();
+const kitLambertMaterials = new WeakMap();
 const dummy = new THREE.Object3D();
 const tint = new THREE.Color();
 const stoneColors = ['#33443e', '#3a4941', '#3f4e45', '#35443c', '#495248'];
 // 모든 장면의 조명과 배경색. UI 색(src/styles/dusk.css)도 같은 노을빛에서 뽑았다.
 const DUSK = { background: '#1a1322', sky: '#c3a6e3', ground: '#4b2f2b', sun: '#ffb26b', rim: '#8f7fe0' };
 
-function Stones({ blocks, geometry=stoneGeometry }) {
+function resolveKitMaterial(mesh, lightweight) {
+  if (!mesh?.material) return mesh?.material;
+  if (!kitOriginalMaterials.has(mesh)) {
+    const current = mesh.material;
+    kitOriginalMaterials.set(mesh, kitStandardMaterials.get(current) ?? current);
+  }
+  const original = kitOriginalMaterials.get(mesh);
+  if (!original || Array.isArray(original)) return original;
+  if (!lightweight) {
+    original.color?.set(KIT_TINT);
+    return original;
+  }
+  let lambert = kitLambertMaterials.get(original);
+  if (!lambert) {
+    lambert = new THREE.MeshLambertMaterial({
+      name: `${original.name || 'kit'} lambert`,
+      color: KIT_TINT,
+      map: original.map ?? null,
+      side: original.side,
+      vertexColors: Boolean(original.vertexColors),
+      transparent: Boolean(original.transparent),
+      opacity: original.opacity ?? 1,
+      alphaTest: original.alphaTest ?? 0,
+    });
+    kitLambertMaterials.set(original, lambert);
+    kitStandardMaterials.set(lambert, original);
+  }
+  return lambert;
+}
+
+function Stones({ blocks, geometry=stoneGeometry, shadows=true, lightweight=false }) {
   const ref = useRef(null);
+  const material = lightweight ? stoneLambertMaterial : stoneMaterial;
   useLayoutEffect(() => {
+    if (!ref.current) return;
     blocks.forEach((block, i) => {
       dummy.position.set(...block.position); dummy.scale.set(...block.scale); dummy.rotation.set(0, block.rotate ?? 0, 0); dummy.updateMatrix();
       ref.current.setMatrixAt(i, dummy.matrix); ref.current.setColorAt(i, tint.set(block.color ?? stoneColors[i % stoneColors.length]));
     });
     ref.current.instanceMatrix.needsUpdate = true;
     if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
-  }, [blocks]);
-  return <instancedMesh ref={ref} args={[geometry, stoneMaterial, blocks.length]} castShadow receiveShadow />;
+  }, [blocks, geometry, material]);
+  return <instancedMesh ref={ref} args={[geometry, stoneMaterial, blocks.length]} material={material} castShadow={shadows} receiveShadow={shadows} />;
 }
 
 function EnvironmentLight({ quality }) {
@@ -73,9 +109,14 @@ function EnvironmentLight({ quality }) {
   </>;
 }
 
-function CameraFit({ mode, view }) {
+function CameraFit({ mode, view, sceneInstanceId = 0 }) {
   const { camera, size, scene } = useThree();
+  const lastSceneId = useRef(sceneInstanceId);
   useLayoutEffect(() => {
+    if (lastSceneId.current !== sceneInstanceId) {
+      camera.userData.free = false;
+      lastSceneId.current = sceneInstanceId;
+    }
     const aspect = size.width / Math.max(1, size.height);
     const vertical = Math.max(4.25, 7.8 / aspect);
     const distance = vertical / (2 * Math.tan(THREE.MathUtils.degToRad(37 / 2)));
@@ -103,7 +144,7 @@ function CameraFit({ mode, view }) {
       const target = wide ? new THREE.Vector3(-1.2, 1.15, 0) : new THREE.Vector3(.75, -1.75, 0);
       camera.position.set(target.x + reach * .1, target.y + reach * .3 + .3, reach * .95);
       camera.lookAt(target);
-    } else if (mode === 'battle') {
+    } else if (mode === 'battle' || mode === 'warmup') {
       // 전투는 비스듬한 사선 구도. 화면 비율에 맞춰 두 캐릭터가 잘리지 않는 거리를 계산한다.
       const pose = battleCameraPose(aspect, view);
       camera.fov = pose.fov;
@@ -114,12 +155,12 @@ function CameraFit({ mode, view }) {
       camera.position.set(distance * .12, distance * .32 + 1.3, distance * .95);
       camera.lookAt(0,1.1,0);
     }
-    if (mode !== 'battle' && scene.fog) [scene.fog.near, scene.fog.far] = BATTLE_FOG;
+    if (mode !== 'battle' && mode !== 'warmup' && scene.fog) [scene.fog.near, scene.fog.far] = BATTLE_FOG;
     camera.updateProjectionMatrix();
     // 타격 연출의 카메라 흔들림은 이 위치를 기준으로 잠깐 움직였다가 돌아온다.
     camera.userData.base = camera.position.clone();
     camera.userData.baseFov = camera.fov;
-  }, [camera, scene, size.width, size.height, mode, view]);
+  }, [camera, scene, size.width, size.height, mode, view, sceneInstanceId]);
   return null;
 }
 
@@ -134,8 +175,9 @@ function Torch({ position, light = true }) {
   </group>;
 }
 
-function KitInstances({ source, items }) {
+function KitInstances({ source, items, shadows = true, lightweight = false }) {
   const ref = useRef(null);
+  const material = useMemo(() => resolveKitMaterial(source, lightweight), [source, lightweight]);
   useLayoutEffect(() => {
     items.forEach((item, i) => {
       dummy.position.set(...item.position); dummy.rotation.set(0, item.rotate, 0); dummy.scale.setScalar(KIT_SCALE * item.scale); dummy.updateMatrix();
@@ -143,25 +185,39 @@ function KitInstances({ source, items }) {
     });
     ref.current.instanceMatrix.needsUpdate = true;
     ref.current.computeBoundingSphere();
-  }, [items]);
-  return <instancedMesh ref={ref} name={`kit-${source.name}`} args={[source.geometry, source.material, items.length]} castShadow receiveShadow />;
+  }, [items, material]);
+  return <instancedMesh ref={ref} name={`kit-${source.name}`} args={[source.geometry, source.material, items.length]} material={material} castShadow={shadows} receiveShadow={shadows} />;
 }
 
-function KitClone({ source, item }) {
+function KitClone({ source, item, shadows = true, lightweight = false }) {
   const object = useMemo(() => {
     const copy = source.clone(true);
-    copy.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
     const door = copy.getObjectByName('door');
     if (door) door.position.y = 0; // 창살 문은 내려서 닫힌 모습으로 둔다
     return copy;
   }, [source]);
+  useLayoutEffect(() => {
+    object.traverse(node => {
+      if (node.isMesh) {
+        node.material = resolveKitMaterial(node, lightweight);
+        node.castShadow = shadows;
+        node.receiveShadow = shadows;
+      }
+    });
+  }, [object, shadows, lightweight]);
   return <primitive object={object} position={item.position} rotation={[0, item.rotate, 0]} scale={KIT_SCALE * item.scale} />;
 }
 
 // 바닥·벽·기둥·소품은 Kenney Mini Dungeon(CC0) 부품이고, 횃불·책장·화로·바닥 문양은 이 게임의 장식이다.
 function Dungeon({ variant = 'hall', mode = 'battle', quality }) {
   const kit = useLoader(GLTFLoader, dungeonKitUrl());
-  useLayoutEffect(() => { kit.scene.traverse(node => { if (node.isMesh) node.material.color.set(KIT_TINT); }); }, [kit]);
+  const lightweight = Boolean(quality?.lightweightDungeon);
+  const shadows = Boolean(quality?.shadows);
+  useLayoutEffect(() => {
+    kit.scene.traverse(node => {
+      if (node.isMesh) node.material = resolveKitMaterial(node, lightweight);
+    });
+  }, [kit, lightweight]);
   const groups = useMemo(() => [...groupByPiece(dungeonLayout(variant, mode))], [variant, mode]);
   const books=useMemo(()=>[-5,5].flatMap(x=>[
     {position:[x,1.25,-2.15],scale:[1.4,2.5,.35],color:'#342d24'},
@@ -176,15 +232,15 @@ function Dungeon({ variant = 'hall', mode = 'battle', quality }) {
       const source = kit.scene.getObjectByName(piece);
       if (!source) return null;
       return COMPOSITE_PIECES.includes(piece)
-        ? items.map((item, i) => <KitClone key={`${piece}-${i}`} source={source} item={item} />)
-        : <KitInstances key={piece} source={source} items={items} />;
+        ? items.map((item, i) => <KitClone key={`${piece}-${i}`} source={source} item={item} shadows={shadows} lightweight={lightweight} />)
+        : <KitInstances key={piece} source={source} items={items} shadows={shadows} lightweight={lightweight} />;
     })}
-    <mesh position={[0, -.3, 9]} receiveShadow><boxGeometry args={[60, .3, 28]} /><meshStandardMaterial color="#111e19" roughness={1} /></mesh>
+    <mesh position={[0, -.3, 9]} receiveShadow={shadows}><boxGeometry args={[60, .3, 28]} /><meshStandardMaterial color="#111e19" roughness={1} /></mesh>
     <mesh position={[0, 1.15, WALL_FRONT - TILE - .02]}><planeGeometry args={[2.6, 2.3]} /><meshBasicMaterial color="#070f0d" /></mesh>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .012, 0]}><ringGeometry args={[1.55, 1.57, quality?.level === 'lowest' ? 24 : 48]} /><meshStandardMaterial color="#a78e53" metalness={.5} roughness={.5} /></mesh>
     <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, .016, 0]}><ringGeometry args={[1.03, 1.045, 4]} /><meshStandardMaterial color="#8e8152" metalness={.5} roughness={.5} /></mesh>
     <Torch position={[-2.6, 1.8, WALL_FRONT + .45]} light={usePointLights} /><Torch position={[2.6, 1.8, WALL_FRONT + .45]} light={usePointLights} />
-    {variant==='library'&&<Stones blocks={books} geometry={plainGeometry}/>}
+    {variant==='library'&&<Stones blocks={books} geometry={plainGeometry} shadows={shadows} lightweight={lightweight} />}
     {variant === 'forge' && <group position={[0, 0, WALL_FRONT + .1]}>
       <mesh position={[0, .9, 0]}><boxGeometry args={[1.65, 1.8, .3]} /><meshStandardMaterial color="#211d19" /></mesh>
       {[-.6,-.3,0,.3,.6].map(x => <mesh key={x} position={[x, .9, .19]}><boxGeometry args={[.055, 1.7, .08]} /><meshStandardMaterial color="#625542" metalness={.8} roughness={.45} /></mesh>)}
@@ -194,7 +250,7 @@ function Dungeon({ variant = 'hall', mode = 'battle', quality }) {
   </group>;
 }
 
-export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false, procedural = false, outlines = true, weaponRef, anchorRef }) {
+export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale = 1, action = 'idle', control, still = false, procedural = false, outlines = true, shadows = true, weaponRef, anchorRef }) {
   const source = useLoader(GLTFLoader, modelUrl(type));
   const root = useRef(null);
   const initialOutlines = useRef(outlines);
@@ -210,13 +266,28 @@ export function Actor({ type = 'hero', position = [0, 0, 0], rotation = 0, scale
       headPoint.y = headBounds.isEmpty() ? headPoint.y + .4 : headBounds.max.y + .12;
       head.worldToLocal(headPoint);
     }
-    object.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
-    const outline = stylizeActor(object, { outlines: initialOutlines.current });
+    const outline = stylizeActor(object, {
+      outlines: initialOutlines.current,
+      animations: source.animations,
+      batch: type !== 'hero',
+    });
     const mixer = new THREE.AnimationMixer(object);
     const actions = Object.fromEntries(source.animations.map(clip => [clip.name, mixer.clipAction(clip)]));
     const rig = procedural ? createKnightRig(object) : null;
     return { object, mixer, actions, outline, rig, head, headPoint, name: null, action: null };
-  }, [source, procedural]);
+  }, [source, procedural, type]);
+  useLayoutEffect(() => {
+    actor.object.traverse(node => {
+      if (!node.isMesh) return;
+      if (node.userData.outline) {
+        node.castShadow = false;
+        node.receiveShadow = false;
+      } else {
+        node.castShadow = shadows;
+        node.receiveShadow = shadows;
+      }
+    });
+  }, [actor, shadows, outlines]);
   useLayoutEffect(() => {
     if (!anchorRef) return;
     anchorRef.current = { root: root.current, head: actor.head, point: actor.headPoint };
@@ -362,11 +433,12 @@ function BattleActors({ state, director, quality, reduced, onAnchors }) {
     onAnchors(anchors.current);
   });
 
+  const shadows = Boolean(quality?.shadows);
   return <>
-    <Actor type="hero" rotation={Math.PI / 2} procedural outlines={quality.outlines !== false} weaponRef={sword} anchorRef={heroAnchor} still={reduced} control={() => ({
+    <Actor type="hero" rotation={Math.PI / 2} procedural outlines={quality.outlines !== false} shadows={shadows} weaponRef={sword} anchorRef={heroAnchor} still={reduced} control={() => ({
       pose: pose.current, flash: reduced ? 0 : hitFlashAmount(director.active, 'hero'), flashColor: '#ffd2c4',
     })} />
-    <Actor type={state.enemy.type} rotation={-Math.PI / 2} outlines={quality.outlines !== false} anchorRef={enemyAnchor} still={reduced} control={() => foe.current} />
+    <Actor type={state.enemy.type} rotation={-Math.PI / 2} outlines={quality.outlines !== false} shadows={shadows} anchorRef={enemyAnchor} still={reduced} control={() => foe.current} />
     <CombatAtmosphere director={director} quality={quality} pose={pose} sword={sword} />
     <SwordTrail director={director} quality={quality} sword={sword} />
     <SkillEffects director={director} quality={quality} sword={sword} />
@@ -374,11 +446,11 @@ function BattleActors({ state, director, quality, reduced, onAnchors }) {
   </>;
 }
 
-function Camp({ forge = false, light = true }) {
+function Camp({ forge = false, light = true, shadows = true }) {
   return <group position={[1,0,.3]}>
     {forge ? <>
-      <mesh position={[0,.35,0]} castShadow><cylinderGeometry args={[.25,.33,.7,8]} /><meshStandardMaterial color="#4b3d2e" roughness={.8} /></mesh>
-      <mesh position={[0,.85,0]} castShadow><boxGeometry args={[1,.24,.43]} /><meshStandardMaterial color="#8e9690" metalness={.8} roughness={.35} /></mesh>
+      <mesh position={[0,.35,0]} castShadow={shadows}><cylinderGeometry args={[.25,.33,.7,8]} /><meshStandardMaterial color="#4b3d2e" roughness={.8} /></mesh>
+      <mesh position={[0,.85,0]} castShadow={shadows}><boxGeometry args={[1,.24,.43]} /><meshStandardMaterial color="#8e9690" metalness={.8} roughness={.35} /></mesh>
       <mesh position={[.53,.87,0]} rotation={[0,0,Math.PI/2]}><coneGeometry args={[.19,.45,8]} /><meshStandardMaterial color="#8e9690" metalness={.8} roughness={.35} /></mesh>
     </> : <>
       {[0,1,2].map(i => <mesh key={i} position={[0,.12,0]} rotation={[Math.PI/2,i*Math.PI/3,0]}><cylinderGeometry args={[.075,.09,.9,8]} /><meshStandardMaterial color="#5d422d" roughness={.95} /></mesh>)}
@@ -388,7 +460,9 @@ function Camp({ forge = false, light = true }) {
   </group>;
 }
 
-function MapRooms({ run, onSelect, inspecting, onHighlight, highlightedNodeId, outlines = true }) {
+function MapRooms({ run, onSelect, inspecting, onHighlight, highlightedNodeId, outlines = true, quality }) {
+  const shadows = Boolean(quality?.shadows);
+  const lightweight = Boolean(quality?.lightweightDungeon);
   const horizontal=useThree(state=>state.size.width>state.size.height*1.5);
   const canvas=useThree(state=>state.gl.domElement);
   useEffect(() => () => { canvas.style.cursor = ''; }, [canvas]);
@@ -407,7 +481,7 @@ function MapRooms({ run, onSelect, inspecting, onHighlight, highlightedNodeId, o
     ];
   }), [run.map,run.visited]);
   return <group name="route-map" rotation={[0,horizontal?Math.PI/2:0,0]}>
-    <Stones blocks={blocks} />
+    <Stones blocks={blocks} shadows={shadows} lightweight={lightweight} />
     {run.map.slice(0,-1).flatMap((row, index) => row.flatMap(node => run.map[index+1].filter(next=>Math.abs(node.lane-next.lane)<=1).map(next => {
       const a=new THREE.Vector3((node.lane-1)*3,-.15,-(node.floor-3.5)*1.55);
       const b=new THREE.Vector3((next.lane-1)*3,-.15,-(next.floor-3.5)*1.55);
@@ -433,12 +507,12 @@ function MapRooms({ run, onSelect, inspecting, onHighlight, highlightedNodeId, o
         {reachable && <mesh rotation={[-Math.PI/2,0,0]} position={[0,.012,0]}><ringGeometry args={[.5,.54,32]} /><meshBasicMaterial color="#ffb25e" /></mesh>}
       </group>;
     })}
-    <Actor position={[(run.lane-1)*3,.02,-(Math.max(0,run.floor)-3.5)*1.55]} scale={.32} rotation={Math.PI} outlines={outlines} />
-    <Actor type="boss" position={[0,.02,-5.42]} scale={.28} rotation={0} outlines={outlines}/>
+    <Actor position={[(run.lane-1)*3,.02,-(Math.max(0,run.floor)-3.5)*1.55]} scale={.32} rotation={Math.PI} outlines={outlines} shadows={shadows} />
+    <Actor type="boss" position={[0,.02,-5.42]} scale={.28} rotation={0} outlines={outlines} shadows={shadows} />
   </group>;
 }
 
-function EntranceActor({ reduced, onComplete, outlines = true }) {
+function EntranceActor({ reduced, onComplete, outlines = true, shadows = true }) {
   const elapsed = useRef(0), finished = useRef(false), started = useRef(false);
   useFrame((_, delta) => {
     if (document.hidden || finished.current) return;
@@ -446,18 +520,44 @@ function EntranceActor({ reduced, onComplete, outlines = true }) {
     elapsed.current += Math.min(Math.max(0, delta), 0.1);
     if (elapsed.current > (reduced ? .3 : 3.2)) { finished.current = true; onComplete?.(); }
   });
-  return <Actor rotation={Math.PI} action={reduced ? 'idle' : 'walk'} still={reduced} outlines={outlines} control={() => ({ position: [0, 0, 1 - Math.min(1, elapsed.current / 3) * 3], scale: Math.max(.4, 1 - Math.max(0, elapsed.current - 2) * .35) })} />;
+  return <Actor rotation={Math.PI} action={reduced ? 'idle' : 'walk'} still={reduced} outlines={outlines} shadows={shadows} control={() => ({ position: [0, 0, 1 - Math.min(1, elapsed.current / 3) * 3], scale: Math.max(.4, 1 - Math.max(0, elapsed.current - 2) * .35) })} />;
 }
 
-function SceneReady({ callback }) {
-  const { gl, scene, camera, clock, invalidate } = useThree();
+const WARMUP_DIRECTOR = Object.freeze({ active: null });
+
+function WarmupVfx({ quality, reduced }) {
+  const pose = useRef({ heroX: -2.3, enemyX: ENEMY_HOME });
+  const sword = useRef(null);
+  return <group visible={false}>
+    <CombatAtmosphere director={WARMUP_DIRECTOR} quality={quality} sword={sword} />
+    <SwordTrail director={WARMUP_DIRECTOR} quality={quality} sword={sword} />
+    <SkillEffects director={WARMUP_DIRECTOR} quality={quality} sword={sword} />
+    <ImpactEffects director={WARMUP_DIRECTOR} pose={() => pose.current} quality={quality} reduced={reduced} />
+  </group>;
+}
+
+function SceneReady({ sceneInstanceId = 0, mode, qualityLevel, enemyType, callback }) {
+  const { gl, scene, camera, clock, invalidate, size } = useThree();
+  const sized = mode === 'warmup' || (size.width > 4 && size.height > 4);
   useEffect(() => {
+    if (!sized) return undefined;
+    let cancelled = false;
     // Compile all scene materials (including hidden combat VFX shaders) up front so the first attack never stalls.
-    try { gl.compile(scene, camera); } catch { /* Best-effort shader warmup */ }
-    clock.getDelta();
-    invalidate();
-    callback?.();
-  }, [gl, scene, camera, clock, invalidate, callback]);
+    const ready = async () => {
+      try {
+        if (typeof gl.compileAsync === 'function') await gl.compileAsync(scene, camera);
+        else gl.compile(scene, camera);
+      } catch {
+        /* Best-effort shader warmup */
+      }
+      if (cancelled) return;
+      clock.getDelta();
+      invalidate();
+      callback?.(sceneInstanceId);
+    };
+    ready();
+    return () => { cancelled = true; };
+  }, [gl, scene, camera, clock, invalidate, callback, sceneInstanceId, mode, qualityLevel, enemyType, sized]);
   return null;
 }
 
@@ -507,25 +607,31 @@ function RewardTreasureAura({ quality, reduced }) {
   </>;
 }
 
-export default function World({ mode='battle', state, playback, quality, reduced=false, run, onSelect, inspecting, onHighlight, highlightedNodeId, onComplete, won=true, onSceneReady, heroAction='idle', onAnchors, cameraView, studying=false, danger=false }) {
+export default function World({ mode='battle', sceneInstanceId=0, state, playback, quality, reduced=false, run, onSelect, inspecting, onHighlight, highlightedNodeId, onComplete, won=true, onSceneReady, heroAction='idle', onAnchors, cameraView, studying=false, danger=false }) {
   const variant=mode==='forge'||['ember','scarab','ravager','boss'].includes(state?.enemy.type)?'forge':['bat','wisp','watcher','mushroom'].includes(state?.enemy.type)?'library':'hall';
   const motesCount = quality.motes ?? quality.particles;
+  const shadows = Boolean(quality?.shadows);
+  const outlines = quality.outlines !== false;
   return <>
     <color attach="background" args={[DUSK.background]} />
     <fog attach="fog" args={[DUSK.background,...BATTLE_FOG]} />
-    <CameraFit mode={mode} view={cameraView} /><EnvironmentLight quality={quality} />
-    {mode==='battle'&&<BattleCamera director={playback} view={cameraView} studying={studying} danger={danger} reduced={reduced} snapStudy={quality.studyFps === 0} />}
-    {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} onHighlight={onHighlight} highlightedNodeId={highlightedNodeId} outlines={quality.outlines !== false} />}
+    <CameraFit mode={mode} view={cameraView} sceneInstanceId={sceneInstanceId} /><EnvironmentLight quality={quality} />
+    {mode==='battle'&&<BattleCamera key={`camera-${sceneInstanceId}`} director={playback} view={cameraView} studying={studying} danger={danger} reduced={reduced} snapStudy={quality.studyFps === 0} />}
+    {mode==='map'&&<MapRooms run={run} onSelect={onSelect} inspecting={inspecting} onHighlight={onHighlight} highlightedNodeId={highlightedNodeId} outlines={outlines} quality={quality} />}
     <Suspense fallback={null}>
-      {mode!=='map'&&<Dungeon variant={variant} mode={mode} quality={quality} />}
-      {mode==='battle'?<BattleActors state={state} director={playback} quality={quality} reduced={reduced} onAnchors={onAnchors} />
-        :mode==='entry'?<EntranceActor reduced={reduced} onComplete={onComplete} outlines={quality.outlines !== false} />
-          :mode==='map'?null:mode==='title'?<Actor position={[.9,0,.9]} rotation={-.38} action={heroAction} still={reduced} outlines={quality.outlines !== false} />
-            :<Actor position={[-1.3,0,0]} rotation={Math.PI/3} action={mode==='reward'?'victory':mode==='result'?won?'victory':'death':'idle'} still={reduced} outlines={quality.outlines !== false} />}
-      <SceneReady callback={onSceneReady}/>
+      {mode!=='map'&&<Dungeon variant={mode==='warmup'?'hall':variant} mode={mode==='warmup'?'battle':mode} quality={quality} />}
+      {mode==='warmup'?<>
+        <Actor type="hero" position={[.9,0,.9]} rotation={-.38} procedural outlines={outlines} shadows={shadows} still />
+        <WarmupVfx quality={quality} reduced={reduced} />
+      </>
+        :mode==='battle'?<BattleActors key={`actors-${sceneInstanceId}`} state={state} director={playback} quality={quality} reduced={reduced} onAnchors={onAnchors} />
+          :mode==='entry'?<EntranceActor key={`entry-${sceneInstanceId}`} reduced={reduced} onComplete={onComplete} outlines={outlines} shadows={shadows} />
+            :mode==='map'?null:mode==='title'?<Actor position={[.9,0,.9]} rotation={-.38} action={heroAction} still={reduced} outlines={outlines} shadows={shadows} />
+              :<Actor position={[-1.3,0,0]} rotation={Math.PI/3} action={mode==='reward'?'victory':mode==='result'?won?'victory':'death':'idle'} still={reduced} outlines={outlines} shadows={shadows} />}
+      <SceneReady key={`ready-${sceneInstanceId}`} sceneInstanceId={sceneInstanceId} mode={mode} qualityLevel={quality.level} enemyType={state?.enemy?.type} callback={onSceneReady} />
     </Suspense>
-    {['rest','forge'].includes(mode)&&<Camp forge={mode==='forge'} light={quality.pointLights !== false} />}
+    {['rest','forge'].includes(mode)&&<Camp forge={mode==='forge'} light={quality.pointLights !== false} shadows={shadows} />}
     {mode==='reward'&&<RewardTreasureAura quality={quality} reduced={reduced} />}
-    {motesCount > 0 && <Motes count={motesCount} still={reduced} />}
+    {mode!=='warmup'&&motesCount > 0 && <Motes count={motesCount} still={reduced} />}
   </>;
 }

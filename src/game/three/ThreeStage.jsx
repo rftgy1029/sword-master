@@ -1,9 +1,10 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import World from './World.jsx';
 import BattleBloom from './BattleBloom.jsx';
+import { createPerfMonitor } from './perfMonitor.js';
 import { effectiveFrameRate, probeGpuRenderer, qualityProfile } from './quality.js';
 
 /** Seed Three.js FileLoader cache without blocking the main thread with eager GLTF parsing. */
@@ -52,10 +53,17 @@ export function primeTextureCache(urls) {
   for (const url of urls) useLoader.preload(THREE.TextureLoader, url);
 }
 
-function RenderLoop({ fps, animate, onFailure, directorRef, onController, quality, bloom }) {
+function RenderLoop({
+  fps, animate, active, parked, warmupMode, sceneInstanceId, dynamicDpr,
+  monitor, onDropDpr, onPerfSuggest, onFailure, directorRef, onController, quality, bloom,
+}) {
   const { gl, invalidate, scene, camera, clock } = useThree();
   const failures = useRef(onFailure); failures.current = onFailure;
   const controllerCallback = useRef(onController); controllerCallback.current = onController;
+  const dropDprRef = useRef(onDropDpr); dropDprRef.current = onDropDpr;
+  const perfSuggestRef = useRef(onPerfSuggest); perfSuggestRef.current = onPerfSuggest;
+  const dynamicDprRef = useRef(dynamicDpr); dynamicDprRef.current = dynamicDpr;
+  const controllerInstanceRef = useRef(null);
   const sampleTime = useRef(null);
   const sample = (milliseconds) => {
     const director = directorRef.current, current = director?.active;
@@ -68,12 +76,35 @@ function RenderLoop({ fps, animate, onFailure, directorRef, onController, qualit
     director.deliver(current);
     sampleTime.current = null;
   };
-  useFrame(() => { if (sampleTime.current !== null && directorRef.current?.active) sample(sampleTime.current); }, -3);
+  useFrame((_, delta) => {
+    if (sampleTime.current !== null && directorRef.current?.active) sample(sampleTime.current);
+    if (!monitor || parked || warmupMode) return;
+    const minDpr = quality.minDpr ?? quality.dpr;
+    const canDropDpr = dynamicDprRef.current > minDpr + 0.001;
+    const result = monitor.recordFrame(delta * 1000, {
+      now: performance.now(),
+      active: active && !directorRef.current?.active?.manual,
+      targetFps: animate ? fps : 0,
+      hidden: document.hidden,
+      canDropDpr,
+    });
+    if (result.action === 'drop-dpr') dropDprRef.current?.();
+    else if (result.action === 'suggest-lower') perfSuggestRef.current?.(quality.level);
+  }, -3);
+  useEffect(() => {
+    gl.setPixelRatio(dynamicDpr);
+    invalidate();
+  }, [gl, invalidate, dynamicDpr]);
   useEffect(() => {
     gl.shadowMap.enabled = quality.shadows;
     if (quality.shadows) gl.shadowMap.needsUpdate = true;
     invalidate();
   }, [gl, invalidate, quality.shadows, quality.level]);
+  useEffect(() => {
+    if (controllerInstanceRef.current && !parked && !warmupMode) {
+      controllerCallback.current?.(controllerInstanceRef.current);
+    }
+  }, [sceneInstanceId, parked, warmupMode]);
   useEffect(() => {
     const lost = event => { event.preventDefault(); failures.current?.(); };
     gl.domElement.addEventListener('webglcontextlost', lost);
@@ -82,10 +113,11 @@ function RenderLoop({ fps, animate, onFailure, directorRef, onController, qualit
     tick();
     let rafId = 0;
     let lastTick = 0;
-    const minStep = fps > 0 ? Math.max(0, (1000 / fps) - 2) : Infinity;
+    const unthrottled = fps >= 60;
+    const minStep = fps > 0 && !unthrottled ? Math.max(0, (1000 / fps) - 2) : 0;
     const loop = (now) => {
       rafId = 0;
-      if (!document.hidden && (lastTick === 0 || now - lastTick >= minStep)) {
+      if (!document.hidden && (unthrottled || lastTick === 0 || now - lastTick >= minStep)) {
         lastTick = now;
         invalidate();
       }
@@ -102,9 +134,10 @@ function RenderLoop({ fps, animate, onFailure, directorRef, onController, qualit
         geometries: gl.info.memory.geometries, textures: gl.info.memory.textures, canvas: [gl.domElement.width, gl.domElement.height],
         active: !!directorRef.current?.active, effect: directorRef.current?.active?.effect.id, hidden: document.hidden,
         card: directorRef.current?.active?.effect.cardType, upgraded: directorRef.current?.active?.effect.upgraded, elapsed: directorRef.current?.active?.elapsed, manual: directorRef.current?.active?.manual, lastEffectId: directorRef.current?.lastId,
-        shadows: gl.shadowMap.enabled, pixelRatio: gl.getPixelRatio(), bloom,
+        shadows: gl.shadowMap.enabled, pixelRatio: gl.getPixelRatio(), dynamicDpr: dynamicDprRef.current, bloom,
         quality: quality.level, gpu: probeGpuRenderer(),
         fps: animate ? fps : 0, outlines: quality.outlines, environment: quality.environment, pointLights: quality.pointLights,
+        sharedCanvas: true, lightweightDungeon: Boolean(quality.lightweightDungeon),
       }),
       advance: milliseconds => { sampleTime.current = null; directorRef.current?.advance(milliseconds); invalidate(); },
       sample: milliseconds => { sample(milliseconds); invalidate(); },
@@ -119,10 +152,12 @@ function RenderLoop({ fps, animate, onFailure, directorRef, onController, qualit
       settle: () => { sampleTime.current = null; directorRef.current?.finish(); invalidate(); },
       scene,
     };
+    controllerInstanceRef.current = controller;
     gl.domElement.__sword3d = controller;
     controllerCallback.current?.(controller);
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
+      controllerInstanceRef.current = null;
       gl.domElement.removeEventListener('webglcontextlost', lost);
       document.removeEventListener('visibilitychange', visible);
       delete gl.domElement.__sword3d;
@@ -134,6 +169,7 @@ function RenderLoop({ fps, animate, onFailure, directorRef, onController, qualit
 export default function ThreeStage({
   mode = 'battle', state, playback, playbackBusy = false, callbacks = {},
   graphicsQuality = 'balanced', motionPreference = 'normal', studying = false,
+  parked = false, sceneInstanceId = 0, onWarmupReady, onPerfSuggest, warmupMode = false,
   onFailure, onLoaded, onController, ...worldProps
 }) {
   const directorRef = useRef(playback);
@@ -151,24 +187,54 @@ export default function ThreeStage({
     compact,
     pixelRatio: globalThis.devicePixelRatio ?? 1,
   }), [graphicsQuality, compact]);
+  const [dynamicDpr, setDynamicDpr] = useState(() => quality.dpr);
+  useEffect(() => {
+    setDynamicDpr(quality.dpr);
+  }, [quality.level, quality.dpr]);
+
+  const monitor = useMemo(() => createPerfMonitor(), []);
+  useEffect(() => {
+    monitor.reset();
+  }, [monitor, sceneInstanceId, quality.level, parked, warmupMode]);
+
+  const handleDropDpr = useCallback(() => {
+    const minDpr = quality.minDpr ?? quality.dpr;
+    setDynamicDpr((prev) => Math.max(minDpr, Number((prev - 0.15).toFixed(2))));
+  }, [quality.minDpr, quality.dpr]);
+
   const reduced = systemReduced || motionPreference !== 'normal';
-  const active = playbackBusy || mode === 'entry' || worldProps.heroAction === 'attack';
-  const targetFps = effectiveFrameRate(quality, { active, studying, reduced });
-  const animate = targetFps > 0;
-  const bloom = mode === 'battle' && quality.bloom && !reduced;
-  const latest = useRef({ callbacks, onLoaded }); latest.current = { callbacks, onLoaded };
+  const active = !parked && !warmupMode && (playbackBusy || mode === 'entry' || worldProps.heroAction === 'attack');
+  const targetFps = parked || warmupMode ? 0 : effectiveFrameRate(quality, { active, studying, reduced });
+  const animate = !parked && !warmupMode && targetFps > 0;
+  const bloom = !parked && !warmupMode && mode === 'battle' && quality.bloom && !reduced;
+  const latest = useRef({ callbacks, onLoaded, onWarmupReady, parked, warmupMode, sceneInstanceId, monitor });
+  latest.current = { callbacks, onLoaded, onWarmupReady, parked, warmupMode, sceneInstanceId, monitor };
   const bridge = useMemo(() => ({
-    onReady: () => { latest.current.onLoaded?.(); latest.current.callbacks.onReady?.(); },
+    onReady: (readySceneId) => {
+      if (latest.current.warmupMode) {
+        latest.current.onWarmupReady?.();
+        return;
+      }
+      if (latest.current.parked) return;
+      if (readySceneId !== latest.current.sceneInstanceId) return;
+      latest.current.monitor.markReady(performance.now());
+      latest.current.onLoaded?.(readySceneId);
+      latest.current.callbacks.onReady?.();
+    },
   }), []);
-  return <Canvas className="three-canvas" shadows={quality.shadows ? THREE.PCFSoftShadowMap : false} dpr={quality.dpr} frameloop="demand"
+  return <Canvas key={quality.antialias ? 'aa' : 'noaa'} className="three-canvas" shadows={quality.shadows ? THREE.PCFSoftShadowMap : false} dpr={dynamicDpr} frameloop="demand"
     camera={{ fov: 37, near: .1, far: 60, position: [1, 4, 9] }}
     gl={{ antialias: quality.antialias, alpha: false, powerPreference: quality.powerPreference, preserveDrawingBuffer: import.meta.env.DEV }}
     onCreated={({ gl }) => { gl.toneMapping = THREE.ACESFilmicToneMapping; gl.toneMappingExposure = .95; gl.domElement.dataset.renderer = 'three'; }}>
-    <RenderLoop fps={targetFps} animate={animate} onFailure={onFailure} directorRef={directorRef} onController={onController}
-      bloom={bloom} quality={quality} />
+    <RenderLoop fps={targetFps} animate={animate} active={active} parked={parked} warmupMode={warmupMode}
+      sceneInstanceId={sceneInstanceId} dynamicDpr={dynamicDpr} monitor={monitor}
+      onDropDpr={handleDropDpr} onPerfSuggest={onPerfSuggest} onFailure={onFailure}
+      directorRef={directorRef} onController={onController} bloom={bloom} quality={quality} />
     {bloom && <BattleBloom />}
     <Suspense fallback={null}>
-      <World {...worldProps} mode={mode} state={state} playback={playback} quality={quality} reduced={reduced} studying={studying} onSceneReady={bridge.onReady} />
+      {parked ? <group visible={false} />
+        : warmupMode ? <World mode="warmup" sceneInstanceId={0} quality={quality} reduced={reduced} onSceneReady={bridge.onReady} />
+          : <World {...worldProps} mode={mode} sceneInstanceId={sceneInstanceId} state={state} playback={playback} quality={quality} reduced={reduced} studying={studying} onSceneReady={bridge.onReady} />}
     </Suspense>
   </Canvas>;
 }

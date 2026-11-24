@@ -63,3 +63,17 @@ export function saveSettings(settings, storage) {
     return false;
   }
 }
+
+/**
+ * Resolve starting settings on app boot: preserve explicit user choices, or auto-initialize
+ * and persist `recommendedQuality` on first visit / legacy 'auto' saves.
+ */
+export function resolveInitialSettings(recommendedQuality, storage) {
+  if (hasChosenGraphicsQuality(storage)) {
+    return { settings: readSettings(storage), autoInitialized: false };
+  }
+  const existing = readSettings(storage);
+  const settings = normalizeSettings({ ...existing, graphicsQuality: recommendedQuality });
+  saveSettings(settings, storage);
+  return { settings, autoInitialized: true };
+}

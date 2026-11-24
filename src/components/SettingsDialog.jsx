@@ -1,10 +1,18 @@
 import { TransitionVeil, useSceneTransition } from './SceneTransition.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS } from '../settings.js';
+import { useGraphics } from './GraphicsContext.jsx';
 
 const TABS = [
   { id: 'display', label: '화면·연출', number: '01' },
   { id: 'controls', label: '조작 안내', number: '02' },
+];
+
+const QUALITY_CHOICES = [
+  ['lowest', '매우 낮음'],
+  ['low', '가벼움'],
+  ['balanced', '보통'],
+  ['high', '높음'],
 ];
 
 function SettingOptions({ name, title, description, choices, value, onChange }) {
@@ -28,6 +36,7 @@ function SettingOptions({ name, title, description, choices, value, onChange }) 
 }
 
 export default function SettingsDialog({ settings, onChange, onReset, saved, onClose, onTutorial }) {
+  const { recommendedQuality } = useGraphics();
   const dialog = useRef(null);
   const transition = useSceneTransition();
   const requestClose = () => transition(() => dialog.current.close());
@@ -137,8 +146,11 @@ export default function SettingsDialog({ settings, onChange, onReset, saved, onC
               <SettingOptions name="renderer" title="게임 화면" description="입체적인 던전 또는 가벼운 일러스트 화면을 선택해요."
                 choices={[[ 'auto','자동' ],[ '3d','입체 화면' ],[ '2d','간편 화면' ]]}
                 value={settings.renderer} onChange={changeSetting}/>
-              <SettingOptions name="graphicsQuality" title="그래픽 품질" description="기기에 맞는 3D 화질을 직접 선택해요. 랙이 걸리면 낮음이나 매우 낮음을 고르세요."
-                choices={[[ 'lowest','매우 낮음' ],[ 'low','낮음' ],[ 'balanced','보통' ],[ 'high','높음' ]]}
+              <SettingOptions name="graphicsQuality" title="그래픽 품질" description="기기에 맞는 3D 화질을 선택해요. 크롬북·노트북은 가벼움(전투 60fps · 저전력)을 추천하며, 처음 1회 준비 후 실제 전투를 보고 조절해 주세요."
+                choices={QUALITY_CHOICES.map(([option, label]) => [
+                  option,
+                  recommendedQuality === option ? `${label} (추천)` : label,
+                ])}
                 value={settings.graphicsQuality} onChange={changeSetting}/>
               <SettingOptions name="backgroundMotion" title="게임 애니메이션" description="화면 전환, 카드 기술과 배경의 움직임을 조절해요."
                 choices={[[ 'normal', '기본' ], [ 'reduced', '줄이기' ], [ 'off', '끄기' ]]}
