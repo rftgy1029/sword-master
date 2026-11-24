@@ -328,15 +328,14 @@ html:has(.vocabulary-dialog[open]) { overflow: hidden; }
 .tier-name small { font-size: 8px; letter-spacing: 1px; color: #8e9a84; }
 .tier-count { margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; color: #c1c9b9; }
 .tier-count small { margin-left: 2px; font-size: 9px; color: #8e9a84; }
-.tier-crest { width: 24px; height: 28px; flex-shrink: 0; fill: var(--tier-color); shape-rendering: crispEdges; }
-.tier-bronze { --tier-color: #c59672; }
-.tier-silver { --tier-color: #b9c6c8; }
-.tier-gold { --tier-color: #ddbd6e; }
-.tier-platinum { --tier-color: #8bc6b9; }
-.tier-master { --tier-color: #c8abd6; }
-.crest-inset { fill: #24302a; }
-.crest-star { fill: var(--tier-color); }
-.tier-crest.is-small { width: 20px; height: 24px; }
+.tier-crest { width: 26px; height: 30px; flex-shrink: 0; shape-rendering: geometricPrecision; overflow: visible; }
+.tier-bronze { --tier-color: #d49a6a; }
+.tier-silver { --tier-color: #c2d2dc; }
+.tier-gold { --tier-color: #ebc25d; }
+.tier-platinum { --tier-color: #84ddd2; }
+.tier-master { --tier-color: #cfa0ee; }
+.tier-personal { --tier-color: #e2b46b; }
+.tier-crest.is-small { width: 22px; height: 25px; }
 .vocabulary-dialog .tier-note { margin: 26px 12px 0; font-size: calc(10px * var(--text-scale)); line-height: 2; color: #929f88; }
 .vocabulary-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .vocabulary-toolbar { padding: 24px 28px 19px; border-bottom: 1px solid var(--line); flex-shrink: 0; }

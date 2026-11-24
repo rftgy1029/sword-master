@@ -722,17 +722,28 @@
 .tier-crest-wrap {
   display: grid;
   place-items: center;
-  width: 72px;
-  height: 76px;
+  width: 82px;
+  height: 82px;
   border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, var(--tier-color, #d6a25c) 38%, #473852);
-  background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--tier-color, #d6a25c) 20%, #2b2136), #181221 82%);
-  box-shadow: inset 0 1px #ffffff18, 0 4px 12px #0006;
+  border: 1.5px solid color-mix(in srgb, var(--tier-color, #d6a25c) 44%, #473852);
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--tier-color, #d6a25c) 24%, #2d2238), #16101f 80%);
+  box-shadow: inset 0 1px #ffffff22, inset 0 -4px 10px #00000055, 0 5px 14px #00000066;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
 }
 
 .tier-selection .tier-choice .tier-crest {
-  width: 46px;
-  height: 54px;
+  width: 58px;
+  height: 65px;
+  filter: drop-shadow(0 3px 6px #0000007a);
+}
+
+.tier-selection .tier-choice[aria-pressed="true"] .tier-crest-wrap {
+  border-color: color-mix(in srgb, var(--tier-color, #f0be64) 80%, #fff4cc);
+  box-shadow:
+    inset 0 1px #fff8dc38,
+    0 0 18px color-mix(in srgb, var(--tier-color, #f0be64) 38%, transparent),
+    0 6px 14px #00000077;
 }
 
 .tier-card-title {
@@ -1442,12 +1453,12 @@
     background: var(--tier-color, #d6a25c);
   }
   .tier-crest-wrap {
-    width: 34px;
+    width: 36px;
     height: 36px;
   }
   .tier-selection .tier-choice .tier-crest {
-    width: 22px;
-    height: 26px;
+    width: 26px;
+    height: 29px;
   }
   .tier-card-title {
     align-items: flex-start;
@@ -1484,12 +1495,12 @@
     gap: 8px;
   }
   .tier-crest-wrap {
-    width: 62px;
-    height: 66px;
+    width: 68px;
+    height: 68px;
   }
   .tier-selection .tier-choice .tier-crest {
-    width: 40px;
-    height: 48px;
+    width: 48px;
+    height: 54px;
   }
   .tier-brief-strip {
     padding: 10px 14px;
@@ -1497,12 +1508,14 @@
 }
 
 .app:is([data-background-motion="off"], [data-background-motion="reduced"]) .tier-selection .tier-choice,
+.app:is([data-background-motion="off"], [data-background-motion="reduced"]) .tier-crest-wrap,
 .app:is([data-background-motion="off"], [data-background-motion="reduced"]) .game-dialog .game-card {
   transition: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tier-selection .tier-choice,
+  .tier-crest-wrap,
   .game-dialog .game-card {
     transition: none !important;
   }
