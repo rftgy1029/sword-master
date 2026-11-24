@@ -1,3 +1,4 @@
+// @ts-check
 import { CARDS, cardDetails } from './catalog.js';
 import { intentFor } from './engine.js';
 import { describeEnemyIntent } from './enemyIntent.js';
@@ -5,8 +6,17 @@ import { describeEnemyIntent } from './enemyIntent.js';
 const relicLevel = (run, id) => run?.relics?.find((r) => r.id === id)?.level ?? 0;
 
 /**
+ * @typedef {{ enemyHp?: number, playerHp?: number, playerBlock?: number }} PreviewOverrides
+ * @typedef {{ kind: 'guard' | 'heal' | 'power' | 'focus' | 'draw' | 'energy', text: string }} HeroBadge
+ * @typedef {{ text: string, boosted: boolean, muted?: boolean }} CardEffectPart
+ */
+
+/**
  * 전투 중 손패 카드를 성공적으로 발동했을 때의 예상 결과를 engine.js와 같은 규칙으로 계산한다.
  * 실제 전투 상태(run)는 변경하지 않는다.
+ * @param {any} run
+ * @param {{ uid?: string, type: keyof typeof CARDS, upgraded?: boolean } | null | undefined} card
+ * @param {PreviewOverrides} [overrides]
  */
 export function previewCardPlay(run, card, overrides = {}) {
   const b = run?.battle;
@@ -102,14 +112,15 @@ export function previewCardPlay(run, card, overrides = {}) {
     weak: Boolean(c.weak && focus > 0),
   };
 
-  const heroBadges = [
+  /** @type {HeroBadge[]} */
+  const heroBadges = /** @type {HeroBadge[]} */ ([
     blockGain > 0 && { kind: 'guard', text: `방어 +${blockGain}` },
     healGain > 0 && { kind: 'heal', text: `HP +${healGain}` },
     strengthGain > 0 && { kind: 'power', text: `힘 +${strengthGain}` },
     focusGain > 0 && { kind: 'focus', text: `집중 +${focusGain}` },
     drawGain > 0 && { kind: 'draw', text: `+${drawGain}장` },
     energyGain > 0 && { kind: 'energy', text: `에너지 +${energyGain}` },
-  ].filter(Boolean);
+  ].filter(Boolean));
 
   return {
     card,
@@ -143,10 +154,14 @@ export function previewCardPlay(run, card, overrides = {}) {
 /**
  * 카드 표면에 보여 줄 전투 중 실시간 효과 조각을 만든다.
  * 힘·집중·유물 보정이 적용된 수치를 바로 보여 주어 암산을 줄인다.
+ * @param {any} run
+ * @param {{ uid?: string, type: keyof typeof CARDS, upgraded?: boolean }} card
+ * @returns {CardEffectPart[]}
  */
 export function liveCardEffects(run, card) {
   const c = cardDetails(card);
   const preview = run?.battle ? previewCardPlay(run, card) : null;
+  /** @type {CardEffectPart[]} */
   const parts = [];
 
   if (c.damage) {
@@ -191,6 +206,9 @@ export function liveCardEffects(run, card) {
 
 /**
  * 퀴즈 카드 상단 배너용 1줄 요약 텍스트.
+ * @param {any} run
+ * @param {{ uid?: string, type: keyof typeof CARDS, upgraded?: boolean } | null | undefined} card
+ * @returns {string}
  */
 export function summarizeCardEffect(run, card) {
   if (!card) return '';
@@ -200,6 +218,8 @@ export function summarizeCardEffect(run, card) {
 
 /**
  * 카드 종류에 따른 시각적 역할군(색상 코드용).
+ * @param {keyof typeof CARDS} type
+ * @returns {'attack' | 'guard' | 'heal' | 'debuff' | 'buff'}
  */
 export function cardRoleTone(type) {
   const kind = CARDS[type]?.kind;

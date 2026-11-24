@@ -1,3 +1,4 @@
+// @ts-check
 import { CARDS, MONSTERS, NODE_TYPES, RELICS } from './catalog.js';
 import { emptyProgress } from './engine.js';
 import { acceptsAnswer, distractorsFor, isCorrectAnswer, normalizeAnswer, questionById } from './quiz.js';
@@ -6,7 +7,11 @@ import { TIERS } from '../vocabulary.js';
 
 export const PROGRESS_KEY = 'sword-master.adventure.v1';
 const integer = (n, max = 100000000) => Number.isInteger(n) && n >= 0 && n <= max;
-const object = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
+/**
+ * @param {unknown} x
+ * @returns {x is Record<string, any>}
+ */
+function object(x) { return x !== null && typeof x === 'object' && !Array.isArray(x); }
 const tier = (id) => TIERS.some((t) => t.id === id);
 const unique = (xs) => new Set(xs).size === xs.length;
 const cardIds = (xs) => Array.isArray(xs) && xs.length <= 100 && xs.every((x) => typeof x === 'string');
@@ -95,6 +100,11 @@ function validReview(review, books, entries) {
     unique(session.ids) && session.ids.every((id) => entries[id]?.wrong > 0));
 }
 
+/**
+ * @typedef {Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>} StorageLike
+ */
+
+/** @param {unknown} p */
 export function validProgress(p) {
   try {
     if (!object(p) || p.version !== 1 || !object(p.learning)) return false;
@@ -119,6 +129,10 @@ export function validProgress(p) {
   } catch { return false; }
 }
 
+/**
+ * @param {StorageLike} [storage]
+ * @param {string} [key]
+ */
 export function loadProgress(storage, key = PROGRESS_KEY) {
   try {
     const raw = (storage ?? globalThis.localStorage).getItem(key);
@@ -137,6 +151,12 @@ export function loadProgress(storage, key = PROGRESS_KEY) {
   }
 }
 
+/**
+ * @param {unknown} progress
+ * @param {string | null} expectedRaw
+ * @param {StorageLike} [storage]
+ * @param {string} [key]
+ */
 export function persistProgress(progress, expectedRaw, storage, key = PROGRESS_KEY) {
   try {
     const target = storage ?? globalThis.localStorage;
@@ -150,6 +170,10 @@ export function persistProgress(progress, expectedRaw, storage, key = PROGRESS_K
   }
 }
 
+/**
+ * @param {StorageLike} [storage]
+ * @param {string} [key]
+ */
 export function clearProgress(storage, key = PROGRESS_KEY) {
   try {
     (storage ?? globalThis.localStorage).removeItem(key);

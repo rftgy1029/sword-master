@@ -14,7 +14,7 @@
 
 ## 기술 구성과 주요 위치
 
-- **React 19 + Vite 8 + JavaScript + CSS**(Node.js 20.19+ / 22.12+ 기준)를 사용한다. 개발 소스와 명령 실행 기준은 이 저장소 루트다.
+- **React 19 + Vite 8 + JavaScript + CSS**(Node.js 20.19+ / 22.12+ 기준)를 사용한다. 정적 타입 검사는 파일 단위 옵트인 방식(`tsconfig.json`의 `allowJs: true`, `checkJs: false`, `strict: true`, `noImplicitAny: false` + 파일 상단 `// @ts-check`·JSDoc)으로 `tsc --noEmit`을 사용한다. 개발 소스와 명령 실행 기준은 이 저장소 루트다.
 - 기본 입체 장면(타이틀·입장·전투·보상·휴식·대장간·결과)은 **Three.js + React Three Fiber**로 구현한다. 모험 화면(`AdventureDialog`)은 풀스크린 레이아웃과 단일 뷰(고정 하단 액션 바)를, 던전 경로 지도는 평면 보드(`RouteMap`)를 사용한다. Phaser 4 기반 간편 화면과 그래픽 오류 시 2D 복구 흐름은 유지한다.
 - 개인 단어장 파싱(`papaparse`, `read-excel-file`)과 오답 PDF 내보내기(`pdfmake`)를 포함하며, 일반 웹 배포(`dist/`, `wrangler.jsonc`), 학생용 단일 HTML(`standalone/sword-master.html`), 관리자용 단일 HTML(`standalone/sword-master-admin.html`)을 모두 지원한다.
 - 전역 스타일은 `src/main.jsx`에서 `styles.css` → `premium.css` → `dusk.css` → `battleFocus.css` → `dungeonCraft.css` 순서로 불러온다. 스타일 수정 시 이 계층 순서를 존중한다.
@@ -41,7 +41,7 @@
 | `src/game/three/quality.js`, `src/game/three/toon.js` | 4단계 명시 품질(`lowest`·`low`·`balanced`·`high`)·GPU 추천·상황별 목표 FPS(`effectiveFrameRate`), 툰 명암·선택적 외곽선·피격 플래시 |
 | `src/game/combatScene.js`, `src/game/attackEffects.js`, `src/game/enemyAttackEffects.js`, `src/game/titleScene.js`, `src/game/entranceScene.js`, `src/game/illustratedHero.js`, `src/game/spriteAssets.js`, `src/game/mapAssets.js`, `src/components/LegacyCombatScene.jsx`, `src/components/LegacyTitleScene.jsx` | Phaser 간편 화면·2D 복구 렌더링 및 일러스트·Tiled 맵 자산 |
 | `src/components/useCardDeal.js`, `src/game/cardDeal.js`, `src/game/cardArt.js`, `src/styles/`, `src/components/adventure.css`, `src/components/ui/` | 카드 드로우 연출, 카드 12종 일러스트(`assets/cards/*.webp`), 스타일 계층(`premium`·`dusk`·`battleFocus`·`dungeonCraft`), 벡터 아이콘(`GameIcon`)·티어 문장(`TierCrest`)·칼 로고(`SwordLogo`)·포털 툴팁(`FloatingTooltip`) |
-| `public/`, `assets/`, `scripts/`, `standalone/`, `.agents/`, `wrangler.jsonc`, `vite.config.js` | 실행용 GLB·이펙트·글꼴·라이선스(`public/`), 원본 자산(`.blend`·Kenney·Tiled·Pixelorama·일러스트·카드 아트워크), 생성·빌드·검증 스크립트, 학생/관리자 단일 HTML, 에이전트 환경 설정(`.agents/environment.json`), Cloudflare Workers·Vite 모드 설정 |
+| `public/`, `assets/`, `scripts/`, `standalone/`, `.agents/`, `wrangler.jsonc`, `vite.config.js`, `tsconfig.json` | 실행용 GLB·이펙트·글꼴·라이선스(`public/`), 원본 자산(`.blend`·Kenney·Tiled·Pixelorama·일러스트·카드 아트워크), 생성·빌드·검증 스크립트, 학생/관리자 단일 HTML, 에이전트 환경 설정(`.agents/environment.json`), Cloudflare Workers·Vite 모드·옵트인 JSDoc 타입 검사 설정 |
 | `test/`, `dev/three-preview.html`, `dev/animation-preview.html`, `dev/hero-preview.html` | `node --test` 자동 검사(29개 파일·154개 검사)와 저장 없이 확인하는 3D·연출·일러스트 미리보기 |
 
 ## 게임 상태·학습 자료·저장 보호
@@ -94,6 +94,7 @@
 | `npm run dev` | 개발 서버: http://127.0.0.1:8175/ |
 | `npm run dev:admin` | 관리자 모드 개발 서버: http://127.0.0.1:8175/ (`Ctrl/Alt+Shift+A` 오버레이) |
 | `npm test` | 게임 규칙·저장·출제·단어장·프리로드·튜토리얼·관리자·카메라·연출 등 자동 검사(29개 파일·154개 검사) |
+| `npm run typecheck` | `// @ts-check` 적용 파일 정적 타입 검사(`tsc --noEmit`) |
 | `npm run build` | 일반 웹 배포 빌드(`dist/`) |
 | `npm run build:single` | 학생용 단일 HTML 파일 빌드(`standalone/sword-master.html`) |
 | `npm run build:admin` | 관리자용 단일 HTML 파일 빌드(`standalone/sword-master-admin.html`) |
@@ -104,7 +105,7 @@
 | `npm run test:survey` | 브론즈 클리어 설문 안내·설문 메뉴 조건 브라우저 검증 |
 | `npm run assets:check` | 보관 Pixelorama 원본과 산출물 일치 확인 |
 
-- 코드·동작 변경은 관련 자동 검사와 빌드를 실행하고, 영향 범위에 맞는 브라우저 검증을 수행한다. 배포·공유용 산출물을 함께 갱신하는 작업에서는 `npm run build:single`과 필요 시 `npm run build:admin`으로 `standalone/` 반영 여부도 확인한다. 문서만 변경할 때는 내용·참조·차이를 확인한다.
+- 코드·동작 변경은 관련 자동 검사(`npm test`), 타입 검사(`npm run typecheck`), 빌드를 실행하고, 영향 범위에 맞는 브라우저 검증을 수행한다. `// @ts-check` 적용 파일(현재 `src/game/storage.js`, `src/game/cardPreview.js`)의 JSDoc 타입을 유지하며, 핵심 로직 추가·수정 시 점진적으로 확장한다. 배포·공유용 산출물을 함께 갱신하는 작업에서는 `npm run build:single`과 필요 시 `npm run build:admin`으로 `standalone/` 반영 여부도 확인한다. 문서만 변경할 때는 내용·참조·차이를 확인한다.
 - 브라우저 검증에는 실행 중인 개발 서버와 Playwright Chromium이 필요하다. 설치가 필요하면 `npx playwright install chromium`, 기존 브라우저를 사용할 때는 `CHROMIUM_PATH`를 사용한다. 서버 주소 변경에는 `BROWSER_BASE_URL`을 사용한다.
 - 시각적 변경은 실제 브라우저에서 확인한다. 모션·카메라 변경은 영상이나 연속 캡처(`node scripts/capture-combat.mjs` 등)로 이동·접촉·복귀를 확인한다.
 - 새로운 테스트는 타격 횟수·순서·중복 방지·완료·저장 호환성·카메라 안전성·관리자 격리 등 실제로 중요한 동작을 검증한다.
