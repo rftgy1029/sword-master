@@ -1,0 +1,85 @@
+name: Publish beta to Discord
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Discord에 업로드 (해제하면 빌드 파일만 생성)'
+        type: boolean
+        default: false
+      patch_notes:
+        description: 'Discord에 함께 올릴 패치노트'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  beta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BETA_HTML: standalone/sword-master.html
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify game
+        run: |
+          npm test
+          npm run typecheck
+      - name: Build student HTML
+        run: |
+          rm -f "$BETA_HTML"
+          npm run build:single
+          test -s "$BETA_HTML"
+      - name: Save HTML for download
+        uses: actions/upload-artifact@v7
+        with:
+          path: standalone/sword-master.html
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+      - name: Post HTML and patch notes to Discord
+        if: inputs.publish
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          PATCH_NOTES: ${{ inputs.patch_notes }}
+        run: |
+          if [[ ! "$DISCORD_WEBHOOK_URL" =~ ^https://discord\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+$ ]]; then
+            echo 'Set DISCORD_WEBHOOK_URL to the Discord channel webhook URL.'
+            exit 1
+          fi
+
+          version=$(node -p "require('./package.json').version")
+          message="S’word Master 오픈베타 v$version"$'\n''HTML 파일을 다운로드한 뒤 브라우저로 열어주세요.'
+          if [[ -n "$PATCH_NOTES" ]]; then
+            message+=$'\n\n'"$PATCH_NOTES"
+          fi
+          if (( ${#message} > 2000 )); then
+            echo 'Shorten the patch notes so the Discord message is at most 2,000 characters.'
+            exit 1
+          fi
+          payload=$(jq -cn --arg content "$message" '{content: $content, allowed_mentions: {parse: []}}')
+
+          response=$(mktemp)
+          trap 'rm -f "$response"' EXIT
+          status=$(curl --silent --show-error --max-time 90 --output "$response" \
+            --write-out '%{http_code}' --form-string "payload_json=$payload" \
+            --form "files[0]=@$BETA_HTML;type=text/html" "${DISCORD_WEBHOOK_URL}?wait=true")
+          if [[ "$status" == 413 ]] || jq -e '.code == 40005' "$response" >/dev/null 2>&1; then
+            echo 'Discord rejected the file size. The HTML is available in the run artifacts.'
+            exit 1
+          fi
+          if [[ "$status" != 200 ]] || ! jq -e --arg name "${BETA_HTML##*/}" \
+            '.id and any(.attachments[]?; .filename == $name)' "$response" >/dev/null; then
+            echo "Discord did not confirm the attachment (HTTP $status)."
+            exit 1
+          fi
+          echo 'Discord confirmed receipt of the HTML attachment.'
