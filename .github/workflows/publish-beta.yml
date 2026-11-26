@@ -40,6 +40,7 @@ jobs:
           npm run build:single
           test -s "$BETA_HTML"
       - name: Save HTML for download
+        id: html
         uses: actions/upload-artifact@v7
         with:
           path: standalone/sword-master.html
@@ -50,6 +51,7 @@ jobs:
         if: inputs.publish
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          HTML_ARTIFACT_URL: ${{ steps.html.outputs.artifact-url }}
           PATCH_NOTES: ${{ inputs.patch_notes }}
         run: |
           if [[ ! "$DISCORD_WEBHOOK_URL" =~ ^https://discord\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+$ ]]; then
@@ -58,28 +60,59 @@ jobs:
           fi
 
           version=$(node -p "require('./package.json').version")
-          message="S’word Master 오픈베타 v$version"$'\n''HTML 파일을 다운로드한 뒤 브라우저로 열어주세요.'
-          if [[ -n "$PATCH_NOTES" ]]; then
-            message+=$'\n\n'"$PATCH_NOTES"
-          fi
-          if (( ${#message} > 2000 )); then
-            echo 'Shorten the patch notes so the Discord message is at most 2,000 characters.'
-            exit 1
-          fi
-          payload=$(jq -cn --arg content "$message" '{content: $content, allowed_mentions: {parse: []}}')
-
           response=$(mktemp)
-          trap 'rm -f "$response"' EXIT
-          status=$(curl --silent --show-error --max-time 90 --output "$response" \
-            --write-out '%{http_code}' --form-string "payload_json=$payload" \
-            --form "files[0]=@$BETA_HTML;type=text/html" "${DISCORD_WEBHOOK_URL}?wait=true")
-          if [[ "$status" == 413 ]] || jq -e '.code == 40005' "$response" >/dev/null 2>&1; then
-            echo 'Discord rejected the file size. The HTML is available in the run artifacts.'
-            exit 1
+          zip_dir=$(mktemp -d)
+          trap 'rm -f "$response"; rm -rf "$zip_dir"' EXIT
+
+          post() {
+            local instructions="$1" file="${2:-}" mime="${3:-}" message payload
+            local -a attachment=()
+            if [[ -n "$file" ]]; then
+              attachment=(--form "files[0]=@$file;type=$mime")
+            fi
+            message="S’word Master 오픈베타 v$version"$'\n'"$instructions"
+            if [[ -n "$PATCH_NOTES" ]]; then
+              message+=$'\n\n'"$PATCH_NOTES"
+            fi
+            if (( ${#message} > 2000 )); then
+              echo 'Shorten the patch notes so the Discord message is at most 2,000 characters.' >&2
+              exit 1
+            fi
+            payload=$(jq -cn --arg content "$message" '{content: $content, allowed_mentions: {parse: []}}')
+            status=$(curl --silent --show-error --max-time 90 --output "$response" \
+              --write-out '%{http_code}' --form-string "payload_json=$payload" \
+              "${attachment[@]}" "${DISCORD_WEBHOOK_URL}?wait=true")
+          }
+
+          too_large() {
+            [[ "$status" == 413 ]] || jq -e '.code == 40005' "$response" >/dev/null 2>&1
+          }
+
+          confirm_post() {
+            local expected="${1:-}"
+            if [[ "$status" != 200 ]] || ! jq -e --arg name "$expected" \
+              '.id and .channel_id and ($name == "" or any(.attachments[]?; .filename == $name))' "$response" >/dev/null; then
+              echo "Discord did not confirm the post (HTTP $status)."
+              exit 1
+            fi
+            jq -r '"Discord confirmed message \(.id) in channel \(.channel_id)."' "$response"
+          }
+
+          post 'HTML 파일을 다운로드한 뒤 브라우저로 열어주세요.' "$BETA_HTML" text/html
+          if ! too_large; then
+            confirm_post "${BETA_HTML##*/}"
+            exit 0
           fi
-          if [[ "$status" != 200 ]] || ! jq -e --arg name "${BETA_HTML##*/}" \
-            '.id and any(.attachments[]?; .filename == $name)' "$response" >/dev/null; then
-            echo "Discord did not confirm the attachment (HTTP $status)."
-            exit 1
+
+          archive="$zip_dir/sword-master.zip"
+          zip -9jq "$archive" "$BETA_HTML"
+          echo "Raw HTML: $(wc -c < "$BETA_HTML") bytes. ZIP: $(wc -c < "$archive") bytes."
+          post 'ZIP 파일을 다운로드해 압축을 푼 뒤 sword-master.html을 브라우저로 열어주세요.' "$archive" application/zip
+          if ! too_large; then
+            confirm_post sword-master.zip
+            exit 0
           fi
-          echo 'Discord confirmed receipt of the HTML attachment.'
+
+          post "[학생용 HTML 다운로드]($HTML_ARTIFACT_URL) (GitHub 로그인 필요, 7일간 다운로드 가능)"
+          confirm_post
+          echo 'Discord accepted the download link after rejecting both attachments.'
