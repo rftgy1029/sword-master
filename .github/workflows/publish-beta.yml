@@ -1,4 +1,4 @@
-name: Publish beta to Discord
+name: Publish release to Discord
 
 on:
   push:
@@ -159,7 +159,7 @@ jobs:
             if [[ -n "$file" ]]; then
               attachment=(--form "files[0]=@$file;type=$mime")
             fi
-            message="S’word Master 오픈베타 v$version"$'\n'"$instructions"
+            message="S’word Master 정식 업데이트 v$version"$'\n'"$instructions"
             if [[ -n "$PATCH_NOTES" ]]; then
               message+=$'\n\n'"$PATCH_NOTES"
             fi
