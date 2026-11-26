@@ -66,6 +66,71 @@ jobs:
           rm -f "$BETA_HTML"
           npm run build:single
           test -s "$BETA_HTML"
+      - name: Prepare the Discord HTML attachment
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { gzipSync } from 'node:zlib';
+
+          const file = process.env.BETA_HTML;
+          const limit = 20 * 1024 * 1024;
+          const original = readFileSync(file);
+          if (original.length <= limit) {
+            console.log(`Standalone HTML: ${original.length} bytes`);
+            process.exit(0);
+          }
+
+          const data = gzipSync(original, { level: 9 }).toString('base64');
+          const html = `<!doctype html>
+          <html lang="ko">
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>S’word Master</title>
+          <p id="status">게임을 여는 중…</p>
+          <noscript>게임을 열려면 브라우저에서 JavaScript를 켜 주세요.</noscript>
+          <script id="game" type="application/octet-stream">${data}</script>
+          <script>
+          window.addEventListener('load', async () => {
+            try {
+              const data = document.getElementById('game').textContent;
+              const bytes = Uint8Array.from(atob(data), char => char.charCodeAt(0));
+              const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+              const html = await new Response(stream).text();
+              document.open();
+              document.write(html);
+              document.close();
+            } catch (error) {
+              const status = document.getElementById('status');
+              if (status) status.textContent = '게임을 열지 못했어요. 최신 브라우저에서 다시 열어주세요.';
+              console.error(error);
+            }
+          }, { once: true });
+          </script>
+          </html>`;
+          const size = Buffer.byteLength(html);
+          writeFileSync(file, size < original.length ? html : original);
+          console.log(`Standalone HTML: ${Math.min(size, original.length)} bytes (source: ${original.length})`);
+          JS
+      - name: Verify the downloadable HTML
+        run: |
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import { resolve } from 'node:path';
+          import { pathToFileURL } from 'node:url';
+          import { chromium } from 'playwright';
+
+          const browser = await chromium.launch();
+          try {
+            const page = await browser.newPage();
+            await page.route(/^https?:\/\//, route => route.abort());
+            const fileUrl = pathToFileURL(resolve(process.env.BETA_HTML)).href;
+            await page.goto(fileUrl);
+            await page.locator('#root button:visible').first().waitFor({ timeout: 30_000 });
+            console.log('The game opened directly from the HTML file with web requests blocked.');
+          } finally {
+            await browser.close();
+          }
+          JS
       - name: Save HTML for download
         id: html
         uses: actions/upload-artifact@v7
@@ -86,8 +151,7 @@ jobs:
             version=${GITHUB_REF_NAME#v}
           fi
           response=$(mktemp)
-          zip_dir=$(mktemp -d)
-          trap 'rm -f "$response"; rm -rf "$zip_dir"' EXIT
+          trap 'rm -f "$response"' EXIT
 
           post() {
             local instructions="$1" file="${2:-}" mime="${3:-}" message payload
@@ -129,15 +193,6 @@ jobs:
             exit 0
           fi
 
-          archive="$zip_dir/sword-master.zip"
-          zip -9jq "$archive" "$BETA_HTML"
-          echo "Raw HTML: $(wc -c < "$BETA_HTML") bytes. ZIP: $(wc -c < "$archive") bytes."
-          post 'ZIP 파일을 다운로드해 압축을 푼 뒤 sword-master.html을 브라우저로 열어주세요.' "$archive" application/zip
-          if ! too_large; then
-            confirm_post sword-master.zip
-            exit 0
-          fi
-
           post "[학생용 HTML 다운로드]($HTML_ARTIFACT_URL) (GitHub 로그인 필요, 7일간 다운로드 가능)"
           confirm_post
-          echo 'Discord accepted the download link after rejecting both attachments.'
+          echo 'Discord accepted the download link after rejecting the HTML attachment.'
