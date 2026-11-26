@@ -1,10 +1,17 @@
 name: Publish beta to Discord
 
 on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
       publish:
         description: 'Discord에 업로드 (해제하면 빌드 파일만 생성)'
+        type: boolean
+        default: false
+      verify_channel:
+        description: '게시 없이 Discord 연결 채널 확인'
         type: boolean
         default: false
       patch_notes:
@@ -17,11 +24,31 @@ permissions:
 
 jobs:
   beta:
+    if: github.event_name != 'push' || !github.event.deleted
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       BETA_HTML: standalone/sword-master.html
     steps:
+      - name: Verify the Discord destination
+        if: github.event_name == 'push' || inputs.publish || inputs.verify_channel
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [[ ! "$DISCORD_WEBHOOK_URL" =~ ^https://discord\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+$ ]]; then
+            echo 'Set DISCORD_WEBHOOK_URL to the Discord channel webhook URL.'
+            exit 1
+          fi
+          webhook=$(curl --fail --silent --show-error --max-time 15 "$DISCORD_WEBHOOK_URL")
+          channel_id=$(jq -er '.channel_id | select(type == "string" and test("^[0-9]+$"))' <<< "$webhook")
+          # Fingerprint of the confirmed #찬영 channel ID.
+          expected=502bf35201b3b3cce4d6d815c7ba9308d060ff99e973093d6c7d2563af3a4ad1
+          actual=$(printf '%s' "$channel_id" | sha256sum | cut -d ' ' -f 1)
+          if [[ "$actual" != "$expected" ]]; then
+            echo 'Discord webhook points to a different channel. Update DISCORD_WEBHOOK_URL before publishing.'
+            exit 1
+          fi
+          echo 'Discord webhook points to the confirmed channel.'
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -48,18 +75,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Post HTML and patch notes to Discord
-        if: inputs.publish
+        if: github.event_name == 'push' || inputs.publish
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           HTML_ARTIFACT_URL: ${{ steps.html.outputs.artifact-url }}
           PATCH_NOTES: ${{ inputs.patch_notes }}
         run: |
-          if [[ ! "$DISCORD_WEBHOOK_URL" =~ ^https://discord\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+$ ]]; then
-            echo 'Set DISCORD_WEBHOOK_URL to the Discord channel webhook URL.'
-            exit 1
-          fi
-
           version=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            version=${GITHUB_REF_NAME#v}
+          fi
           response=$(mktemp)
           zip_dir=$(mktemp -d)
           trap 'rm -f "$response"; rm -rf "$zip_dir"' EXIT
@@ -95,7 +120,7 @@ jobs:
               echo "Discord did not confirm the post (HTTP $status)."
               exit 1
             fi
-            jq -r '"Discord confirmed message \(.id) in channel \(.channel_id)."' "$response"
+            jq -r '"Discord confirmed message \(.id)."' "$response"
           }
 
           post 'HTML 파일을 다운로드한 뒤 브라우저로 열어주세요.' "$BETA_HTML" text/html
