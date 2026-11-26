@@ -41,8 +41,8 @@ jobs:
           fi
           webhook=$(curl --fail --silent --show-error --max-time 15 "$DISCORD_WEBHOOK_URL")
           channel_id=$(jq -er '.channel_id | select(type == "string" and test("^[0-9]+$"))' <<< "$webhook")
-          # Fingerprint of the confirmed #찬영 channel ID.
-          expected=502bf35201b3b3cce4d6d815c7ba9308d060ff99e973093d6c7d2563af3a4ad1
+          # Fingerprint of the confirmed Discord channel ID.
+          expected=6f8e09008e00e4603948aa46996ab197d6966ad91f35b8719eed8bfb0fbf0055
           actual=$(printf '%s' "$channel_id" | sha256sum | cut -d ' ' -f 1)
           if [[ "$actual" != "$expected" ]]; then
             echo 'Discord webhook points to a different channel. Update DISCORD_WEBHOOK_URL before publishing.'
